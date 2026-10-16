@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360" fill="none">
+  <defs>
+    <linearGradient id="repairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#repairGrad)" />
+  <circle cx="500" cy="90" r="120" stroke="#818cf8" stroke-opacity="0.2" stroke-width="2" />
+  <circle cx="120" cy="270" r="100" stroke="#818cf8" stroke-opacity="0.15" stroke-width="2" />
+
+  <!-- Glass Card Feature -->
+  <rect x="40" y="45" width="280" height="270" rx="20" fill="url(#cardGrad)" stroke="#ffffff" stroke-opacity="0.25" />
+
+  <circle cx="85" cy="90" r="24" fill="#fbbf24" />
+  <!-- Lightning bolt -->
+  <path d="M85 75 L75 92 H87 L81 106 L95 89 H83 Z" fill="#78350f" />
+
+  <text x="125" y="86" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="bold">Inverter &amp; Electrical</text>
+  <text x="125" y="105" fill="#c7d2fe" font-family="system-ui, -apple-system, sans-serif" font-size="12">Power Backup &amp; Home Repair</text>
+
+  <!-- Inclusions -->
+  <g transform="translate(60, 150)" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+    <circle cx="8" cy="8" r="4" fill="#fbbf24" />
+    <text x="22" y="12">Tubular Battery Water Top-Up</text>
+    
+    <circle cx="8" cy="36" r="4" fill="#fbbf24" />
+    <text x="22" y="40">Load Testing &amp; MCB Breakers</text>
+
+    <circle cx="8" cy="64" r="4" fill="#fbbf24" />
+    <text x="22" y="68">Short-Circuit &amp; Switch Wiring</text>
+
+    <circle cx="8" cy="92" r="4" fill="#fbbf24" />
+    <text x="22" y="96">Appliance Voltage Stabilization</text>
+  </g>
+
+  <!-- Illustration -->
+  <g transform="translate(370, 75)">
+    <circle cx="110" cy="110" r="85" fill="#ffffff" fill-opacity="0.12" />
+    <!-- Battery / Inverter Box -->
+    <rect x="50" y="60" width="120" height="90" rx="10" fill="#1e1b4b" stroke="#818cf8" stroke-width="4" />
+    <rect x="80" y="48" width="20" height="12" rx="3" fill="#fbbf24" />
+    <rect x="120" y="48" width="20" height="12" rx="3" fill="#38bdf8" />
+    <circle cx="80" cy="105" r="10" fill="#22c55e" />
+    <circle cx="110" cy="105" r="10" fill="#22c55e" />
+    <circle cx="140" cy="105" r="10" fill="#22c55e" />
+    <!-- Wrench Tool -->
+    <path d="M150 140 L190 180" stroke="#fbbf24" stroke-width="12" stroke-linecap="round" />
+    <!-- Star Rating Tag -->
+    <rect x="50" y="200" width="120" height="34" rx="17" fill="#ffffff" />
+    <text x="68" y="222" fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold">★ 4.91 / 5.0</text>
+  </g>
+</svg>

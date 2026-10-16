@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360" fill="none">
+  <defs>
+    <linearGradient id="emgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#dc2626" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#emgGrad)" />
+  <circle cx="500" cy="180" r="140" stroke="#fca5a5" stroke-opacity="0.2" stroke-width="2" />
+
+  <!-- Glass Card Feature -->
+  <rect x="40" y="45" width="280" height="270" rx="20" fill="url(#cardGrad)" stroke="#ffffff" stroke-opacity="0.25" />
+
+  <circle cx="85" cy="90" r="24" fill="#fee2e2" />
+  <!-- Siren / Shield -->
+  <path d="M75 80 H95 V102 C95 108, 85 112, 85 112 C 85 112, 75 108, 75 102 Z" fill="#dc2626" />
+
+  <text x="125" y="86" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="bold">Emergency Concierge</text>
+  <text x="125" y="105" fill="#fecaca" font-family="system-ui, -apple-system, sans-serif" font-size="12">Immediate Escort &amp; Caretaker</text>
+
+  <!-- Inclusions -->
+  <g transform="translate(60, 150)" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+    <circle cx="8" cy="8" r="4" fill="#fca5a5" />
+    <text x="22" y="12">Guaranteed &lt;20 Min Dispatch</text>
+    
+    <circle cx="8" cy="36" r="4" fill="#fca5a5" />
+    <text x="22" y="40">Lifeline / Kamineni Hospital Escort</text>
+
+    <circle cx="8" cy="64" r="4" fill="#fca5a5" />
+    <text x="22" y="68">Dedicated On-Ground Attendant</text>
+
+    <circle cx="8" cy="92" r="4" fill="#fca5a5" />
+    <text x="22" y="96">Real-Time Doctor Updates to NRI</text>
+  </g>
+
+  <!-- Illustration -->
+  <g transform="translate(370, 75)">
+    <circle cx="110" cy="110" r="85" fill="#ffffff" fill-opacity="0.12" />
+    <!-- Ambulance Shield -->
+    <path d="M60 60 H160 V130 C160 180, 110 200, 110 200 C 110 200, 60 180, 60 130 Z" fill="#ffffff" />
+    <!-- Red Cross -->
+    <path d="M110 85 V135 M85 110 H135" stroke="#dc2626" stroke-width="14" stroke-linecap="round" />
+    <!-- Star Rating Tag -->
+    <rect x="50" y="210" width="120" height="34" rx="17" fill="#ffffff" />
+    <text x="68" y="232" fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold">★ 5.0 / 5.0</text>
+  </g>
+</svg>

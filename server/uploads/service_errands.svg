@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360" fill="none">
+  <defs>
+    <linearGradient id="errandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#9a3412" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#errandGrad)" />
+  <circle cx="500" cy="120" r="130" stroke="#fed7aa" stroke-opacity="0.2" stroke-width="2" />
+
+  <!-- Glass Card Feature -->
+  <rect x="40" y="45" width="280" height="270" rx="20" fill="url(#cardGrad)" stroke="#ffffff" stroke-opacity="0.25" />
+
+  <circle cx="85" cy="90" r="24" fill="#ffedd5" />
+  <!-- Shopping Bag / Basket -->
+  <path d="M73 85 H97 L94 105 H76 Z" fill="#ea580c" />
+  <path d="M79 85 C 79 78, 91 78, 91 85" stroke="#ea580c" stroke-width="3" fill="none" />
+
+  <text x="125" y="86" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="bold">Provisions &amp; Pooja</text>
+  <text x="125" y="105" fill="#fed7aa" font-family="system-ui, -apple-system, sans-serif" font-size="12">Fresh Groceries &amp; Temple Items</text>
+
+  <!-- Inclusions -->
+  <g transform="translate(60, 150)" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+    <circle cx="8" cy="8" r="4" fill="#fdba74" />
+    <text x="22" y="12">Farm Fresh Fruits &amp; Vegetables</text>
+    
+    <circle cx="8" cy="36" r="4" fill="#fdba74" />
+    <text x="22" y="40">Pooja Flowers, Camphor &amp; Oil</text>
+
+    <circle cx="8" cy="64" r="4" fill="#fdba74" />
+    <text x="22" y="68">Cold-Pressed Cooking Oils &amp; Dal</text>
+
+    <circle cx="8" cy="92" r="4" fill="#fdba74" />
+    <text x="22" y="96">Itemized Miryalaguda Market Bill</text>
+  </g>
+
+  <!-- Illustration -->
+  <g transform="translate(370, 75)">
+    <circle cx="110" cy="110" r="85" fill="#ffffff" fill-opacity="0.12" />
+    <!-- Produce Basket -->
+    <path d="M60 85 H160 L145 160 H75 Z" fill="#ffffff" />
+    <!-- Apple / Fruits -->
+    <circle cx="95" cy="80" r="18" fill="#ef4444" />
+    <circle cx="125" cy="80" r="18" fill="#f59e0b" />
+    <!-- Diya / Pooja Lamp -->
+    <path d="M90 135 Q110 120 130 135 Z" fill="#f59e0b" />
+    <circle cx="110" cy="120" r="5" fill="#ef4444" />
+    <!-- Star Rating Tag -->
+    <rect x="50" y="200" width="120" height="34" rx="17" fill="#ffffff" />
+    <text x="68" y="222" fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold">★ 4.94 / 5.0</text>
+  </g>
+</svg>

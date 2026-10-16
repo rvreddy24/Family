@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="360" rx="0" fill="url(#bgGrad)" />
+
+  <!-- Subtle Pattern Rings -->
+  <circle cx="480" cy="180" r="140" stroke="#ffffff" stroke-opacity="0.1" stroke-width="2" />
+  <circle cx="480" cy="180" r="90" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2" />
+  <circle cx="100" cy="80" r="60" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2" />
+
+  <!-- Glass Card Feature -->
+  <rect x="40" y="45" width="280" height="270" rx="20" fill="url(#cardGrad)" stroke="#ffffff" stroke-opacity="0.3" filter="url(#shadow)" />
+
+  <!-- Medical Cross Badge -->
+  <circle cx="85" cy="90" r="24" fill="#ffffff" />
+  <path d="M85 76 V104 M71 90 H99" stroke="#0284c7" stroke-width="6" stroke-linecap="round" />
+
+  <text x="125" y="86" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="bold">Doctor Consultation</text>
+  <text x="125" y="105" fill="#bae6fd" font-family="system-ui, -apple-system, sans-serif" font-size="12">At-Home Vitals &amp; Checkup</text>
+
+  <!-- ECG Line -->
+  <path d="M60 160 H110 L125 130 L140 190 L155 145 L170 170 L185 160 H290" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Inclusions -->
+  <g transform="translate(60, 205)" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+    <circle cx="8" cy="8" r="4" fill="#38bdf8" />
+    <text x="22" y="12">BP, Sugar &amp; Pulse Monitoring</text>
+    
+    <circle cx="8" cy="32" r="4" fill="#38bdf8" />
+    <text x="22" y="36">Physician Home Visit (Miryalaguda)</text>
+
+    <circle cx="8" cy="56" r="4" fill="#38bdf8" />
+    <text x="22" y="60">WhatsApp Digital Health Summary</text>
+  </g>
+
+  <!-- Stethoscope Hero Illustration -->
+  <g transform="translate(370, 75)">
+    <circle cx="110" cy="110" r="85" fill="#ffffff" fill-opacity="0.15" />
+    <!-- Stethoscope Tube -->
+    <path d="M60 50 C 60 140, 160 140, 160 50" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" />
+    <path d="M110 115 V160 C 110 185, 150 185, 150 160" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" />
+    <circle cx="150" cy="160" r="16" fill="#38bdf8" stroke="#ffffff" stroke-width="4" />
+    <!-- Earpieces -->
+    <circle cx="55" cy="50" r="8" fill="#38bdf8" />
+    <circle cx="165" cy="50" r="8" fill="#38bdf8" />
+    <!-- Star Rating Tag -->
+    <rect x="50" y="200" width="120" height="34" rx="17" fill="#ffffff" />
+    <text x="68" y="222" fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold">★ 4.95 / 5.0</text>
+  </g>
+</svg>

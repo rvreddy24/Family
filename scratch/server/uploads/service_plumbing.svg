@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="plumbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0FDF4"/>
+      <stop offset="100%" stop-color="#DCFCE7"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" rx="24" fill="url(#plumbGrad)"/>
+  <circle cx="490" cy="110" r="95" fill="#BBF7D0" opacity="0.6"/>
+  <!-- Tap Art -->
+  <g transform="translate(190, 70)">
+    <path d="M60 120 C60 80, 100 80, 140 80 L160 80 L160 110 L140 110" fill="none" stroke="#059669" stroke-width="12" stroke-linecap="round"/>
+    <rect x="80" y="50" width="60" height="20" rx="6" fill="#047857"/>
+    <circle cx="150" cy="140" r="10" fill="#10B981"/>
+    <path d="M150 160 C145 180, 155 180, 150 195" stroke="#10B981" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="50" y="320" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#064E3B">Plumbing &amp; Water Purifier</text>
+  <text x="50" y="355" font-family="system-ui, sans-serif" font-size="16" fill="#059669">Pipe leakage, RO service, overhead tank cleaning</text>
+</svg>

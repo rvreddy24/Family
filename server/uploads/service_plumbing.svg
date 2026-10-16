@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360" fill="none">
+  <defs>
+    <linearGradient id="plumbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d9488" />
+      <stop offset="100%" stop-color="#115e59" />
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#plumbGrad)" />
+  <circle cx="480" cy="200" r="130" stroke="#5eead4" stroke-opacity="0.18" stroke-width="2" />
+
+  <!-- Glass Card Feature -->
+  <rect x="40" y="45" width="280" height="270" rx="20" fill="url(#cardGrad)" stroke="#ffffff" stroke-opacity="0.25" />
+
+  <circle cx="85" cy="90" r="24" fill="#ccfbf1" />
+  <!-- Water Droplet -->
+  <path d="M85 75 C 85 75, 73 90, 73 98 C 73 105, 78 110, 85 110 C 92 110, 97 105, 97 98 C 97 90, 85 75, 85 75 Z" fill="#0d9488" />
+
+  <text x="125" y="86" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="bold">Water RO &amp; Plumbing</text>
+  <text x="125" y="105" fill="#99f6e4" font-family="system-ui, -apple-system, sans-serif" font-size="12">Pure Water &amp; Leakage Repairs</text>
+
+  <!-- Inclusions -->
+  <g transform="translate(60, 150)" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="12">
+    <circle cx="8" cy="8" r="4" fill="#5eead4" />
+    <text x="22" y="12">RO Candle &amp; Membrane Replacement</text>
+    
+    <circle cx="8" cy="36" r="4" fill="#5eead4" />
+    <text x="22" y="40">Water TDS &amp; Purity Testing</text>
+
+    <circle cx="8" cy="64" r="4" fill="#5eead4" />
+    <text x="22" y="68">Overhead Tank Float Valve Fix</text>
+
+    <circle cx="8" cy="92" r="4" fill="#5eead4" />
+    <text x="22" y="96">Bathroom Tap &amp; Pipe Leak Solution</text>
+  </g>
+
+  <!-- Illustration -->
+  <g transform="translate(370, 75)">
+    <circle cx="110" cy="110" r="85" fill="#ffffff" fill-opacity="0.12" />
+    <!-- Water Filter Unit -->
+    <rect x="70" y="50" width="80" height="120" rx="14" fill="#ffffff" stroke="#5eead4" stroke-width="4" />
+    <rect x="85" y="70" width="50" height="40" rx="6" fill="#0d9488" />
+    <!-- Water Dispense Tap -->
+    <path d="M110 135 V155 H125" stroke="#14b8a6" stroke-width="6" stroke-linecap="round" />
+    <circle cx="125" cy="165" r="4" fill="#5eead4" />
+    <!-- Star Rating Tag -->
+    <rect x="50" y="200" width="120" height="34" rx="17" fill="#ffffff" />
+    <text x="68" y="222" fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="bold">★ 4.89 / 5.0</text>
+  </g>
+</svg>

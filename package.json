@@ -1,0 +1,50 @@
+{
+  "name": "familyhubs",
+  "version": "1.0.0",
+  "description": "Enterprise-Grade Real-Time Managed Concierge Platform for Aging Parents in India",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev:user": "vite apps/user --port 3001",
+    "dev:admin": "vite apps/admin --port 3002",
+    "dev:partner": "vite apps/partner --port 3003",
+    "build:user": "vite build apps/user",
+    "build:admin": "vite build apps/admin",
+    "build:partner": "vite build apps/partner",
+    "build": "npm run build:user && npm run build:admin && npm run build:partner",
+    "dev": "concurrently --kill-others \"npm run start\" \"npm run dev:user\" \"npm run dev:admin\" \"npm run dev:partner\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.0.1",
+    "framer-motion": "^12.4.10",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.16.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
+    "tailwind-merge": "^3.0.2",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.9",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/leaflet": "^1.9.16",
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/ws": "^8.5.14",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.9",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  }
+}

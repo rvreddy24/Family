@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="repGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FEF3C7"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" rx="24" fill="url(#repGrad)"/>
+  <circle cx="480" cy="100" r="90" fill="#FDE68A" opacity="0.6"/>
+  <circle cx="100" cy="320" r="70" fill="#FCD34D" opacity="0.4"/>
+  <!-- Tools Art -->
+  <g transform="translate(190, 70)">
+    <rect x="40" y="40" width="140" height="150" rx="24" fill="#D97706" opacity="0.1"/>
+    <path d="M90 70 L140 120 M80 130 L130 80" stroke="#D97706" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="110" cy="100" r="18" fill="#F59E0B"/>
+    <path d="M60 160 L160 160" stroke="#B45309" stroke-width="10" stroke-linecap="round"/>
+    <path d="M110 50 L110 170" stroke="#B45309" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <text x="50" y="320" font-family="system-ui, sans-serif" font-size="28" font-weight="bold" fill="#78350F">Electrician &amp; Inverter Repair</text>
+  <text x="50" y="355" font-family="system-ui, sans-serif" font-size="16" fill="#D97706">Wiring, inverter battery top-up, fan &amp; AC fixes</text>
+</svg>

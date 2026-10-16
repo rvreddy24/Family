@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+    <rect width="600" height="600" fill="#1e293b"/>
+    <circle cx="300" cy="240" r="110" fill="#0284c7"/>
+    <circle cx="300" cy="200" r="70" fill="#fbcfe8"/>
+    <path d="M160 480 C 180 370, 420 370, 440 480 Z" fill="#38bdf8"/>
+    <!-- Watermark Stamp -->
+    <rect x="20" y="490" width="560" height="90" rx="8" fill="rgba(0,0,0,0.8)"/>
+    <text x="40" y="520" fill="#10b981" font-family="monospace" font-size="16" font-weight="bold">GEO-VERIFIED: 16.87242°N, 79.56308°E (18m from residence)</text>
+    <text x="40" y="545" fill="#f8fafc" font-family="monospace" font-size="14">PARTNER: K. Srinivas (ID: #401) | TASK: FH-84920</text>
+    <text x="40" y="568" fill="#94a3b8" font-family="monospace" font-size="12">TIMESTAMP: 2026-10-11 07:42:18 IST | TELANGANA STATE</text>
+  </svg>

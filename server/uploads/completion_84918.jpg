@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+    <rect width="600" height="600" fill="#0f172a"/>
+    <rect x="50" y="50" width="500" height="400" rx="12" fill="#334155"/>
+    <circle cx="300" cy="190" r="70" fill="#475569"/>
+    <rect x="230" y="280" width="140" height="150" rx="20" fill="#64748b"/>
+    <!-- Watermark Stamp -->
+    <rect x="20" y="490" width="560" height="90" rx="8" fill="rgba(0,0,0,0.85)"/>
+    <text x="40" y="520" fill="#10b981" font-family="monospace" font-size="16" font-weight="bold">COMPLETION PROOF: Kamineni Hospital Escort</text>
+    <text x="40" y="545" fill="#f8fafc" font-family="monospace" font-size="14">PRESCRIPTION &amp; VITALS REPORT LOGGED | TASK: FH-84918</text>
+    <text x="40" y="568" fill="#94a3b8" font-family="monospace" font-size="12">GPS: 16.8724°N, 79.5631°E | AUDITED &amp; APPROVED</text>
+  </svg>
