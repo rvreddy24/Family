@@ -34,6 +34,12 @@ const {
   updateSecuritySetting,
 } = require('./db');
 
+const {
+  checkSupabaseHealth,
+  uploadToSupabaseStorage,
+  isSupabaseConfigured,
+} = require('./supabase');
+
 const app = express();
 const server = http.createServer(app);
 
@@ -180,12 +186,23 @@ function broadcastEvent(type, payload, options = {}) {
 // ---------------- REST API ROUTES ----------------
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const supabaseStatus = await checkSupabaseHealth();
   res.json({
     status: 'ONLINE',
     uptime: process.uptime(),
     activeSockets: activeClients.size,
+    supabase: supabaseStatus,
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Supabase Connection Status
+app.get('/api/supabase/status', async (req, res) => {
+  const status = await checkSupabaseHealth();
+  res.json({
+    ...status,
+    projectUrl: process.env.SUPABASE_URL || null,
   });
 });
 
@@ -487,7 +504,19 @@ app.post('/api/upload', (req, res) => {
     const filePath = path.join(uploadsDir, safeName);
 
     fs.writeFileSync(filePath, buffer);
-    const imageUrl = `/uploads/${safeName}`;
+    let imageUrl = `/uploads/${safeName}`;
+
+    // Cloud upload if Supabase Storage is active
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudUrl = await uploadToSupabaseStorage(buffer, safeName, 'image/jpeg');
+        if (cloudUrl) {
+          imageUrl = cloudUrl;
+        }
+      } catch (storageErr) {
+        console.warn('[STORAGE] Falling back to local upload:', storageErr.message);
+      }
+    }
 
     res.json({
       success: true,

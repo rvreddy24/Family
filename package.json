@@ -18,6 +18,7 @@
     "dev": "concurrently --kill-others \"npm run start\" \"npm run dev:user\" \"npm run dev:admin\" \"npm run dev:partner\""
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "better-sqlite3": "^11.8.1",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",
