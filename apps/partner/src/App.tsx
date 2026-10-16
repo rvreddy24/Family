@@ -289,12 +289,13 @@ export default function PartnerApp() {
 
   const t = dict[lang];
 
-  const fetchData = async () => {
+  const fetchData = async (targetPartnerId?: unknown) => {
+    const pid = typeof targetPartnerId === 'string' ? targetPartnerId : partnerId;
     try {
       const apiBase = getApiBaseUrl();
       const [profRes, tasksRes] = await Promise.all([
-        fetch(`${apiBase}/api/partners/${partnerId}/profile`),
-        fetch(`${apiBase}/api/tasks?partnerId=${partnerId}`),
+        fetch(`${apiBase}/api/partners/${pid}/profile`),
+        fetch(`${apiBase}/api/tasks?partnerId=${pid}`),
       ]);
 
       if (profRes.ok) {
@@ -580,7 +581,7 @@ export default function PartnerApp() {
           localStorage.setItem('fh_partner_id', partner.id);
           setPartnerId(partner.id);
           setIsLoggedIn(true);
-          fetchData();
+          fetchData(partner.id);
         }}
       />
     );

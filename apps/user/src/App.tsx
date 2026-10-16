@@ -234,7 +234,7 @@ export default function UserApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           freeze: !isEscrowFrozen,
-          actorId: 'usr_demo_client',
+          actorId: currentUserId,
           actorRole: 'CLIENT',
           reason: isEscrowFrozen ? 'Client resumed standard escrow release' : 'Client emergency safety freeze from NRI portal',
         }),
@@ -347,7 +347,7 @@ export default function UserApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: 'usr_demo_client',
+          clientId: currentUserId,
           parentId: reqParentId,
           category: selectedService?.category || 'MEDICAL_TRANSPORT',
           title: reqTitle,
@@ -381,7 +381,7 @@ export default function UserApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: 'usr_demo_client',
+          clientId: currentUserId,
           parentName: newParentName,
           primaryPhone: newParentPhone,
           locality: newParentLocality,
@@ -1229,19 +1229,47 @@ export default function UserApp() {
 
             <form onSubmit={handleConfirmBooking} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Select Parent Residence</label>
-                <select
-                  value={reqParentId}
-                  onChange={(e) => setReqParentId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
-                  required
-                >
-                  {parents.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.parent_name} — {p.locality}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold">Select Parent Residence</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBookModal(false);
+                      setShowAddParentModal(true);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold"
+                  >
+                    + Add New Parent
+                  </button>
+                </div>
+                {parents.length === 0 ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center justify-between">
+                    <span>No parent registered yet.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBookModal(false);
+                        setShowAddParentModal(true);
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700"
+                    >
+                      Add Parent Now
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={reqParentId}
+                    onChange={(e) => setReqParentId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    required
+                  >
+                    {parents.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.parent_name} — {p.locality}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>

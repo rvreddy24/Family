@@ -898,6 +898,56 @@ function getUserById(id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(resolved);
 }
 
+function syncUserFromCloud(user) {
+  if (!user || !user.email) return null;
+  const cleanEmail = user.email.trim().toLowerCase();
+  const existing = getUserByEmail(cleanEmail);
+  if (existing) {
+    db.prepare(`
+      UPDATE users SET role = ?, phone = ?, full_name = ?, auth_provider_id = ?
+      WHERE id = ?
+    `).run(
+      user.role || existing.role,
+      user.phone || existing.phone,
+      user.full_name || user.fullName || existing.full_name,
+      user.auth_provider_id || user.id || existing.auth_provider_id,
+      existing.id
+    );
+    return getUserByEmail(cleanEmail);
+  }
+
+  const id = user.id || ('usr_' + Math.random().toString(36).substring(2, 9));
+  const role = user.role || 'CLIENT';
+  const fullName = user.full_name || user.fullName || (role === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
+  const phone = user.phone || '';
+  const now = user.created_at || new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, role, cleanEmail, phone, fullName, user.auth_provider_id || id, now);
+
+  if (role === 'PARTNER') {
+    const existingPartner = db.prepare('SELECT * FROM partners_profile WHERE user_id = ?').get(id);
+    if (!existingPartner) {
+      db.prepare(`
+        INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
+        VALUES (?, 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', 1, 1, 0.0)
+      `).run(id);
+    }
+  } else if (role === 'CLIENT') {
+    const existingClient = db.prepare('SELECT * FROM clients_profile WHERE user_id = ?').get(id);
+    if (!existingClient) {
+      db.prepare(`
+        INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
+        VALUES (?, 'United States', 'USD', 'GOLD')
+      `).run(id);
+    }
+  }
+
+  return getUserByEmail(cleanEmail);
+}
+
 function registerClientAccount({
   email,
   fullName,
@@ -1094,4 +1144,5 @@ module.exports = {
   getUserById,
   registerClientAccount,
   registerPartnerAccount,
+  syncUserFromCloud,
 };

@@ -36,6 +36,7 @@ const {
   getUserById,
   registerClientAccount,
   registerPartnerAccount,
+  syncUserFromCloud,
 } = require('./db');
 
 const {
@@ -237,9 +238,54 @@ app.post('/api/auth/login', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
+    // 0. Auto-sync from Supabase Cloud if user not yet in local SQLite
+    let user = getUserByEmail(cleanEmail);
+    if (!user) {
+      user = getUserById(email);
+    }
+
+    if (!user && supabaseAdmin) {
+      try {
+        const { data: cloudUser } = await supabaseAdmin
+          .from('users')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (cloudUser) {
+          user = syncUserFromCloud(cloudUser);
+        } else {
+          // Check Supabase Auth list for users added via Auth Dashboard
+          const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+          const matchAuth = authList?.users?.find(
+            (u) => u.email && u.email.toLowerCase() === cleanEmail
+          );
+          if (matchAuth) {
+            const roleFromMeta =
+              matchAuth.user_metadata?.role ||
+              (role === 'ADMIN' || matchAuth.email.includes('admin') ? 'ADMIN' : (role || 'CLIENT'));
+            const fullNameFromMeta =
+              matchAuth.user_metadata?.full_name ||
+              (roleFromMeta === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
+            user = syncUserFromCloud({
+              id: matchAuth.id,
+              role: roleFromMeta,
+              email: matchAuth.email,
+              phone: matchAuth.phone || matchAuth.user_metadata?.phone || '',
+              full_name: fullNameFromMeta,
+              auth_provider_id: matchAuth.id,
+              created_at: matchAuth.created_at || new Date().toISOString(),
+            });
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Supabase auto-sync check notice:', cloudErr.message);
+      }
+    }
+
     // 1. Admin Verification
     if (role === 'ADMIN') {
-      if (cleanEmail === 'demo.admin@familyhubs.com' || cleanEmail.includes('admin')) {
+      if (cleanEmail === 'demo.admin@familyhubs.com') {
         return res.json({
           success: true,
           user: {
@@ -250,19 +296,13 @@ app.post('/api/auth/login', async (req, res) => {
           },
         });
       }
-      const existingUser = getUserByEmail(cleanEmail);
-      if (existingUser && existingUser.role === 'ADMIN') {
-        return res.json({ success: true, user: existingUser });
+      if (user && user.role === 'ADMIN') {
+        return res.json({ success: true, user });
       }
       return res.status(401).json({ error: 'Invalid admin credentials or unauthorized account.' });
     }
 
     // 2. Client & Partner Verification
-    let user = getUserByEmail(cleanEmail);
-    if (!user) {
-      user = getUserById(email);
-    }
-
     // Support Demo credentials shortcuts
     if (!user) {
       if (role === 'CLIENT' && (cleanEmail === 'demo.client@familyhubs.com' || cleanEmail === 'usr_demo_client')) {

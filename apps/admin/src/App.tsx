@@ -47,6 +47,12 @@ export default function AdminApp() {
     return saved === null ? false : saved === 'true';
   });
 
+  const [adminId, setAdminId] = useState<string>(() => {
+    return localStorage.getItem('fh_admin_id') || 'usr_demo_admin';
+  });
+  const [adminName, setAdminName] = useState<string>(() => {
+    return localStorage.getItem('fh_admin_name') || 'Demo Operations Admin';
+  });
   const [adminEmail, setAdminEmail] = useState<string>('demo.admin@familyhubs.com');
   const [adminPassword, setAdminPassword] = useState<string>('DemoPassword123!');
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
@@ -150,7 +156,7 @@ export default function AdminApp() {
     const connect = () => {
       if (!isMounted) return;
       try {
-        const wsUrl = getWebSocketUrl('/ws/events', { role: 'ADMIN', userId: 'usr_demo_admin' });
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'ADMIN', userId: adminId });
         socket = new WebSocket(wsUrl);
         wsRef.current = socket;
 
@@ -257,7 +263,7 @@ export default function AdminApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminId: 'usr_demo_admin',
+          adminId: adminId,
           escrowPin: escrowPinInput,
         }),
       });
@@ -291,7 +297,7 @@ export default function AdminApp() {
       const res = await fetch(`${getApiBaseUrl()}/api/security/panic-freeze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: 'usr_demo_admin' }),
+        body: JSON.stringify({ actorId: adminId }),
       });
       if (res.ok) {
         fetchData();
@@ -312,7 +318,7 @@ export default function AdminApp() {
         body: JSON.stringify({
           key: 'escrow_release_pin',
           value: newPinInput,
-          actorId: 'usr_demo_admin',
+          actorId: adminId,
         }),
       });
       if (res.ok) {
@@ -337,7 +343,7 @@ export default function AdminApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           logId: pendingLog.id,
-          adminId: 'usr_demo_admin',
+          adminId: adminId,
           reason: rejectionReason || 'Photo is unclear or device GPS is outside the residence area.',
         }),
       });
@@ -410,7 +416,13 @@ export default function AdminApp() {
         throw new Error(data.error || 'Invalid admin credentials or clearance failure.');
       }
 
+      const uid = data.user?.id || 'usr_demo_admin';
+      const uname = data.user?.full_name || 'Demo Operations Admin';
       localStorage.setItem('fh_admin_logged_in', 'true');
+      localStorage.setItem('fh_admin_id', uid);
+      localStorage.setItem('fh_admin_name', uname);
+      setAdminId(uid);
+      setAdminName(uname);
       setIsLoggedIn(true);
       if (audioEnabled) playNotificationChime('success');
     } catch (err: any) {
@@ -633,17 +645,19 @@ export default function AdminApp() {
               className="border-l border-slate-200 pl-4 flex items-center gap-2.5 cursor-pointer"
             >
               <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center">
-                PV
+                {adminName.substring(0, 2).toUpperCase()}
               </div>
               <div className="hidden sm:block text-right">
-                <div className="text-xs font-bold text-slate-900">Demo Operations Admin</div>
-                <div className="text-[11px] text-slate-500">Chief Concierge #88</div>
+                <div className="text-xs font-bold text-slate-900">{adminName}</div>
+                <div className="text-[11px] text-slate-500">Chief Concierge Clearance</div>
               </div>
             </div>
 
             <button
               onClick={() => {
                 localStorage.removeItem('fh_admin_logged_in');
+                localStorage.removeItem('fh_admin_id');
+                localStorage.removeItem('fh_admin_name');
                 setIsLoggedIn(false);
               }}
               className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
