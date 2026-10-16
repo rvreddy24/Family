@@ -145,32 +145,27 @@ INSERT INTO security_settings (key, value) VALUES
   ('emergency_escrow_freeze', '0');
 
 -- Users
+-- Users (Exactly 3 Demo Accounts for Checking & Verification)
 INSERT INTO users (id, role, email, phone, full_name) VALUES
-  ('usr_admin_lead', 'ADMIN', 'prasad.varma@familyhubs.com', '+91 98490 11223', 'Prasad Varma'),
-  ('usr_client_ananya', 'CLIENT', 'ananya.reddy@gmail.com', '+1 408 555 0192', 'Ananya Reddy'),
-  ('usr_partner_srinivas', 'PARTNER', 'srinivas.k@partner.familyhubs.com', '+91 94401 54321', 'K. Srinivas'),
-  ('usr_partner_venkat', 'PARTNER', 'venkat.plumbing@partner.familyhubs.com', '+91 98480 12345', 'Venkat Reddy'),
-  ('usr_partner_ramesh', 'PARTNER', 'ramesh.goud@partner.familyhubs.com', '+91 97010 33445', 'Ramesh Goud'),
-  ('usr_partner_charyulu', 'PARTNER', 'charyulu@partner.familyhubs.com', '+91 99890 98765', 'S. Charyulu');
+  ('usr_demo_admin', 'ADMIN', 'demo.admin@familyhubs.com', '+91 90000 88888', 'Demo Operations Admin'),
+  ('usr_demo_client', 'CLIENT', 'demo.client@familyhubs.com', '+1 408 555 0192', 'Demo Client (NRI Family)'),
+  ('usr_demo_partner', 'PARTNER', 'demo.partner@familyhubs.com', '+91 94401 54321', 'Demo Field Partner');
 
 -- Client Profile
 INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier) VALUES
-  ('usr_client_ananya', 'United States', 'USD', 'GOLD');
+  ('usr_demo_client', 'United States (San Jose, CA)', 'USD', 'GOLD');
 
--- Field Partners Profile
+-- Field Partner Profile
 INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance) VALUES
-  ('usr_partner_srinivas', 'MEDICAL_TRANSPORT', 'Reddy Colony & Gandhi Park, Miryalaguda', TRUE, TRUE, 0.00),
-  ('usr_partner_venkat', 'HOME_MAINTENANCE', 'Miryalaguda Town & Sagar Road', TRUE, TRUE, 0.00),
-  ('usr_partner_ramesh', 'EMERGENCY', 'Old Nalgonda & Clock Tower', TRUE, TRUE, 0.00),
-  ('usr_partner_charyulu', 'ERRANDS', 'Miryalaguda (Housing Board & Reddy Colony)', TRUE, TRUE, 0.00);
+  ('usr_demo_partner', 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', TRUE, TRUE, 0.00);
 
 -- Parent Residence
 INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes) VALUES
-  ('prt_reddy_miryala', 'usr_client_ananya', 'Lakshmi & Ramana Reddy', '+91 94901 22334', 'Reddy Colony, Miryalaguda', 'H.No 4-128/A, Near Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207', 16.8724, 79.5631, 'Mother: Osteoarthritis (knee pain). Father: Type 2 Diabetes & Hypertension (daily BP monitor).');
+  ('prt_demo_parent', 'usr_demo_client', 'Lakshmi & Ramana Reddy (Parents)', '+91 94901 22334', 'Reddy Colony, Miryalaguda', 'H.No 4-128/A, Beside Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207', 16.8724, 79.5631, 'Father: Daily BP monitoring & cardiac health. Mother: Knee care mobility support.');
 
 -- System Initialization Audit Log
 INSERT INTO audit_logs (id, event_type, actor_id, actor_role, severity, details_json) VALUES
-  ('aud_init_001', 'SUPABASE_CLOUD_INITIALIZED', 'system', 'SYSTEM', 'LOW', '{"message": "FamilyHubs Supabase Cloud PostgreSQL Schema & Seed Data successfully initialized."}');
+  ('aud_init_demo', 'DEMO_ENVIRONMENT_READY', 'usr_demo_admin', 'ADMIN', 'LOW', '{"message": "FamilyHubs Clean Demo Environment Initialized with 3 accounts."}');
 
 -- ========================================================
 -- ENABLE ROW LEVEL SECURITY (RLS) WITH OPEN ACCESS POLICIES

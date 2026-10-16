@@ -147,6 +147,17 @@ function initDatabase() {
 
 // Clean core setup: ONLY system users, KYC-verified partners with 0 balance, and clean parent profiles
 // ZERO preloaded tasks, ZERO preloaded escrows, ZERO preloaded verification logs!
+const USER_ID_ALIASES = {
+  'usr_client_ananya': 'usr_demo_client',
+  'usr_admin_lead': 'usr_demo_admin',
+  'usr_partner_srinivas': 'usr_demo_partner',
+};
+
+function resolveUserId(id) {
+  if (!id) return id;
+  return USER_ID_ALIASES[id] || id;
+}
+
 function seedCleanCoreData() {
   const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
   if (userCount > 0) return;
@@ -172,156 +183,78 @@ function seedCleanCoreData() {
   `);
 
   const seedTx = db.transaction(() => {
-    // 1. Client NRI Users
+    // 1. Demo Client Account (NRI Family)
     insertUser.run({
-      id: 'usr_client_ananya',
+      id: 'usr_demo_client',
       role: 'CLIENT',
-      email: 'ananya.reddy@gmail.com',
+      email: 'demo.client@familyhubs.com',
       phone: '+1 408 555 0192',
-      full_name: 'Ananya Reddy',
-      auth_provider_id: 'google-oauth2|ananya-us-bayarea',
+      full_name: 'Demo Client (NRI Family)',
+      auth_provider_id: 'demo-auth|client-demo',
     });
     insertClient.run({
-      user_id: 'usr_client_ananya',
+      user_id: 'usr_demo_client',
       country_residence: 'United States (San Jose, CA)',
       currency: 'USD',
       subscription_tier: 'GOLD',
     });
 
+    // 2. Demo Operations Admin Account
     insertUser.run({
-      id: 'usr_client_rajesh',
-      role: 'CLIENT',
-      email: 'rajesh.sharma@outlook.com',
-      phone: '+44 7700 900123',
-      full_name: 'Rajesh Sharma',
-      auth_provider_id: 'auth0|rajesh-uk-london',
-    });
-    insertClient.run({
-      user_id: 'usr_client_rajesh',
-      country_residence: 'United Kingdom (London)',
-      currency: 'GBP',
-      subscription_tier: 'CONCIERGE_UNLIMITED',
-    });
-
-    // 2. Operations Admin User
-    insertUser.run({
-      id: 'usr_admin_lead',
+      id: 'usr_demo_admin',
       role: 'ADMIN',
-      email: 'ops.lead@familyhubs.com',
+      email: 'demo.admin@familyhubs.com',
       phone: '+91 90000 88888',
-      full_name: 'Prasad Varma (Chief Dispatcher)',
-      auth_provider_id: 'mfa-totp|admin-prasad',
+      full_name: 'Demo Operations Admin',
+      auth_provider_id: 'demo-auth|admin-demo',
     });
 
-    // 3. Registered Field Partners (Miryalaguda & Nalgonda Hubs, initial balance 0.00)
+    // 3. Demo Field Partner Account
     insertUser.run({
-      id: 'usr_partner_srinivas',
+      id: 'usr_demo_partner',
       role: 'PARTNER',
-      email: 'k.srinivas@partner.familyhubs.com',
+      email: 'demo.partner@familyhubs.com',
       phone: '+91 94401 54321',
-      full_name: 'K. Srinivas',
-      auth_provider_id: 'otp-sms|9440154321',
+      full_name: 'Demo Field Partner',
+      auth_provider_id: 'demo-auth|partner-demo',
     });
     insertPartner.run({
-      user_id: 'usr_partner_srinivas',
+      user_id: 'usr_demo_partner',
       service_category: 'MEDICAL_TRANSPORT',
-      operating_region: 'Miryalaguda & Nalgonda Hub',
+      operating_region: 'Miryalaguda Town & Rural Hub',
       kyc_verified: 1,
       is_active: 1,
       wallet_balance: 0.0,
     });
 
-    insertUser.run({
-      id: 'usr_partner_venkat',
-      role: 'PARTNER',
-      email: 'venkat.ramana@partner.familyhubs.com',
-      phone: '+91 98480 12345',
-      full_name: 'Venkat Ramana',
-      auth_provider_id: 'otp-sms|9848012345',
-    });
-    insertPartner.run({
-      user_id: 'usr_partner_venkat',
-      service_category: 'HOME_MAINTENANCE',
-      operating_region: 'Miryalaguda Town & Sagar Road',
-      kyc_verified: 1,
-      is_active: 1,
-      wallet_balance: 0.0,
-    });
-
-    insertUser.run({
-      id: 'usr_partner_ramesh',
-      role: 'PARTNER',
-      email: 'ramesh.goud@partner.familyhubs.com',
-      phone: '+91 97010 33445',
-      full_name: 'Ramesh Goud',
-      auth_provider_id: 'otp-sms|9701033445',
-    });
-    insertPartner.run({
-      user_id: 'usr_partner_ramesh',
-      service_category: 'EMERGENCY',
-      operating_region: 'Old Nalgonda & Clock Tower',
-      kyc_verified: 1,
-      is_active: 1,
-      wallet_balance: 0.0,
-    });
-
-    insertUser.run({
-      id: 'usr_partner_charyulu',
-      role: 'PARTNER',
-      email: 'charyulu@partner.familyhubs.com',
-      phone: '+91 99890 98765',
-      full_name: 'S. Charyulu',
-      auth_provider_id: 'otp-sms|9989098765',
-    });
-    insertPartner.run({
-      user_id: 'usr_partner_charyulu',
-      service_category: 'ERRANDS',
-      operating_region: 'Miryalaguda (Housing Board & Reddy Colony)',
-      kyc_verified: 1,
-      is_active: 1,
-      wallet_balance: 0.0,
-    });
-
-    // 4. Client's Parent Residences
+    // 4. Client's Registered Parent Residence in Miryalaguda
     insertParent.run({
-      id: 'prt_reddy_miryala',
-      client_id: 'usr_client_ananya',
-      parent_name: 'Lakshmi & Ramana Reddy',
+      id: 'prt_demo_parent',
+      client_id: 'usr_demo_client',
+      parent_name: 'Lakshmi & Ramana Reddy (Parents)',
       primary_phone: '+91 94901 22334',
       locality: 'Reddy Colony, Miryalaguda',
-      full_address: 'H.No 4-128/A, Near Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207',
+      full_address: 'H.No 4-128/A, Beside Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207',
       coordinates_lat: 16.8724,
       coordinates_lng: 79.5631,
-      medical_notes: 'Mother: Osteoarthritis (knee pain). Father: Type 2 Diabetes & Hypertension (daily BP monitor).',
-    });
-
-    insertParent.run({
-      id: 'prt_rao_nalgonda',
-      client_id: 'usr_client_ananya',
-      parent_name: 'Venkataswamy & Padmavati Rao',
-      primary_phone: '+91 98492 77889',
-      locality: 'Old Nalgonda (Clock Tower)',
-      full_address: 'Plot 18, Old Nalgonda Heritage Lane, Near Old Clock Tower, Nalgonda, Telangana 508001',
-      coordinates_lat: 17.0500,
-      coordinates_lng: 79.2667,
-      medical_notes: 'Father has mild tremor, cardiac checkup quarterly at Hyderabad Apollo.',
+      medical_notes: 'Father: Daily BP monitoring & cardiac health. Mother: Knee care mobility support.',
     });
 
     // 5. Initial Audit Log
     addAuditLog({
-      eventType: 'SYSTEM_BOOT_INITIALIZED',
-      actorId: 'system',
-      actorRole: 'SYSTEM',
+      eventType: 'DEMO_ENVIRONMENT_READY',
+      actorId: 'usr_demo_admin',
+      actorRole: 'ADMIN',
       ipAddress: '127.0.0.1',
       severity: 'LOW',
       details: {
-        message: 'FamilyHubs Clean Production Database Ready. Zero preloaded tasks, pure on-demand processing.',
+        message: 'FamilyHubs Clean Demo Environment Ready. Exactly 3 demo accounts active (Client, Admin, Partner).',
       },
     });
   });
 
   seedTx();
-  console.log('Database initialized cleanly: Zero preloaded tasks, pure on-demand execution.');
+  console.log('Database initialized cleanly: Exactly 3 demo accounts created, zero preloaded tasks.');
 }
 
 // ----------------- SECURITY & AUDIT HELPERS -----------------
@@ -349,7 +282,8 @@ function getSecuritySettings() {
   return settings;
 }
 
-function updateSecuritySetting(key, value, actorId = 'usr_admin_lead') {
+function updateSecuritySetting(key, value, actorId = 'usr_demo_admin') {
+  actorId = resolveUserId(actorId);
   db.prepare(`
     INSERT OR REPLACE INTO security_settings (key, value, updated_at)
     VALUES (?, ?, datetime('now'))
@@ -422,11 +356,11 @@ function getTasks(filter = {}) {
 
   if (filter.clientId) {
     query += ` AND t.client_id = ?`;
-    params.push(filter.clientId);
+    params.push(resolveUserId(filter.clientId));
   }
   if (filter.partnerId) {
     query += ` AND t.assigned_partner_id = ?`;
-    params.push(filter.partnerId);
+    params.push(resolveUserId(filter.partnerId));
   }
   if (filter.status) {
     query += ` AND t.status = ?`;
@@ -598,7 +532,9 @@ function createTask({ clientId, parentId, category, title, instructions, schedul
   return getTaskById(taskId);
 }
 
-function assignPartner(taskId, partnerId, adminId = 'usr_admin_lead') {
+function assignPartner(taskId, partnerId, adminId = 'usr_demo_admin') {
+  partnerId = resolveUserId(partnerId);
+  adminId = resolveUserId(adminId);
   const now = new Date().toISOString();
   db.prepare(`
     UPDATE tasks 
@@ -736,7 +672,8 @@ function submitVerification({ taskId, partnerId, stage, selfieImageUrl, latitude
 }
 
 // Escrow Release with Step-Up PIN Authentication & Emergency Freeze Check
-function approveEscrow(taskId, adminId = 'usr_admin_lead', enteredPin = '') {
+function approveEscrow(taskId, adminId = 'usr_demo_admin', enteredPin = '') {
+  adminId = resolveUserId(adminId);
   const settings = getSecuritySettings();
 
   // 1. Check Emergency Freeze
@@ -859,7 +796,7 @@ function rejectVerification(taskId, logId, adminId, reason) {
 }
 
 function getParents(clientId) {
-  return db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').all(clientId);
+  return db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').all(resolveUserId(clientId));
 }
 
 function createParent(data) {
@@ -919,25 +856,26 @@ function getPartnerProfile(userId) {
     FROM partners_profile p
     JOIN users u ON p.user_id = u.id
     WHERE p.user_id = ?
-  `).get(userId);
+  `).get(resolveUserId(userId));
 }
 
 function updatePartnerDuty(userId, isActive) {
+  const resolved = resolveUserId(userId);
   db.prepare(`
     UPDATE partners_profile 
     SET is_active = ? 
     WHERE user_id = ?
-  `).run(isActive ? 1 : 0, userId);
+  `).run(isActive ? 1 : 0, resolved);
 
   addAuditLog({
     eventType: 'PARTNER_DUTY_TOGGLED',
-    actorId: userId,
+    actorId: resolved,
     actorRole: 'PARTNER',
     severity: 'LOW',
     details: { isActive: Boolean(isActive) },
   });
 
-  return getPartnerProfile(userId);
+  return getPartnerProfile(resolved);
 }
 
 function getClientProfile(userId) {
@@ -946,7 +884,7 @@ function getClientProfile(userId) {
     FROM clients_profile c
     JOIN users u ON c.user_id = u.id
     WHERE c.user_id = ?
-  `).get(userId);
+  `).get(resolveUserId(userId));
 }
 
 function getEscrowSummary() {

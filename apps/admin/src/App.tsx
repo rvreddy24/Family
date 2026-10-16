@@ -142,7 +142,7 @@ export default function AdminApp() {
     const connect = () => {
       if (!isMounted) return;
       try {
-        const wsUrl = getWebSocketUrl('/ws/events', { role: 'ADMIN', userId: 'usr_admin_lead' });
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'ADMIN', userId: 'usr_demo_admin' });
         socket = new WebSocket(wsUrl);
         wsRef.current = socket;
 
@@ -249,7 +249,7 @@ export default function AdminApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminId: 'usr_admin_lead',
+          adminId: 'usr_demo_admin',
           escrowPin: escrowPinInput,
         }),
       });
@@ -283,7 +283,7 @@ export default function AdminApp() {
       const res = await fetch(`${getApiBaseUrl()}/api/security/panic-freeze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorId: 'usr_admin_lead' }),
+        body: JSON.stringify({ actorId: 'usr_demo_admin' }),
       });
       if (res.ok) {
         fetchData();
@@ -304,7 +304,7 @@ export default function AdminApp() {
         body: JSON.stringify({
           key: 'escrow_release_pin',
           value: newPinInput,
-          actorId: 'usr_admin_lead',
+          actorId: 'usr_demo_admin',
         }),
       });
       if (res.ok) {
@@ -329,7 +329,7 @@ export default function AdminApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           logId: pendingLog.id,
-          adminId: 'usr_admin_lead',
+          adminId: 'usr_demo_admin',
           reason: rejectionReason || 'Photo is unclear or device GPS is outside the residence area.',
         }),
       });

@@ -40,7 +40,7 @@ async function runTestSuite() {
   // Test 2: WebSocket Connection & Handshake
   console.log('\n--- Test 2: Real-Time WebSocket Handshake ---');
   const wsEvents = [];
-  const ws = new WebSocket(`${WS_URL}?role=ADMIN&userId=usr_admin_lead`);
+  const ws = new WebSocket(`${WS_URL}?role=ADMIN&userId=usr_demo_admin`);
 
   await new Promise((resolve, reject) => {
     ws.on('open', () => {
@@ -70,7 +70,7 @@ async function runTestSuite() {
   assert(typeof sec.data.escrow_release_pin === 'string', 'Escrow release PIN exists');
   assert(sec.data.geofence_tolerance_meters === '150', 'Default geofence tolerance is 150m');
 
-  const parents = await request('/api/parents?clientId=usr_client_ananya');
+  const parents = await request('/api/parents?clientId=usr_demo_client');
   assert(parents.status === 200 && Array.isArray(parents.data), 'Client parents profile loaded');
   assert(parents.data.length > 0, 'At least 1 parent profile is registered in Miryalaguda');
   const parentId = parents.data[0].id;
@@ -78,7 +78,7 @@ async function runTestSuite() {
   // Test 4: Task Creation (Escrow Lock)
   console.log('\n--- Test 4: Task Creation & Escrow Locking ---');
   const taskPayload = {
-    clientId: 'usr_client_ananya',
+    clientId: 'usr_demo_client',
     parentId: parentId,
     category: 'MEDICAL_TRANSPORT',
     title: 'Automated Test Doctor Visit & BP Check',
@@ -108,24 +108,24 @@ async function runTestSuite() {
   console.log('\n--- Test 5: Operations Partner Dispatch ---');
   const assignRes = await request(`/api/tasks/${createdTask.id}/assign`, {
     method: 'POST',
-    body: JSON.stringify({ partnerId: 'usr_partner_srinivas' }),
+    body: JSON.stringify({ partnerId: 'usr_demo_partner' }),
   });
   assert(assignRes.status === 200, 'Task dispatched to partner');
   assert(assignRes.data.status === 'DISPATCHED', 'Task status updated to DISPATCHED');
-  assert(assignRes.data.assigned_partner_id === 'usr_partner_srinivas', 'Partner Srinivas successfully assigned');
+  assert(assignRes.data.assigned_partner_id === 'usr_demo_partner', 'Partner Srinivas successfully assigned');
 
   // Test 6: Partner Accepts & Starts Job
   console.log('\n--- Test 6: Partner Accepts & Commences Task ---');
   const acceptRes = await request(`/api/tasks/${createdTask.id}/accept`, {
     method: 'POST',
-    body: JSON.stringify({ partnerId: 'usr_partner_srinivas' }),
+    body: JSON.stringify({ partnerId: 'usr_demo_partner' }),
   });
   assert(acceptRes.status === 200, 'Partner accepted task');
   assert(acceptRes.data.status === 'ACCEPTED', 'Task status is ACCEPTED');
 
   const startRes = await request(`/api/tasks/${createdTask.id}/start`, {
     method: 'POST',
-    body: JSON.stringify({ partnerId: 'usr_partner_srinivas' }),
+    body: JSON.stringify({ partnerId: 'usr_demo_partner' }),
   });
   assert(startRes.status === 200, 'Partner commenced task');
   assert(startRes.data.status === 'IN_PROGRESS', 'Task status is IN_PROGRESS');
@@ -145,7 +145,7 @@ async function runTestSuite() {
   const verifyRes = await request(`/api/tasks/${createdTask.id}/verify`, {
     method: 'POST',
     body: JSON.stringify({
-      partnerId: 'usr_partner_srinivas',
+      partnerId: 'usr_demo_partner',
       stage: 'ARRIVAL_CHECKIN',
       selfieImageUrl: uploadRes.data.imageUrl,
       latitude: 16.8724, // Exact residence coordinate
@@ -164,23 +164,23 @@ async function runTestSuite() {
   // Invalid PIN check
   const badPinRes = await request(`/api/tasks/${createdTask.id}/escrow/approve`, {
     method: 'POST',
-    body: JSON.stringify({ adminId: 'usr_admin_lead', escrowPin: '000000' }),
+    body: JSON.stringify({ adminId: 'usr_demo_admin', escrowPin: '000000' }),
   });
   assert(badPinRes.status === 403, 'System rejected unauthorized escrow PIN with HTTP 403');
 
   // Correct PIN release
-  const partnerBefore = await request('/api/partners/usr_partner_srinivas/profile');
+  const partnerBefore = await request('/api/partners/usr_demo_partner/profile');
   const initialBalance = partnerBefore.data.wallet_balance;
 
   const approveRes = await request(`/api/tasks/${createdTask.id}/escrow/approve`, {
     method: 'POST',
-    body: JSON.stringify({ adminId: 'usr_admin_lead', escrowPin }),
+    body: JSON.stringify({ adminId: 'usr_demo_admin', escrowPin }),
   });
   assert(approveRes.status === 200, 'Escrow release successfully authorized with valid PIN');
   assert(approveRes.data.status === 'COMPLETED', 'Task status updated to COMPLETED');
   assert(approveRes.data.escrow.status === 'RELEASED_TO_PARTNER', 'Escrow status transitioned to RELEASED_TO_PARTNER');
 
-  const partnerAfter = await request('/api/partners/usr_partner_srinivas/profile');
+  const partnerAfter = await request('/api/partners/usr_demo_partner/profile');
   const expectedPayoutInr = Math.round(45.0 * 83.5);
   assert(
     partnerAfter.data.wallet_balance === initialBalance + expectedPayoutInr,

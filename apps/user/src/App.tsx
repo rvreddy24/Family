@@ -184,8 +184,8 @@ export default function UserApp() {
     try {
       const apiBase = getApiBaseUrl();
       const [tasksRes, parentsRes] = await Promise.all([
-        fetch(`${apiBase}/api/tasks?clientId=usr_client_ananya`),
-        fetch(`${apiBase}/api/parents?clientId=usr_client_ananya`),
+        fetch(`${apiBase}/api/tasks?clientId=usr_demo_client`),
+        fetch(`${apiBase}/api/parents?clientId=usr_demo_client`),
       ]);
       if (tasksRes.ok) {
         const tasksData: Task[] = await tasksRes.json();
@@ -222,7 +222,7 @@ export default function UserApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           freeze: !isEscrowFrozen,
-          actorId: 'usr_client_ananya',
+          actorId: 'usr_demo_client',
           actorRole: 'CLIENT',
           reason: isEscrowFrozen ? 'Client resumed standard escrow release' : 'Client emergency safety freeze from NRI portal',
         }),
@@ -256,7 +256,7 @@ export default function UserApp() {
     const connect = () => {
       if (!isMounted) return;
       try {
-        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: 'usr_client_ananya' });
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: 'usr_demo_client' });
         socket = new WebSocket(wsUrl);
         wsRef.current = socket;
 
@@ -340,7 +340,7 @@ export default function UserApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: 'usr_client_ananya',
+          clientId: 'usr_demo_client',
           parentId: reqParentId,
           category: selectedService?.category || 'MEDICAL_TRANSPORT',
           title: reqTitle,
@@ -374,7 +374,7 @@ export default function UserApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: 'usr_client_ananya',
+          clientId: 'usr_demo_client',
           parentName: newParentName,
           primaryPhone: newParentPhone,
           locality: newParentLocality,
@@ -507,19 +507,9 @@ export default function UserApp() {
                 onClick={() => handleLogin('ananya')}
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-xl shadow-indigo-600/25 transition flex items-center justify-center gap-3"
               >
-                <span>Continue as Ananya Reddy (US NRI Client)</span>
+                <span>Continue as Demo Client (demo.client@familyhubs.com)</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span>Or explore as:</span>
-                <button
-                  onClick={() => handleLogin('rahul')}
-                  className="text-indigo-600 font-semibold hover:underline"
-                >
-                  Rahul Sharma (UK NRI Client)
-                </button>
-              </div>
             </div>
           </div>
 

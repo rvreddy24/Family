@@ -212,14 +212,14 @@ app.get('/api/auth/profile', (req, res) => {
   const userId = req.query.userId;
 
   if (role === 'CLIENT') {
-    const profile = getClientProfile(userId || 'usr_client_ananya');
+    const profile = getClientProfile(userId || 'usr_demo_client');
     return res.json(profile);
   }
   if (role === 'PARTNER') {
-    const profile = getPartnerProfile(userId || 'usr_partner_srinivas');
+    const profile = getPartnerProfile(userId || 'usr_demo_partner');
     return res.json(profile);
   }
-  return res.json({ id: 'usr_admin_lead', full_name: 'Prasad Varma', role: 'ADMIN' });
+  return res.json({ id: 'usr_demo_admin', full_name: 'Demo Operations Admin', role: 'ADMIN' });
 });
 
 // Task Management Endpoints
@@ -266,7 +266,7 @@ app.post('/api/tasks/:id/assign', (req, res) => {
     const { partnerId, adminId } = req.body;
     if (!partnerId) return res.status(400).json({ error: 'partnerId is required' });
 
-    const updatedTask = assignPartner(req.params.id, partnerId, adminId || 'usr_admin_lead');
+    const updatedTask = assignPartner(req.params.id, partnerId, adminId || 'usr_demo_admin');
 
     broadcastEvent('TASK_DISPATCHED', updatedTask, { targetUserId: partnerId });
     broadcastEvent('TASK_UPDATED', updatedTask);
@@ -334,7 +334,7 @@ app.post('/api/tasks/:id/verify', (req, res) => {
 // Admin Audits & Approves Escrow Release (Requires 6-Digit Escrow Authorization PIN)
 app.post('/api/tasks/:id/escrow/approve', (req, res) => {
   try {
-    const adminId = req.body.adminId || 'usr_admin_lead';
+    const adminId = req.body.adminId || 'usr_demo_admin';
     const escrowPin = req.body.escrowPin || '';
 
     const updatedTask = approveEscrow(req.params.id, adminId, escrowPin);
@@ -354,7 +354,7 @@ app.post('/api/tasks/:id/escrow/approve', (req, res) => {
 app.post('/api/tasks/:id/verify/reject', (req, res) => {
   try {
     const { logId, reason, adminId } = req.body;
-    const updatedTask = rejectVerification(req.params.id, logId, adminId || 'usr_admin_lead', reason);
+    const updatedTask = rejectVerification(req.params.id, logId, adminId || 'usr_demo_admin', reason);
 
     broadcastEvent('VERIFICATION_REJECTED', {
       task: updatedTask,
@@ -369,7 +369,7 @@ app.post('/api/tasks/:id/verify/reject', (req, res) => {
 
 // Parent Management
 app.get('/api/parents', (req, res) => {
-  const clientId = req.query.clientId || 'usr_client_ananya';
+  const clientId = req.query.clientId || 'usr_demo_client';
   const parents = getParents(clientId);
   res.json(parents);
 });
@@ -458,7 +458,7 @@ app.post('/api/security/settings', (req, res) => {
   try {
     const { key, value, actorId } = req.body;
     if (!key) return res.status(400).json({ error: 'Setting key is required' });
-    const updated = updateSecuritySetting(key, value, actorId || 'usr_admin_lead');
+    const updated = updateSecuritySetting(key, value, actorId || 'usr_demo_admin');
     broadcastEvent('SECURITY_SETTINGS_UPDATED', updated);
     res.json(updated);
   } catch (err) {
@@ -471,7 +471,7 @@ app.post('/api/security/panic-freeze', (req, res) => {
   try {
     const settings = getSecuritySettings();
     const nextState = settings.emergency_escrow_freeze === '1' ? '0' : '1';
-    const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'usr_admin_lead');
+    const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'usr_demo_admin');
     broadcastEvent('EMERGENCY_FREEZE_TOGGLED', { active: nextState === '1' });
     res.json({ success: true, emergencyFreezeActive: nextState === '1', settings: updated });
   } catch (err) {

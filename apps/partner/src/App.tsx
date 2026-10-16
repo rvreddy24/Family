@@ -40,7 +40,7 @@ export default function PartnerApp() {
   });
 
   const [wsConnected, setWsConnected] = useState<boolean>(false);
-  const [partnerId, setPartnerId] = useState<string>('usr_partner_srinivas');
+  const [partnerId, setPartnerId] = useState<string>('usr_demo_partner');
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
