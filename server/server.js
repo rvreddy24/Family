@@ -491,7 +491,7 @@ app.post('/api/security/reset-clean', (req, res) => {
 });
 
 // Camera / Image Upload Endpoint
-app.post('/api/upload', (req, res) => {
+app.post('/api/upload', async (req, res) => {
   try {
     const { imageBase64, filename } = req.body;
     if (!imageBase64) {

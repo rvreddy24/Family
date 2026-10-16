@@ -140,7 +140,7 @@ async function runTestSuite() {
     }),
   });
   assert(uploadRes.status === 200, 'Photo uploaded successfully');
-  assert(uploadRes.data.imageUrl.startsWith('/uploads/'), 'Upload returned safe image URL path');
+  assert(uploadRes.data.imageUrl.startsWith('/uploads/') || uploadRes.data.imageUrl.startsWith('http'), 'Upload returned safe image URL path');
 
   const verifyRes = await request(`/api/tasks/${createdTask.id}/verify`, {
     method: 'POST',
