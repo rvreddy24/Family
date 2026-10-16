@@ -37,13 +37,15 @@ import {
   Activity
 } from 'lucide-react';
 import type { Task, PartnerProfile, VerificationLog, WhatsAppLog } from '@shared/types';
-import { formatDate, playNotificationChime } from '@shared/utils';
+import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
 
 export default function AdminApp() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const saved = localStorage.getItem('fh_admin_logged_in');
     return saved === null ? false : saved === 'true';
   });
+
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [partners, setPartners] = useState<PartnerProfile[]>([]);
@@ -80,12 +82,13 @@ export default function AdminApp() {
 
   const fetchData = async () => {
     try {
+      const apiBase = getApiBaseUrl();
       const [tasksRes, partnersRes, waRes, secRes, audRes] = await Promise.all([
-        fetch('http://localhost:4000/api/tasks'),
-        fetch('http://localhost:4000/api/partners'),
-        fetch('http://localhost:4000/api/whatsapp/logs'),
-        fetch('http://localhost:4000/api/security/settings'),
-        fetch('http://localhost:4000/api/security/audit-logs'),
+        fetch(`${apiBase}/api/tasks`),
+        fetch(`${apiBase}/api/partners`),
+        fetch(`${apiBase}/api/whatsapp/logs`),
+        fetch(`${apiBase}/api/security/settings`),
+        fetch(`${apiBase}/api/security/audit-logs`),
       ]);
 
       if (tasksRes.ok) {
@@ -122,7 +125,7 @@ export default function AdminApp() {
         setAuditLogs(audData);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Admin data fetch error:', err);
     }
   };
 
@@ -130,61 +133,87 @@ export default function AdminApp() {
     fetchData();
   }, []);
 
-  // Background WebSocket listener
+  // Background WebSocket listener with clean unmount handling
   useEffect(() => {
-    let socket: WebSocket;
+    let socket: WebSocket | null = null;
+    let isMounted = true;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const connect = () => {
-      socket = new WebSocket('ws://localhost:4000/ws/events?role=ADMIN&userId=usr_admin_lead');
-      wsRef.current = socket;
+      if (!isMounted) return;
+      try {
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'ADMIN', userId: 'usr_admin_lead' });
+        socket = new WebSocket(wsUrl);
+        wsRef.current = socket;
 
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (audioEnabled) {
-            playNotificationChime(msg.type === 'TASK_CREATED' ? 'alert' : 'ping');
+        socket.onopen = () => {
+          if (isMounted) setWsConnected(true);
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (audioEnabled) {
+              playNotificationChime(msg.type === 'TASK_CREATED' ? 'alert' : 'ping');
+            }
+
+            if (msg.type === 'TASK_CREATED') {
+              setToastAlert({
+                title: 'New Service Request',
+                message: `Task ${msg.payload.tracking_code} submitted for ${msg.payload.parent?.locality || 'Miryalaguda'}.`,
+              });
+            } else if (msg.type === 'PARTNER_CHECKED_IN' || msg.type === 'VERIFICATION_SUBMITTED') {
+              setToastAlert({
+                title: 'Verification Photo Received',
+                message: `Partner check-in photo logged for ${msg.payload.tracking_code}. Ready to review.`,
+              });
+            } else if (msg.type === 'ESCROW_RELEASED') {
+              setToastAlert({
+                title: 'Escrow Released',
+                message: `Task ${msg.payload.tracking_code} completed. Partner wallet credited.`,
+              });
+            } else if (msg.type === 'EMERGENCY_FREEZE_TOGGLED') {
+              setToastAlert({
+                title: msg.payload.active ? '🚨 EMERGENCY FREEZE ACTIVATED' : 'Emergency Freeze Lifted',
+                message: msg.payload.active ? 'All escrow releases are now frozen platform-wide.' : 'Escrow releases resumed.',
+              });
+            }
+
+            setTimeout(() => setToastAlert(null), 5000);
+            fetchData();
+          } catch {
+            // ignore
           }
+        };
 
-          if (msg.type === 'TASK_CREATED') {
-            setToastAlert({
-              title: 'New Service Request',
-              message: `Task ${msg.payload.tracking_code} submitted for ${msg.payload.parent?.locality || 'Miryalaguda'}.`,
-            });
-          } else if (msg.type === 'PARTNER_CHECKED_IN' || msg.type === 'VERIFICATION_SUBMITTED') {
-            setToastAlert({
-              title: 'Verification Photo Received',
-              message: `Partner check-in photo logged for ${msg.payload.tracking_code}. Ready to review.`,
-            });
-          } else if (msg.type === 'ESCROW_RELEASED') {
-            setToastAlert({
-              title: 'Escrow Released',
-              message: `Task ${msg.payload.tracking_code} completed. Partner wallet credited.`,
-            });
-          } else if (msg.type === 'EMERGENCY_FREEZE_TOGGLED') {
-            setToastAlert({
-              title: msg.payload.active ? '🚨 EMERGENCY FREEZE ACTIVATED' : 'Emergency Freeze Lifted',
-              message: msg.payload.active ? 'All escrow releases are now frozen platform-wide.' : 'Escrow releases resumed.',
-            });
+        socket.onclose = () => {
+          if (isMounted) {
+            setWsConnected(false);
+            reconnectTimeout = setTimeout(connect, 3000);
           }
+        };
 
-          setTimeout(() => setToastAlert(null), 5000);
-          fetchData();
-        } catch (e) {
-          // ignore
+        socket.onerror = () => {
+          if (isMounted) setWsConnected(false);
+        };
+      } catch {
+        if (isMounted) {
+          reconnectTimeout = setTimeout(connect, 4000);
         }
-      };
-
-      socket.onclose = () => setTimeout(connect, 3000);
+      }
     };
 
     connect();
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      isMounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (socket) socket.close();
     };
   }, [audioEnabled]);
 
   const handleAssignPartner = async (taskId: string, partnerId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/tasks/${taskId}/assign`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${taskId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ partnerId }),
@@ -216,7 +245,7 @@ export default function AdminApp() {
     setPinError(null);
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tasks/${pendingReleaseTaskId}/escrow/approve`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${pendingReleaseTaskId}/escrow/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,7 +271,7 @@ export default function AdminApp() {
         setPinError(errData.error || 'Invalid Escrow Authorization PIN.');
         if (audioEnabled) playNotificationChime('alert');
       }
-    } catch (err) {
+    } catch {
       setPinError('Connection error during PIN verification.');
     } finally {
       setIsSubmittingPin(false);
@@ -251,7 +280,7 @@ export default function AdminApp() {
 
   const handleToggleEmergencyFreeze = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/security/panic-freeze', {
+      const res = await fetch(`${getApiBaseUrl()}/api/security/panic-freeze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actorId: 'usr_admin_lead' }),
@@ -269,7 +298,7 @@ export default function AdminApp() {
     e.preventDefault();
     if (newPinInput.length !== 6) return;
     try {
-      const res = await fetch('http://localhost:4000/api/security/settings', {
+      const res = await fetch(`${getApiBaseUrl()}/api/security/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -295,7 +324,7 @@ export default function AdminApp() {
     if (!pendingLog) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/tasks/${auditTarget.id}/verify/reject`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${auditTarget.id}/verify/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,7 +346,7 @@ export default function AdminApp() {
 
   const handleResendWhatsApp = async (logId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/whatsapp/resend/${logId}`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/whatsapp/resend/${logId}`, {
         method: 'POST',
       });
       if (res.ok) {
@@ -444,6 +473,13 @@ export default function AdminApp() {
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-slate-50">
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
+                {wsConnected ? 'Command Engine Connected' : 'Connecting Engine...'}
+              </span>
+            </div>
+
             <button
               onClick={() => setAudioEnabled(!audioEnabled)}
               className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 transition"
@@ -734,7 +770,7 @@ export default function AdminApp() {
                           className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3"
                         >
                           <div>
-                            <div className="text-xs font-bold text-slate-900">{partner.full_name}</div>
+                            <div className="text-xs font-bold text-slate-900">{partner.full_name || partner.user?.full_name || 'Field Partner'}</div>
                             <div className="text-[11px] text-slate-500">{partner.operating_region} • {partner.service_category}</div>
                           </div>
 
@@ -790,7 +826,7 @@ export default function AdminApp() {
                   .filter((t) => t.verification_logs && t.verification_logs.length > 0)
                   .map((task) => {
                     const log = task.verification_logs![0];
-                    const isFlagged = log.geofence_passed === 0 || log.review_status === 'FLAGGED_OUT_OF_BOUNDS';
+                    const isFlagged = log.geofence_passed === false || (log.geofence_passed as unknown) === 0 || log.review_status === 'FLAGGED_OUT_OF_BOUNDS';
                     const isApproved = log.review_status === 'APPROVED';
 
                     return (
@@ -820,7 +856,7 @@ export default function AdminApp() {
                         {/* Photo Display */}
                         <div className="aspect-square rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 relative">
                           <img
-                            src={`http://localhost:4000${log.selfie_image_url}`}
+                            src={getImageUrl(log.selfie_image_url)}
                             alt="Verification Proof"
                             className="w-full h-full object-cover"
                           />

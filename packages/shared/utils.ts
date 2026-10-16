@@ -86,3 +86,67 @@ export function playNotificationChime(type: 'alert' | 'success' | 'ping' = 'ping
     // AudioContext might be blocked until user gesture, fail silently
   }
 }
+
+// Dynamic API Base URL resolution: works seamlessly on localhost, LAN devices (e.g. mobile), and reverse proxies
+export function getApiBaseUrl(): string {
+  try {
+    const envUrl = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL);
+    if (envUrl) return envUrl;
+
+    if (typeof window !== 'undefined') {
+      const { protocol, hostname, port } = window.location;
+      // If served directly through port 4000 (unified backend) or standard reverse proxy (port 80/443)
+      if (port === '4000' || port === '80' || port === '443' || !port) {
+        return `${protocol}//${window.location.host}`;
+      }
+      // Running through Vite dev servers (port 3001, 3002, 3003) -> target backend on port 4000
+      return `${protocol}//${hostname}:4000`;
+    }
+  } catch {
+    // Fallback
+  }
+  return 'http://localhost:4000';
+}
+
+// Dynamic WebSocket URL resolution supporting wss:// in production and LAN IP tracking
+export function getWebSocketUrl(path: string = '/ws/events', params: Record<string, string> = {}): string {
+  let wsUrl = '';
+  try {
+    const envWs = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL);
+    if (envWs) {
+      wsUrl = envWs;
+    } else if (typeof window !== 'undefined') {
+      const { protocol, hostname, port } = window.location;
+      const wsProto = protocol === 'https:' ? 'wss:' : 'ws:';
+      if (port === '4000' || port === '80' || port === '443' || !port) {
+        wsUrl = `${wsProto}//${window.location.host}${path}`;
+      } else {
+        wsUrl = `${wsProto}//${hostname}:4000${path}`;
+      }
+    }
+  } catch {
+    // Fallback
+  }
+
+  if (!wsUrl) {
+    wsUrl = `ws://localhost:4000${path}`;
+  }
+
+  const queryEntries = Object.entries(params).filter(([, val]) => val !== undefined && val !== null && val !== '');
+  if (queryEntries.length > 0) {
+    const qs = new URLSearchParams(queryEntries as [string, string][]).toString();
+    wsUrl += (wsUrl.includes('?') ? '&' : '?') + qs;
+  }
+
+  return wsUrl;
+}
+
+// Safely resolve image and media asset URLs
+export function getImageUrl(pathOrUrl: string | undefined | null): string {
+  if (!pathOrUrl) return '';
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://') || pathOrUrl.startsWith('data:')) {
+    return pathOrUrl;
+  }
+  const cleanPath = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  return `${getApiBaseUrl()}${cleanPath}`;
+}

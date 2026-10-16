@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { WebSocketServer, WebSocket } = require('ws');
@@ -7,6 +8,7 @@ const fs = require('fs');
 const url = require('url');
 const {
   initDatabase,
+  closeDatabase,
   resetCleanDatabase,
   getTasks,
   getTaskById,
@@ -35,20 +37,47 @@ const {
 const app = express();
 const server = http.createServer(app);
 
-// Initialize DB and ensure uploads directory
+// Initialize DB schema
 initDatabase();
-// Purge any residual preloaded data to ensure clean state
-resetCleanDatabase();
+
+// In production, only purge if explicitly requested via environment variable
+if (process.env.RESET_DB_ON_START === 'true') {
+  console.log('[WARN] RESET_DB_ON_START is enabled. Purging database tables...');
+  resetCleanDatabase();
+}
 
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Middlewares
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '25mb' }));
-app.use('/uploads', express.static(uploadsDir));
+// Security & Production Middlewares
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Lightweight request logging for operational visibility
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      console.log(`[API] ${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms)`);
+    });
+  }
+  next();
+});
+
+const corsOrigin = process.env.CORS_ORIGIN 
+  ? (process.env.CORS_ORIGIN.includes(',') ? process.env.CORS_ORIGIN.split(',') : process.env.CORS_ORIGIN)
+  : true;
+app.use(cors({ origin: corsOrigin, credentials: true }));
+app.use(express.json({ limit: process.env.MAX_PAYLOAD_SIZE || '25mb' }));
+app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
 
 // WebSocket Gateway on /ws/events
 const wss = new WebSocketServer({ noServer: true });
@@ -511,3 +540,44 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`⚡ WebSocket Gateway: ws://localhost:${PORT}/ws/events`);
   console.log('=======================================================');
 });
+
+// Graceful Shutdown: close active WS sockets, stop server, and flush/close SQLite WAL safely
+function gracefulShutdown(signal) {
+  console.log(`\n[SHUTDOWN] Received ${signal}. Gracefully stopping FamilyHubs services...`);
+  
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+  }
+
+  // Terminate or close active WS clients cleanly
+  activeClients.forEach((client) => {
+    try {
+      if (client.readyState === WebSocket.OPEN) {
+        client.close(1001, 'Server shutting down');
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  server.close(() => {
+    console.log('[SHUTDOWN] HTTP & WebSocket listeners terminated.');
+    try {
+      closeDatabase();
+      console.log('[SHUTDOWN] SQLite WAL journal flushed and connection closed.');
+    } catch (err) {
+      console.error('[SHUTDOWN ERROR] Database closure error:', err.message);
+    }
+    process.exit(0);
+  });
+
+  // Force close if still hanging after 5s
+  setTimeout(() => {
+    console.error('[SHUTDOWN] Timeout reached. Forcing immediate process exit.');
+    process.exit(1);
+  }, 5000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+

@@ -29,7 +29,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import type { Task, PartnerProfile } from '@shared/types';
-import { calculateDistanceMeters, playNotificationChime } from '@shared/utils';
+import { calculateDistanceMeters, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
 
 type LanguageCode = 'en' | 'te' | 'hi' | 'ta' | 'kn';
 
@@ -39,6 +39,7 @@ export default function PartnerApp() {
     return saved === null ? false : saved === 'true';
   });
 
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [partnerId, setPartnerId] = useState<string>('usr_partner_srinivas');
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -287,9 +288,10 @@ export default function PartnerApp() {
 
   const fetchData = async () => {
     try {
+      const apiBase = getApiBaseUrl();
       const [profRes, tasksRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/partners/${partnerId}/profile`),
-        fetch(`http://localhost:4000/api/tasks?partnerId=${partnerId}`),
+        fetch(`${apiBase}/api/partners/${partnerId}/profile`),
+        fetch(`${apiBase}/api/tasks?partnerId=${partnerId}`),
       ]);
 
       if (profRes.ok) {
@@ -308,7 +310,7 @@ export default function PartnerApp() {
         setActiveTask(current || null);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Partner data fetch error:', err);
     }
   };
 
@@ -316,35 +318,61 @@ export default function PartnerApp() {
     fetchData();
   }, [partnerId]);
 
-  // WebSocket for Job Alerts & Dispatch Updates
+  // WebSocket for Job Alerts & Dispatch Updates with clean reconnection
   useEffect(() => {
-    let socket: WebSocket;
+    let socket: WebSocket | null = null;
+    let isMounted = true;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const connect = () => {
-      socket = new WebSocket(`ws://localhost:4000/ws/events?role=PARTNER&userId=${partnerId}`);
-      wsRef.current = socket;
+      if (!isMounted) return;
+      try {
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'PARTNER', userId: partnerId });
+        socket = new WebSocket(wsUrl);
+        wsRef.current = socket;
 
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'TASK_DISPATCHED') {
-            playNotificationChime('alert');
-            setIncomingAlert(msg.payload);
-          } else if (msg.type === 'ESCROW_RELEASED') {
-            playNotificationChime('success');
+        socket.onopen = () => {
+          if (isMounted) setWsConnected(true);
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'TASK_DISPATCHED') {
+              playNotificationChime('alert');
+              setIncomingAlert(msg.payload);
+            } else if (msg.type === 'ESCROW_RELEASED') {
+              playNotificationChime('success');
+              fetchData();
+            }
             fetchData();
+          } catch {
+            // ignore
           }
-          fetchData();
-        } catch (e) {
-          // ignore
-        }
-      };
+        };
 
-      socket.onclose = () => setTimeout(connect, 3000);
+        socket.onclose = () => {
+          if (isMounted) {
+            setWsConnected(false);
+            reconnectTimeout = setTimeout(connect, 3000);
+          }
+        };
+
+        socket.onerror = () => {
+          if (isMounted) setWsConnected(false);
+        };
+      } catch {
+        if (isMounted) {
+          reconnectTimeout = setTimeout(connect, 4000);
+        }
+      }
     };
 
     connect();
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      isMounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (socket) socket.close();
     };
   }, [partnerId]);
 
@@ -362,7 +390,7 @@ export default function PartnerApp() {
     const nextState = !isAvailable;
     setIsAvailable(nextState);
     try {
-      await fetch(`http://localhost:4000/api/partners/${partnerId}/duty`, {
+      await fetch(`${getApiBaseUrl()}/api/partners/${partnerId}/duty`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isAvailable: nextState }),
@@ -375,7 +403,7 @@ export default function PartnerApp() {
 
   const handleAcceptJob = async (taskId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/tasks/${taskId}/accept`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${taskId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ partnerId }),
@@ -394,7 +422,7 @@ export default function PartnerApp() {
 
   const handleStartJob = async (taskId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/tasks/${taskId}/start`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${taskId}/start`, {
         method: 'POST',
       });
       if (res.ok) {
@@ -495,7 +523,8 @@ export default function PartnerApp() {
     setIsUploading(true);
 
     try {
-      const uploadRes = await fetch('http://localhost:4000/api/upload', {
+      const apiBase = getApiBaseUrl();
+      const uploadRes = await fetch(`${apiBase}/api/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -507,7 +536,7 @@ export default function PartnerApp() {
       const uploadData = await uploadRes.json();
       const imageUrl = uploadData.imageUrl || '/uploads/selfie_srinivas_reddycolony.jpg';
 
-      const verifyRes = await fetch(`http://localhost:4000/api/tasks/${activeTask.id}/verify`, {
+      const verifyRes = await fetch(`${apiBase}/api/tasks/${activeTask.id}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -618,6 +647,13 @@ export default function PartnerApp() {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border bg-slate-50">
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
+                {wsConnected ? 'Live Network' : 'Connecting...'}
+              </span>
+            </div>
+
             {/* Multi-Language Switcher (Indian Languages) */}
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
               <Languages className="w-4 h-4 text-slate-500 ml-1.5" />

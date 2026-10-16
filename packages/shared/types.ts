@@ -18,7 +18,7 @@ export type EscrowStatus = 'HOLD_IN_ESCROW' | 'RELEASED_TO_PARTNER' | 'REFUNDED_
 
 export type VerificationStage = 'ARRIVAL_CHECKIN' | 'TASK_COMPLETION';
 
-export type VerificationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type VerificationReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'FLAGGED_OUT_OF_BOUNDS';
 
 export type WhatsAppStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
 
@@ -59,6 +59,7 @@ export interface PartnerProfile {
   kyc_verified: boolean;
   is_active: boolean;
   wallet_balance: number;
+  full_name?: string;
   user?: User;
 }
 
@@ -117,6 +118,7 @@ export interface VerificationLog {
   latitude: number;
   longitude: number;
   distance_from_target_meters: number;
+  geofence_passed?: boolean;
   timestamp: string;
   reviewed_by_admin?: string | null;
   review_status: VerificationReviewStatus;
@@ -134,14 +136,23 @@ export interface WhatsAppLog {
 }
 
 export type WebSocketEventType =
+  | 'CONNECTED'
+  | 'PONG'
   | 'TASK_CREATED'
   | 'TASK_DISPATCHED'
+  | 'TASK_ACCEPTED'
+  | 'TASK_IN_PROGRESS'
+  | 'TASK_UPDATED'
   | 'PARTNER_ACCEPTED'
   | 'PARTNER_CHECKED_IN'
   | 'VERIFICATION_SUBMITTED'
+  | 'VERIFICATION_REJECTED'
   | 'ESCROW_RELEASED'
   | 'WHATSAPP_STATUS_UPDATED'
-  | 'PARTNER_AVAILABILITY_CHANGED';
+  | 'PARTNER_AVAILABILITY_CHANGED'
+  | 'SECURITY_SETTINGS_UPDATED'
+  | 'EMERGENCY_FREEZE_TOGGLED'
+  | 'DATABASE_PURGED';
 
 export interface WebSocketMessage<T = unknown> {
   type: WebSocketEventType;
@@ -149,3 +160,22 @@ export interface WebSocketMessage<T = unknown> {
   timestamp: string;
   actor_id?: string;
 }
+
+export interface SecuritySettings {
+  escrow_release_pin?: string;
+  geofence_tolerance_meters?: string;
+  emergency_escrow_freeze?: string;
+  [key: string]: string | undefined;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  event_type: string;
+  actor_id: string;
+  actor_role: string;
+  ip_address?: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  details_json: string;
+  created_at: string;
+}
+

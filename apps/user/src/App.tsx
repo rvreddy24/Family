@@ -42,7 +42,7 @@ import {
   KeyRound
 } from 'lucide-react';
 import type { Task, ParentProfile, VerificationLog } from '@shared/types';
-import { formatDate, playNotificationChime } from '@shared/utils';
+import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
 
 export default function UserApp() {
   // Persistence for login status (default false to show welcome/login first if first visit)
@@ -58,6 +58,7 @@ export default function UserApp() {
   const [showProofModal, setShowProofModal] = useState<VerificationLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
 
   // Security Controls State
   const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
@@ -112,7 +113,7 @@ export default function UserApp() {
       rating: '4.95',
       reviews: '142 reviews',
       price: 45,
-      banner: 'http://localhost:4000/uploads/service_medical.svg',
+      banner: getImageUrl('/uploads/service_medical.svg'),
       desc: 'Certified doctor home visit for complete elderly health assessment and vitals check.',
       features: ['BP, Pulse & Blood Sugar Monitoring', 'Doctor prescription review & advice', 'Instant digital health report to NRI on WhatsApp'],
       badge: 'Bestseller',
@@ -124,7 +125,7 @@ export default function UserApp() {
       rating: '4.98',
       reviews: '230 reviews',
       price: 35,
-      banner: 'http://localhost:4000/uploads/service_medical.svg',
+      banner: getImageUrl('/uploads/service_medical.svg'),
       desc: 'Reliable monthly prescription replenishment from Apollo or MedPlus Miryalaguda.',
       features: ['Original pharmacist bill included', 'Same-day home delivery to parents', 'Expiration date verification check'],
       badge: 'Same Day',
@@ -136,7 +137,7 @@ export default function UserApp() {
       rating: '4.91',
       reviews: '98 reviews',
       price: 40,
-      banner: 'http://localhost:4000/uploads/service_repair.svg',
+      banner: getImageUrl('/uploads/service_repair.svg'),
       desc: 'Complete power backup checkup to safeguard aging parents during summer power cuts.',
       features: ['Distilled water top-up for all tubular cells', 'Terminal corrosion cleanup & grease', 'Inverter load & voltage testing'],
       badge: 'Popular',
@@ -148,7 +149,7 @@ export default function UserApp() {
       rating: '4.89',
       reviews: '115 reviews',
       price: 50,
-      banner: 'http://localhost:4000/uploads/service_plumbing.svg',
+      banner: getImageUrl('/uploads/service_plumbing.svg'),
       desc: 'Clean, safe drinking water guaranteed. Water filter maintenance and plumbing fix.',
       features: ['Sediment & carbon candle inspection', 'Digital TDS level purity meter check', 'Overhead tank float valve & tap leak fix'],
       badge: 'Essential',
@@ -160,7 +161,7 @@ export default function UserApp() {
       rating: '4.94',
       reviews: '86 reviews',
       price: 30,
-      banner: 'http://localhost:4000/uploads/service_errands.svg',
+      banner: getImageUrl('/uploads/service_errands.svg'),
       desc: 'Fresh farm fruits, cooking oils, lentils, and temple pooja items from Miryalaguda markets.',
       features: ['Handpicked fresh fruits & temple flowers', 'Pure cold-pressed sesame / groundnut oils', 'Itemized market receipt photo sent to NRI'],
       badge: 'Custom List',
@@ -172,7 +173,7 @@ export default function UserApp() {
       rating: '5.0',
       reviews: '64 reviews',
       price: 65,
-      banner: 'http://localhost:4000/uploads/service_emergency.svg',
+      banner: getImageUrl('/uploads/service_emergency.svg'),
       desc: 'Immediate emergency transport escort with trained caretaker staying by their side.',
       features: ['Under 20-minute rapid response dispatch', 'Vehicle escort to Lifeline or Kamineni Hospital', 'Continuous WhatsApp call coordination with NRI'],
       badge: 'Priority 24/7',
@@ -181,9 +182,10 @@ export default function UserApp() {
 
   const fetchAllData = async () => {
     try {
+      const apiBase = getApiBaseUrl();
       const [tasksRes, parentsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/tasks?clientId=usr_client_ananya'),
-        fetch('http://localhost:4000/api/parents?clientId=usr_client_ananya'),
+        fetch(`${apiBase}/api/tasks?clientId=usr_client_ananya`),
+        fetch(`${apiBase}/api/parents?clientId=usr_client_ananya`),
       ]);
       if (tasksRes.ok) {
         const tasksData: Task[] = await tasksRes.json();
@@ -203,19 +205,19 @@ export default function UserApp() {
         }
       }
 
-      const secRes = await fetch('http://localhost:4000/api/security/settings');
+      const secRes = await fetch(`${apiBase}/api/security/settings`);
       if (secRes.ok) {
         const secData = await secRes.json();
-        setIsEscrowFrozen(secData.emergency_escrow_freeze === 1);
+        setIsEscrowFrozen(secData.emergency_escrow_freeze === '1' || secData.emergency_escrow_freeze === 1);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Data fetch error:', err);
     }
   };
 
   const handleToggleEscrowFreeze = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/security/panic-freeze', {
+      const res = await fetch(`${getApiBaseUrl()}/api/security/panic-freeze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -227,10 +229,10 @@ export default function UserApp() {
       });
       if (res.ok) {
         const data = await res.json();
-        setIsEscrowFrozen(data.emergency_escrow_freeze);
-        playNotificationChime(data.emergency_escrow_freeze ? 'alert' : 'success');
+        setIsEscrowFrozen(Boolean(data.emergencyFreezeActive));
+        playNotificationChime(data.emergencyFreezeActive ? 'alert' : 'success');
         setToastMessage(
-          data.emergency_escrow_freeze
+          data.emergencyFreezeActive
             ? 'Emergency Escrow Freeze ACTIVATED. All payouts locked.'
             : 'Escrow disbursements resumed normally.'
         );
@@ -245,40 +247,66 @@ export default function UserApp() {
     fetchAllData();
   }, []);
 
-  // Background WebSocket listener for instant state updates
+  // Background WebSocket listener for instant state updates with clean reconnection handling
   useEffect(() => {
-    let socket: WebSocket;
+    let socket: WebSocket | null = null;
+    let isMounted = true;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const connect = () => {
-      socket = new WebSocket('ws://localhost:4000/ws/events?role=CLIENT&userId=usr_client_ananya');
-      wsRef.current = socket;
+      if (!isMounted) return;
+      try {
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: 'usr_client_ananya' });
+        socket = new WebSocket(wsUrl);
+        wsRef.current = socket;
 
-      socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          fetchAllData();
+        socket.onopen = () => {
+          if (isMounted) setWsConnected(true);
+        };
 
-          if (msg.type === 'PARTNER_CHECKED_IN') {
-            playNotificationChime('ping');
-            setToastMessage("Great news! The helper has arrived at your parents' house.");
-          } else if (msg.type === 'ESCROW_RELEASED') {
-            playNotificationChime('success');
-            setToastMessage('Service completed and verified! Escrow released to helper.');
-          } else if (msg.type === 'TASK_DISPATCHED') {
-            playNotificationChime('ping');
-            setToastMessage('A vetted helper has been assigned and is on the way.');
+        socket.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            fetchAllData();
+
+            if (msg.type === 'PARTNER_CHECKED_IN') {
+              playNotificationChime('ping');
+              setToastMessage("Great news! The helper has arrived at your parents' house.");
+            } else if (msg.type === 'ESCROW_RELEASED') {
+              playNotificationChime('success');
+              setToastMessage('Service completed and verified! Escrow released to helper.');
+            } else if (msg.type === 'TASK_DISPATCHED') {
+              playNotificationChime('ping');
+              setToastMessage('A vetted helper has been assigned and is on the way.');
+            }
+            setTimeout(() => setToastMessage(null), 5000);
+          } catch {
+            // ignore
           }
-          setTimeout(() => setToastMessage(null), 5000);
-        } catch (e) {
-          // ignore
-        }
-      };
+        };
 
-      socket.onclose = () => setTimeout(connect, 3000);
+        socket.onclose = () => {
+          if (isMounted) {
+            setWsConnected(false);
+            reconnectTimeout = setTimeout(connect, 3000);
+          }
+        };
+
+        socket.onerror = () => {
+          if (isMounted) setWsConnected(false);
+        };
+      } catch {
+        if (isMounted) {
+          reconnectTimeout = setTimeout(connect, 4000);
+        }
+      }
     };
 
     connect();
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      isMounted = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (socket) socket.close();
     };
   }, []);
 
@@ -308,7 +336,7 @@ export default function UserApp() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('http://localhost:4000/api/tasks', {
+      const res = await fetch(`${getApiBaseUrl()}/api/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -342,7 +370,7 @@ export default function UserApp() {
   const handleAddParent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:4000/api/parents', {
+      const res = await fetch(`${getApiBaseUrl()}/api/parents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -499,7 +527,7 @@ export default function UserApp() {
           <div className="w-full max-w-lg space-y-4">
             <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-slate-900 aspect-video relative">
               <img
-                src="http://localhost:4000/uploads/hero_eldercare.svg"
+                src={getImageUrl('/uploads/hero_eldercare.svg')}
                 alt="FamilyHubs Eldercare"
                 className="w-full h-full object-cover"
               />
@@ -583,6 +611,13 @@ export default function UserApp() {
 
           {/* Profile & Settings Trigger */}
           <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-white shadow-xs">
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+              <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
+                {wsConnected ? 'Live Gateway' : 'Connecting...'}
+              </span>
+            </div>
+
             <button
               onClick={() => setActiveTab('settings')}
               className="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
@@ -963,7 +998,7 @@ export default function UserApp() {
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                               <img
-                                src={`http://localhost:4000${selectedTask.verification_logs[0].selfie_image_url}`}
+                                src={getImageUrl(selectedTask.verification_logs[0].selfie_image_url)}
                                 alt="Verification Proof"
                                 className="w-full h-full object-cover"
                               />
@@ -1356,7 +1391,7 @@ export default function UserApp() {
 
             <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 aspect-square relative">
               <img
-                src={`http://localhost:4000${showProofModal.selfie_image_url}`}
+                src={getImageUrl(showProofModal.selfie_image_url)}
                 alt="Verification Proof"
                 className="w-full h-full object-cover"
               />

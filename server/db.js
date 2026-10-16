@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const dbPath = path.join(__dirname, 'familyhubs.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'familyhubs.db');
 const db = new Database(dbPath);
 
 // Enable WAL mode for high concurrency and sub-second writes
@@ -1012,9 +1012,16 @@ function resetCleanDatabase() {
   });
 }
 
+function closeDatabase() {
+  if (db && db.open) {
+    db.close();
+  }
+}
+
 module.exports = {
   db,
   initDatabase,
+  closeDatabase,
   resetCleanDatabase,
   getTasks,
   getTaskById,
