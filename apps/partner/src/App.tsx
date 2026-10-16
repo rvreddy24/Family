@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import type { Task, PartnerProfile } from '@shared/types';
 import { calculateDistanceMeters, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
+import { PartnerAuthView } from './components/PartnerAuthView';
 
 type LanguageCode = 'en' | 'te' | 'hi' | 'ta' | 'kn';
 
@@ -40,7 +41,9 @@ export default function PartnerApp() {
   });
 
   const [wsConnected, setWsConnected] = useState<boolean>(false);
-  const [partnerId, setPartnerId] = useState<string>('usr_demo_partner');
+  const [partnerId, setPartnerId] = useState<string>(() => {
+    return localStorage.getItem('fh_partner_id') || 'usr_demo_partner';
+  });
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -382,7 +385,7 @@ export default function PartnerApp() {
   };
 
   const handleLogout = () => {
-    localStorage.setItem('fh_partner_logged_in', 'false');
+    localStorage.removeItem('fh_partner_logged_in');
     setIsLoggedIn(false);
   };
 
@@ -564,60 +567,22 @@ export default function PartnerApp() {
   // ==========================================
   // VIEW: PARTNER WELCOME / LOGIN SCREEN
   // ==========================================
+  // ==========================================
+  // VIEW: AUTHENTICATION SCREEN (SIGN IN / SIGN UP)
+  // ==========================================
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-center items-center p-6 font-sans">
-        <div className="w-full max-w-md bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6 text-center">
-          {/* Language Switcher Bar on Login Screen */}
-          <div className="flex items-center justify-center gap-1 bg-slate-100 p-1.5 rounded-2xl">
-            {[
-              { code: 'te', label: 'తెలుగు' },
-              { code: 'en', label: 'English' },
-              { code: 'hi', label: 'हिंदी' },
-              { code: 'ta', label: 'தமிழ்' },
-              { code: 'kn', label: 'ಕನ್ನಡ' },
-            ].map((item) => (
-              <button
-                key={item.code}
-                onClick={() => setLang(item.code as LanguageCode)}
-                className={`px-2.5 py-1 text-xs font-bold rounded-xl transition ${
-                  lang === item.code
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/25">
-            <Zap className="w-8 h-8" />
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">{t.hubTitle}</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Miryalaguda &amp; Nalgonda Verified Field Network
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2">
-            <div className="text-slate-400 font-semibold uppercase">{t.helperProfile}</div>
-            <div className="font-bold text-slate-900 text-sm">K. Srinivas (+91 94401 54321)</div>
-            <div className="text-slate-500">Service Category: Healthcare Escort &amp; Vitals Check</div>
-            <div className="text-emerald-700 font-semibold">✓ Verified Partner #401 • Miryalaguda</div>
-          </div>
-
-          <button
-            onClick={handleLogin}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
-          >
-            <span>{t.signInBtn}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <PartnerAuthView
+        lang={lang}
+        onLanguageChange={setLang}
+        onSuccess={(partner) => {
+          localStorage.setItem('fh_partner_logged_in', 'true');
+          localStorage.setItem('fh_partner_id', partner.id);
+          setPartnerId(partner.id);
+          setIsLoggedIn(true);
+          fetchData();
+        }}
+      />
     );
   }
 
@@ -689,6 +654,15 @@ export default function PartnerApp() {
             >
               <Power className="w-3.5 h-3.5" />
               {isAvailable ? t.onlineStatus : t.offlineStatus}
+            </button>
+
+            {/* Sign Out Button */}
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              title={t.signOutBtn}
+            >
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>

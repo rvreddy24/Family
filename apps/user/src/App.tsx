@@ -43,12 +43,23 @@ import {
 } from 'lucide-react';
 import type { Task, ParentProfile, VerificationLog } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
+import { AuthView } from './components/AuthView';
 
 export default function UserApp() {
   // Persistence for login status (default false to show welcome/login first if first visit)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const saved = localStorage.getItem('fh_user_logged_in');
     return saved === null ? false : saved === 'true';
+  });
+
+  const [currentUserId, setCurrentUserId] = useState<string>(() => {
+    return localStorage.getItem('fh_user_id') || 'usr_demo_client';
+  });
+  const [currentUserName, setCurrentUserName] = useState<string>(() => {
+    return localStorage.getItem('fh_user_name') || 'Demo Client (NRI Family)';
+  });
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
+    return localStorage.getItem('fh_user_email') || 'demo.client@familyhubs.com';
   });
 
   const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'parents' | 'billing' | 'settings'>('explore');
@@ -180,12 +191,13 @@ export default function UserApp() {
     },
   ];
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (targetUserId?: unknown) => {
+    const uid = typeof targetUserId === 'string' ? targetUserId : currentUserId;
     try {
       const apiBase = getApiBaseUrl();
       const [tasksRes, parentsRes] = await Promise.all([
-        fetch(`${apiBase}/api/tasks?clientId=usr_demo_client`),
-        fetch(`${apiBase}/api/parents?clientId=usr_demo_client`),
+        fetch(`${apiBase}/api/tasks?clientId=${uid}`),
+        fetch(`${apiBase}/api/parents?clientId=${uid}`),
       ]);
       if (tasksRes.ok) {
         const tasksData: Task[] = await tasksRes.json();
@@ -256,7 +268,7 @@ export default function UserApp() {
     const connect = () => {
       if (!isMounted) return;
       try {
-        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: 'usr_demo_client' });
+        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: currentUserId });
         socket = new WebSocket(wsUrl);
         wsRef.current = socket;
 
@@ -310,16 +322,11 @@ export default function UserApp() {
     };
   }, []);
 
-  const handleLogin = (userType: 'ananya' | 'rahul') => {
-    localStorage.setItem('fh_user_logged_in', 'true');
-    setIsLoggedIn(true);
-    setToastMessage(`Welcome back! Signed in as ${userType === 'ananya' ? 'Ananya Reddy' : 'Rahul Sharma'}.`);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
   const handleLogout = () => {
-    localStorage.setItem('fh_user_logged_in', 'false');
+    localStorage.removeItem('fh_user_logged_in');
     setIsLoggedIn(false);
+    setToastMessage('Signed out successfully.');
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const openBookModal = (srv: typeof servicesCatalog[0]) => {
@@ -438,116 +445,23 @@ export default function UserApp() {
   });
 
   // ==========================================
-  // VIEW: WELCOME & LOGIN SCREEN (IF LOGGED OUT)
+  // VIEW: AUTHENTICATION SCREEN (SIGN IN / SIGN UP)
   // ==========================================
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-white text-slate-800 flex flex-col font-sans">
-        {/* Welcome Header */}
-        <header className="border-b border-slate-100 py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-md z-30">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/20">
-              <Heart className="w-5 h-5 fill-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold text-slate-900 tracking-tight">FamilyHubs</span>
-              <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-0.5 rounded-full ml-2">
-                NRI Care Portal
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
-              <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-              Serving Miryalaguda &amp; Nalgonda
-            </span>
-            <button
-              onClick={() => handleLogin('ananya')}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-2"
-            >
-              Sign In
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
-
-        {/* Hero Section */}
-        <main className="flex-1 max-w-6xl mx-auto px-6 py-12 flex flex-col lg:flex-row items-center justify-between gap-12">
-          {/* Left Column: Vision & 1-Click Login */}
-          <div className="max-w-xl space-y-6">
-            <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-1.5 rounded-full text-xs font-semibold">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              100% Escrow Protection • Miryalaguda &amp; Old Nalgonda
-            </div>
-
-            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              Taking Loving Care of Your Aging Parents in India
-            </h1>
-
-            <p className="text-base text-slate-600 leading-relaxed">
-              Book doctor visits, prescription delivery, electrician fixes, groceries, and 24/7 emergency support. You pay from abroad through escrow—funds are only released when you verify their on-site arrival photo.
-            </p>
-
-            {/* Urban Company Style Feature Badges */}
-            <div className="grid grid-cols-2 gap-3.5 pt-1">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="font-bold text-slate-900 text-sm">🛡️ Zero Cash to Parents</div>
-                <div className="text-xs text-slate-500 mt-1">Parents never pay at the doorstep. Funds stay locked in escrow.</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className="font-bold text-slate-900 text-sm">📍 Live GPS Photo Check-in</div>
-                <div className="text-xs text-slate-500 mt-1">Mandatory selfie verification taken within 150m of their house.</div>
-              </div>
-            </div>
-
-            {/* Quick Demo Sign In Options */}
-            <div className="pt-2 space-y-3">
-              <button
-                onClick={() => handleLogin('ananya')}
-                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-xl shadow-indigo-600/25 transition flex items-center justify-center gap-3"
-              >
-                <span>Continue as Demo Client (demo.client@familyhubs.com)</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Right Column: Visual Showcase Graphic */}
-          <div className="w-full max-w-lg space-y-4">
-            <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-xl bg-slate-900 aspect-video relative">
-              <img
-                src={getImageUrl('/uploads/hero_eldercare.svg')}
-                alt="FamilyHubs Eldercare"
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {/* Preview Mini Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                  <Stethoscope className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Doctor Visits</div>
-                  <div className="text-[11px] text-slate-500">From $45 • 4.95 ★</div>
-                </div>
-              </div>
-
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                  <Wrench className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Inverter Fix</div>
-                  <div className="text-[11px] text-slate-500">From $40 • 4.91 ★</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <AuthView
+        onSuccess={(user) => {
+          localStorage.setItem('fh_user_logged_in', 'true');
+          localStorage.setItem('fh_user_id', user.id);
+          localStorage.setItem('fh_user_name', user.full_name);
+          localStorage.setItem('fh_user_email', user.email);
+          setCurrentUserId(user.id);
+          setCurrentUserName(user.full_name);
+          setCurrentUserEmail(user.email);
+          setIsLoggedIn(true);
+          fetchAllData(user.id);
+        }}
+      />
     );
   }
 
@@ -621,13 +535,21 @@ export default function UserApp() {
               className="flex items-center gap-3 cursor-pointer pl-3 border-l border-slate-200"
             >
               <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200">
-                AR
+                {currentUserName.substring(0, 2).toUpperCase()}
               </div>
               <div className="hidden sm:block text-right">
-                <div className="text-xs font-bold text-slate-900">Ananya Reddy</div>
-                <div className="text-[11px] text-slate-500">San Jose, CA • Escrow Verified</div>
+                <div className="text-xs font-bold text-slate-900">{currentUserName}</div>
+                <div className="text-[11px] text-slate-500">{currentUserEmail}</div>
               </div>
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

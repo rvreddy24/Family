@@ -887,6 +887,113 @@ function getClientProfile(userId) {
   `).get(resolveUserId(userId));
 }
 
+function getUserByEmail(email) {
+  if (!email) return null;
+  return db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email);
+}
+
+function getUserById(id) {
+  if (!id) return null;
+  const resolved = resolveUserId(id);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(resolved);
+}
+
+function registerClientAccount({
+  email,
+  fullName,
+  phone = '+1 408 555 0100',
+  countryResidence = 'United States',
+  currency = 'USD',
+  subscriptionTier = 'GOLD',
+  parentName,
+  parentPhone,
+  locality = 'Reddy Colony, Miryalaguda',
+  fullAddress = 'Miryalaguda, Telangana',
+  coordinatesLat = 16.8724,
+  coordinatesLng = 79.5631,
+  medicalNotes = null,
+  authProviderId = null,
+}) {
+  const existing = getUserByEmail(email);
+  if (existing) {
+    return getClientProfile(existing.id);
+  }
+
+  const userId = 'usr_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+
+  const tx = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+      VALUES (?, 'CLIENT', ?, ?, ?, ?, ?)
+    `).run(userId, email, phone, fullName, authProviderId, now);
+
+    db.prepare(`
+      INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
+      VALUES (?, ?, ?, ?)
+    `).run(userId, countryResidence, currency, subscriptionTier);
+
+    if (parentName) {
+      const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
+      db.prepare(`
+        INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(parentId, userId, parentName, parentPhone || phone, locality, fullAddress, coordinatesLat, coordinatesLng, medicalNotes);
+    }
+
+    addAuditLog({
+      eventType: 'CLIENT_ACCOUNT_REGISTERED',
+      actorId: userId,
+      actorRole: 'CLIENT',
+      severity: 'LOW',
+      details: { email, fullName, countryResidence },
+    });
+  });
+
+  tx();
+  return getClientProfile(userId);
+}
+
+function registerPartnerAccount({
+  email,
+  fullName,
+  phone = '+91 94401 00000',
+  serviceCategory = 'MEDICAL_TRANSPORT',
+  operatingRegion = 'Miryalaguda Town & Rural Hub',
+  authProviderId = null,
+}) {
+  const existing = getUserByEmail(email);
+  if (existing) {
+    return getPartnerProfile(existing.id);
+  }
+
+  const userId = 'usr_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+
+  const tx = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+      VALUES (?, 'PARTNER', ?, ?, ?, ?, ?)
+    `).run(userId, email, phone, fullName, authProviderId, now);
+
+    db.prepare(`
+      INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
+      VALUES (?, ?, ?, 1, 1, 0.00)
+    `).run(userId, serviceCategory, operatingRegion);
+
+    addAuditLog({
+      eventType: 'PARTNER_ACCOUNT_REGISTERED',
+      actorId: userId,
+      actorRole: 'PARTNER',
+      severity: 'LOW',
+      details: { email, fullName, serviceCategory, operatingRegion },
+    });
+  });
+
+  tx();
+  return getPartnerProfile(userId);
+}
+
 function getEscrowSummary() {
   const totals = db.prepare(`
     SELECT 
@@ -983,4 +1090,8 @@ module.exports = {
   getAuditLogs,
   getSecuritySettings,
   updateSecuritySetting,
+  getUserByEmail,
+  getUserById,
+  registerClientAccount,
+  registerPartnerAccount,
 };

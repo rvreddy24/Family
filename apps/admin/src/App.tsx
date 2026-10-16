@@ -34,7 +34,9 @@ import {
   Key,
   ShieldAlert,
   Flame,
-  Activity
+  Activity,
+  Mail,
+  EyeOff,
 } from 'lucide-react';
 import type { Task, PartnerProfile, VerificationLog, WhatsAppLog } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
@@ -44,6 +46,12 @@ export default function AdminApp() {
     const saved = localStorage.getItem('fh_admin_logged_in');
     return saved === null ? false : saved === 'true';
   });
+
+  const [adminEmail, setAdminEmail] = useState<string>('demo.admin@familyhubs.com');
+  const [adminPassword, setAdminPassword] = useState<string>('DemoPassword123!');
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
+  const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(false);
+  const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
 
   const [wsConnected, setWsConnected] = useState<boolean>(false);
 
@@ -378,41 +386,154 @@ export default function AdminApp() {
     .filter((t) => t.escrow?.status === 'HOLD_IN_ESCROW')
     .reduce((acc, t) => acc + (t.escrow?.amount || 0), 0);
 
+  const handleAdminSignIn = async (e?: React.FormEvent, isDemo = false) => {
+    if (e) e.preventDefault();
+    setAdminAuthError(null);
+    setAdminAuthLoading(true);
+
+    const emailToUse = isDemo ? 'demo.admin@familyhubs.com' : adminEmail;
+    const passwordToUse = isDemo ? 'DemoPassword123!' : adminPassword;
+
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'ADMIN',
+          email: emailToUse,
+          password: passwordToUse,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Invalid admin credentials or clearance failure.');
+      }
+
+      localStorage.setItem('fh_admin_logged_in', 'true');
+      setIsLoggedIn(true);
+      if (audioEnabled) playNotificationChime('success');
+    } catch (err: any) {
+      setAdminAuthError(err.message || 'Authentication failed. Please verify credentials.');
+      if (audioEnabled) playNotificationChime('alert');
+    } finally {
+      setAdminAuthLoading(false);
+    }
+  };
+
   // ==========================================
-  // VIEW: OPERATIONS LOGIN / WELCOME SCREEN
+  // VIEW: OPERATIONS LOGIN SCREEN (SIGN IN ONLY)
   // ==========================================
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-center items-center p-6 font-sans">
-        <div className="w-full max-w-md bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/25">
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl p-8 rounded-3xl border border-slate-700/80 shadow-2xl space-y-6 z-10">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/30">
             <Radio className="w-8 h-8" />
           </div>
 
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">FamilyHubs Operations</h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Miryalaguda &amp; Old Nalgonda Concierge Command Center
+          <div className="text-center">
+            <h1 className="text-2xl font-black text-white">FamilyHubs Operations</h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Command Center &amp; Quality Oversight Console
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left text-xs space-y-2">
-            <div className="text-slate-400 font-semibold uppercase">Authorized Dispatcher</div>
-            <div className="font-bold text-slate-900 text-sm">Prasad Varma (Lead Dispatcher)</div>
-            <div className="text-slate-500">Security Clearance: Chief Concierge #88</div>
-            <div className="text-emerald-700 font-semibold">✓ 2FA Authenticated • Miryalaguda Hub</div>
+          {/* Explicit Notice: No Admin Signup */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-700/90 text-left text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 text-indigo-400 font-bold uppercase tracking-wider text-[10px]">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Restricted Platform Console</span>
+            </div>
+            <div className="text-slate-300 text-[11px] leading-relaxed">
+              Admin &amp; Chief Dispatcher accounts are directly managed. Public self-registration is strictly disabled.
+            </div>
           </div>
 
-          <button
-            onClick={() => {
-              localStorage.setItem('fh_admin_logged_in', 'true');
-              setIsLoggedIn(true);
-            }}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
-          >
-            <span>Sign In to Operations Desk</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          {adminAuthError && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>{adminAuthError}</span>
+            </div>
+          )}
+
+          <form onSubmit={(e) => handleAdminSignIn(e, false)} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Admin Email Address
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  required
+                  placeholder="demo.admin@familyhubs.com"
+                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Admin Password
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={adminAuthLoading}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {adminAuthLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Sign In to Operations Desk</span>
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+            <div className="relative my-3 text-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-700" />
+              </div>
+              <span className="relative bg-slate-800 px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                Or Instant Clearance
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleAdminSignIn(undefined, true)}
+              className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 border border-slate-600/80 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Continue as Demo Admin (demo.admin@familyhubs.com)</span>
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -515,10 +636,21 @@ export default function AdminApp() {
                 PV
               </div>
               <div className="hidden sm:block text-right">
-                <div className="text-xs font-bold text-slate-900">Prasad Varma</div>
-                <div className="text-[11px] text-slate-500">Lead Dispatcher</div>
+                <div className="text-xs font-bold text-slate-900">Demo Operations Admin</div>
+                <div className="text-[11px] text-slate-500">Chief Concierge #88</div>
               </div>
             </div>
+
+            <button
+              onClick={() => {
+                localStorage.removeItem('fh_admin_logged_in');
+                setIsLoggedIn(false);
+              }}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

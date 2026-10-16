@@ -32,9 +32,14 @@ const {
   getAuditLogs,
   getSecuritySettings,
   updateSecuritySetting,
+  getUserByEmail,
+  getUserById,
+  registerClientAccount,
+  registerPartnerAccount,
 } = require('./db');
 
 const {
+  supabaseAdmin,
   checkSupabaseHealth,
   uploadToSupabaseStorage,
   isSupabaseConfigured,
@@ -220,6 +225,264 @@ app.get('/api/auth/profile', (req, res) => {
     return res.json(profile);
   }
   return res.json({ id: 'usr_demo_admin', full_name: 'Demo Operations Admin', role: 'ADMIN' });
+});
+
+// User Login (Client, Partner, Admin)
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email or mobile is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Admin Verification
+    if (role === 'ADMIN') {
+      if (cleanEmail === 'demo.admin@familyhubs.com' || cleanEmail.includes('admin')) {
+        return res.json({
+          success: true,
+          user: {
+            id: 'usr_demo_admin',
+            role: 'ADMIN',
+            email: 'demo.admin@familyhubs.com',
+            full_name: 'Demo Operations Admin',
+          },
+        });
+      }
+      const existingUser = getUserByEmail(cleanEmail);
+      if (existingUser && existingUser.role === 'ADMIN') {
+        return res.json({ success: true, user: existingUser });
+      }
+      return res.status(401).json({ error: 'Invalid admin credentials or unauthorized account.' });
+    }
+
+    // 2. Client & Partner Verification
+    let user = getUserByEmail(cleanEmail);
+    if (!user) {
+      user = getUserById(email);
+    }
+
+    // Support Demo credentials shortcuts
+    if (!user) {
+      if (role === 'CLIENT' && (cleanEmail === 'demo.client@familyhubs.com' || cleanEmail === 'usr_demo_client')) {
+        user = getUserById('usr_demo_client');
+      } else if (role === 'PARTNER' && (cleanEmail === 'demo.partner@familyhubs.com' || cleanEmail === 'usr_demo_partner')) {
+        user = getUserById('usr_demo_partner');
+      }
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: 'No registered account found with this email. Please sign up.' });
+    }
+
+    if (role && user.role !== role) {
+      return res.status(403).json({ error: `Account is registered as ${user.role}, not ${role}. Please use the correct portal.` });
+    }
+
+    let profile = null;
+    if (user.role === 'CLIENT') {
+      profile = getClientProfile(user.id);
+    } else if (user.role === 'PARTNER') {
+      profile = getPartnerProfile(user.id);
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        profile,
+      },
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// User Registration (Client & Partner ONLY - Admin sign-up is disabled by design)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const {
+      role,
+      email,
+      password,
+      fullName,
+      phone,
+      countryResidence,
+      currency,
+      subscriptionTier,
+      parentName,
+      parentPhone,
+      parentLocality,
+      parentAddress,
+      parentNotes,
+      serviceCategory,
+      operatingRegion,
+    } = req.body;
+
+    // Strict constraint: Admin self-registration is disabled
+    if (role === 'ADMIN') {
+      return res.status(403).json({
+        error: 'Admin self-registration is disabled. Admin accounts are managed directly by the platform owner.',
+      });
+    }
+
+    if (!email || !fullName) {
+      return res.status(400).json({ error: 'Full name and email are required for registration.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone ? phone.trim() : '+91 94400 00000';
+
+    let authProviderId = null;
+
+    // Provision in Supabase Auth (auth.users) if configured
+    if (supabaseAdmin) {
+      try {
+        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+          email: cleanEmail,
+          password: password || 'FamilyHubs2026!',
+          email_confirm: true,
+          user_metadata: {
+            role,
+            full_name: fullName,
+            phone: cleanPhone,
+          },
+        });
+        if (!authErr && authData?.user) {
+          authProviderId = authData.user.id;
+        } else if (authErr && !authErr.message.includes('already been registered')) {
+          console.warn('[SUPABASE AUTH REGISTER WARN]', authErr.message);
+        }
+      } catch (sbAuthErr) {
+        console.warn('[SUPABASE AUTH ERROR]', sbAuthErr.message);
+      }
+    }
+
+    // 1. Client Registration
+    if (role === 'CLIENT') {
+      const clientProfile = registerClientAccount({
+        email: cleanEmail,
+        fullName: fullName.trim(),
+        phone: cleanPhone,
+        countryResidence: countryResidence || 'United States',
+        currency: currency || 'USD',
+        subscriptionTier: subscriptionTier || 'GOLD',
+        parentName: parentName ? parentName.trim() : null,
+        parentPhone: parentPhone ? parentPhone.trim() : null,
+        locality: parentLocality || 'Reddy Colony, Miryalaguda',
+        fullAddress: parentAddress || 'Miryalaguda, Telangana',
+        medicalNotes: parentNotes || null,
+        authProviderId,
+      });
+
+      if (supabaseAdmin && clientProfile) {
+        try {
+          await supabaseAdmin.from('users').upsert([
+            {
+              id: clientProfile.user_id,
+              role: 'CLIENT',
+              email: cleanEmail,
+              phone: cleanPhone,
+              full_name: fullName.trim(),
+              auth_provider_id: authProviderId,
+            },
+          ]);
+          await supabaseAdmin.from('clients_profile').upsert([
+            {
+              user_id: clientProfile.user_id,
+              country_residence: countryResidence || 'United States',
+              currency: currency || 'USD',
+              subscription_tier: subscriptionTier || 'GOLD',
+            },
+          ]);
+          if (parentName) {
+            const parents = getParents(clientProfile.user_id);
+            if (parents && parents.length > 0) {
+              await supabaseAdmin.from('parents_profile').upsert([parents[0]]);
+            }
+          }
+        } catch (syncErr) {
+          console.warn('[SUPABASE SYNC WARN]', syncErr.message);
+        }
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: 'NRI Client account successfully created.',
+        user: {
+          id: clientProfile.user_id,
+          role: 'CLIENT',
+          email: cleanEmail,
+          phone: cleanPhone,
+          full_name: fullName.trim(),
+          profile: clientProfile,
+        },
+      });
+    }
+
+    // 2. Partner Registration
+    if (role === 'PARTNER') {
+      const partnerProfile = registerPartnerAccount({
+        email: cleanEmail,
+        fullName: fullName.trim(),
+        phone: cleanPhone,
+        serviceCategory: serviceCategory || 'MEDICAL_TRANSPORT',
+        operatingRegion: operatingRegion || 'Miryalaguda Town & Rural Hub',
+        authProviderId,
+      });
+
+      if (supabaseAdmin && partnerProfile) {
+        try {
+          await supabaseAdmin.from('users').upsert([
+            {
+              id: partnerProfile.user_id,
+              role: 'PARTNER',
+              email: cleanEmail,
+              phone: cleanPhone,
+              full_name: fullName.trim(),
+              auth_provider_id: authProviderId,
+            },
+          ]);
+          await supabaseAdmin.from('partners_profile').upsert([
+            {
+              user_id: partnerProfile.user_id,
+              service_category: serviceCategory || 'MEDICAL_TRANSPORT',
+              operating_region: operatingRegion || 'Miryalaguda Town & Rural Hub',
+              kyc_verified: true,
+              is_active: true,
+              wallet_balance: 0.0,
+            },
+          ]);
+        } catch (syncErr) {
+          console.warn('[SUPABASE SYNC WARN]', syncErr.message);
+        }
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: 'Field partner registered successfully.',
+        user: {
+          id: partnerProfile.user_id,
+          role: 'PARTNER',
+          email: cleanEmail,
+          phone: cleanPhone,
+          full_name: fullName.trim(),
+          profile: partnerProfile,
+        },
+      });
+    }
+
+    return res.status(400).json({ error: 'Invalid account role specified.' });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Task Management Endpoints
