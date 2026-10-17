@@ -877,19 +877,27 @@ const userDist = path.join(__dirname, '../apps/user/dist');
 const adminDist = path.join(__dirname, '../apps/admin/dist');
 const partnerDist = path.join(__dirname, '../apps/partner/dist');
 
-// Serve compiled static assets (/assets/*) across all 3 web apps
+// Serve scoped static assets (/partner, /ops, /admin, and root)
+app.use('/partner', express.static(partnerDist));
+app.use('/ops', express.static(adminDist));
+app.use('/admin', express.static(adminDist));
 app.use('/assets', express.static(path.join(userDist, 'assets')));
 app.use('/assets', express.static(path.join(partnerDist, 'assets')));
 app.use('/assets', express.static(path.join(adminDist, 'assets')));
+app.use('/', express.static(userDist));
 
 app.use((req, res, next) => {
   if (
     req.path.startsWith('/api') ||
     req.path.startsWith('/uploads') ||
-    req.path.startsWith('/ws') ||
-    req.path.startsWith('/assets')
+    req.path.startsWith('/ws')
   ) {
     return next();
+  }
+
+  // If requesting a static file with an extension that wasn't matched above, return 404 instead of HTML
+  if (/\.[a-zA-Z0-9]+$/.test(req.path)) {
+    return res.status(404).send('Asset not found');
   }
 
   const host = (req.headers.host || '').toLowerCase();
