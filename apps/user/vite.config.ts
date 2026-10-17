@@ -29,5 +29,6 @@ export default defineConfig({
     alias: {
       '@shared': path.resolve(__dirname, '../../packages/shared'),
     },
+    dedupe: ['react', 'react-dom'],
   },
 });
