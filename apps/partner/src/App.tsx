@@ -62,8 +62,10 @@ export default function PartnerApp() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
   // Settings State
-  const [bankUpiId, setBankUpiId] = useState<string>('9440154321@okaxis');
-  const [operatingTown, setOperatingTown] = useState<string>('Miryalaguda Town & Sagar Road');
+  const [bankUpiId, setBankUpiId] = useState<string>(() => {
+    return localStorage.getItem('fh_partner_upi') || 'partner@okaxis';
+  });
+  const [operatingTown, setOperatingTown] = useState<string>('Miryalaguda & Nalgonda Hub');
 
   // Geolocation
   const [deviceLat, setDeviceLat] = useState<number>(16.8724);
@@ -303,6 +305,12 @@ export default function PartnerApp() {
         const profData = await profRes.json();
         setProfile(profData);
         setIsAvailable(profData.is_active);
+        if (profData.operating_region) {
+          setOperatingTown(profData.operating_region);
+        }
+        if (profData.user?.phone && !localStorage.getItem('fh_partner_upi')) {
+          setBankUpiId(`${profData.user.phone.replace(/[^0-9]/g, '')}@upi`);
+        }
       }
 
       if (tasksRes.ok) {
@@ -1058,8 +1066,8 @@ export default function PartnerApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Full Name</label>
                   <input
                     type="text"
-                    defaultValue={profile?.user?.full_name || ''}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={profile?.user?.full_name || profile?.full_name || 'Pavan Kumar (Field Partner)'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>
@@ -1067,8 +1075,8 @@ export default function PartnerApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Phone Number</label>
                   <input
                     type="text"
-                    defaultValue={profile?.user?.phone || ''}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={profile?.user?.phone || '+91 94401 55667'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>

@@ -26,6 +26,7 @@ server/*.db-wal
 
 # Ephemeral test uploads
 server/uploads/test_proof_*
+server/uploads/proof_cs*
 
 # Environment variables
 .env

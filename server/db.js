@@ -813,12 +813,43 @@ function updatePartnerDuty(userId, isActive) {
 }
 
 function getClientProfile(userId) {
-  return db.prepare(`
+  const resolved = resolveUserId(userId);
+  let profile = db.prepare(`
     SELECT c.*, u.full_name, u.email, u.phone 
     FROM clients_profile c
     JOIN users u ON c.user_id = u.id
     WHERE c.user_id = ?
-  `).get(resolveUserId(userId));
+  `).get(resolved);
+
+  if (!profile) {
+    const user = getUserById(resolved);
+    if (user) {
+      db.prepare(`
+        INSERT OR IGNORE INTO clients_profile (user_id, country_residence, currency, subscription_tier)
+        VALUES (?, 'United States', 'USD', 'GOLD')
+      `).run(user.id);
+
+      profile = db.prepare(`
+        SELECT c.*, u.full_name, u.email, u.phone 
+        FROM clients_profile c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.user_id = ?
+      `).get(resolved);
+    }
+  }
+
+  if (profile) {
+    return {
+      ...profile,
+      user: {
+        id: profile.user_id,
+        full_name: profile.full_name,
+        email: profile.email,
+        phone: profile.phone,
+      },
+    };
+  }
+  return null;
 }
 
 function getUserByEmail(email) {

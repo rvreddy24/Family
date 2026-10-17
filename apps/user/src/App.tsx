@@ -54,15 +54,17 @@ export default function UserApp() {
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('fh_user_id') || '';
+    return localStorage.getItem('fh_user_id') || 'c11e4701-0000-4000-8000-000000000001';
   });
   const [currentUserName, setCurrentUserName] = useState<string>(() => {
-    return localStorage.getItem('fh_user_name') || 'FamilyHubs Member';
+    return localStorage.getItem('fh_user_name') || 'Rajesh Reddy (NRI Son)';
   });
   const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
-    return localStorage.getItem('fh_user_email') || '';
+    return localStorage.getItem('fh_user_email') || 'user@familyhubs.in';
   });
 
+  const [clientProfile, setClientProfile] = useState<any>(null);
+  const [requestFilter, setRequestFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
   const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'parents' | 'billing' | 'settings'>('explore');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [parents, setParents] = useState<ParentProfile[]>([]);
@@ -196,11 +198,12 @@ export default function UserApp() {
     const uid = typeof targetUserId === 'string' ? targetUserId : currentUserId;
     try {
       const apiBase = getApiBaseUrl();
-      const [tasksRes, parentsRes] = await Promise.all([
-        fetch(`${apiBase}/api/tasks?clientId=${uid}`),
-        fetch(`${apiBase}/api/parents?clientId=${uid}`),
+      const [tasksRes, parentsRes, profRes] = await Promise.all([
+        uid ? fetch(`${apiBase}/api/tasks?clientId=${uid}`) : Promise.resolve(null),
+        uid ? fetch(`${apiBase}/api/parents?clientId=${uid}`) : Promise.resolve(null),
+        uid ? fetch(`${apiBase}/api/auth/me?userId=${uid}&role=CLIENT`) : Promise.resolve(null),
       ]);
-      if (tasksRes.ok) {
+      if (tasksRes && tasksRes.ok) {
         const tasksData: Task[] = await tasksRes.json();
         setTasks(tasksData);
         if (!selectedTask && tasksData.length > 0) {
@@ -210,11 +213,28 @@ export default function UserApp() {
           if (updated) setSelectedTask(updated);
         }
       }
-      if (parentsRes.ok) {
+      if (parentsRes && parentsRes.ok) {
         const parentsData: ParentProfile[] = await parentsRes.json();
         setParents(parentsData);
         if (parentsData.length > 0 && !reqParentId) {
           setReqParentId(parentsData[0].id);
+        }
+      }
+      if (profRes && profRes.ok) {
+        const profData = await profRes.json();
+        if (profData) {
+          setClientProfile(profData);
+          if (profData.user?.full_name) {
+            setCurrentUserName(profData.user.full_name);
+            localStorage.setItem('fh_user_name', profData.user.full_name);
+          }
+          if (profData.user?.email) {
+            setCurrentUserEmail(profData.user.email);
+            localStorage.setItem('fh_user_email', profData.user.email);
+          }
+          if (profData.currency) {
+            setUserCurrency(profData.currency);
+          }
         }
       }
 
@@ -513,6 +533,22 @@ export default function UserApp() {
   const releasedEscrow = tasks
     .filter((t) => t.escrow?.status === 'RELEASED_TO_PARTNER')
     .reduce((acc, t) => acc + (t.escrow?.amount || 0), 0);
+
+  const filteredUserTasks = tasks.filter((t) => {
+    if (requestFilter === 'ACTIVE') return t.status !== 'COMPLETED';
+    if (requestFilter === 'COMPLETED') return t.status === 'COMPLETED';
+    return true;
+  });
+
+  useEffect(() => {
+    if (filteredUserTasks.length > 0) {
+      if (!selectedTask || !filteredUserTasks.some((t) => t.id === selectedTask.id)) {
+        setSelectedTask(filteredUserTasks[0]);
+      }
+    } else {
+      setSelectedTask(null);
+    }
+  }, [requestFilter, tasks]);
 
   // Filtered Services based on Search & Category
   const filteredServices = servicesCatalog.filter((s) => {
@@ -850,6 +886,40 @@ export default function UserApp() {
                   </button>
                 </div>
 
+                {/* Filter Pills: All, Ongoing, Completed */}
+                <div className="flex items-center gap-1.5 pb-1">
+                  <button
+                    onClick={() => setRequestFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                      requestFilter === 'ALL'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    All ({tasks.length})
+                  </button>
+                  <button
+                    onClick={() => setRequestFilter('ACTIVE')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                      requestFilter === 'ACTIVE'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    Ongoing ({tasks.filter((t) => t.status !== 'COMPLETED').length})
+                  </button>
+                  <button
+                    onClick={() => setRequestFilter('COMPLETED')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                      requestFilter === 'COMPLETED'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    Completed ({tasks.filter((t) => t.status === 'COMPLETED').length})
+                  </button>
+                </div>
+
                 {tasks.length === 0 ? (
                   <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-3">
                     <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
@@ -866,8 +936,13 @@ export default function UserApp() {
                       Browse Services ➔
                     </button>
                   </div>
+                ) : filteredUserTasks.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
+                    <div className="text-xs font-bold text-slate-700">No requests match this filter.</div>
+                    <div className="text-[11px] text-slate-400">Try switching to 'All' or 'Completed' above.</div>
+                  </div>
                 ) : (
-                  tasks.map((task) => {
+                  filteredUserTasks.map((task) => {
                     const isSelected = selectedTask?.id === task.id;
                     const isCompleted = task.status === 'COMPLETED';
 
@@ -1111,8 +1186,8 @@ export default function UserApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Full Name</label>
                   <input
                     type="text"
-                    defaultValue="Ananya Reddy"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={currentUserName || clientProfile?.user?.full_name || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>
@@ -1120,8 +1195,8 @@ export default function UserApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Email</label>
                   <input
                     type="email"
-                    defaultValue="ananya.reddy@gmail.com"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={currentUserEmail || clientProfile?.user?.email || ''}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>
@@ -1129,8 +1204,8 @@ export default function UserApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Country of Residence</label>
                   <input
                     type="text"
-                    defaultValue="United States (San Jose, CA)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={clientProfile?.country_residence || 'United States'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>
@@ -1224,8 +1299,8 @@ export default function UserApp() {
                 {/* Session telemetry */}
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 space-y-1">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">Active NRI Session:</span>
-                    <span className="font-mono text-slate-800 font-semibold">San Jose, CA, USA (IP: 198.51.100.42)</span>
+                    <span className="text-slate-400">Authenticated Client Account:</span>
+                    <span className="font-mono text-slate-800 font-semibold">{currentUserEmail}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span className="text-slate-400">Parent Geofence Tolerance:</span>

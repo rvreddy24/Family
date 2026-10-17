@@ -212,25 +212,28 @@ app.get('/api/supabase/status', async (req, res) => {
   });
 });
 
-// Auth profiles
-app.get('/api/auth/profile', (req, res) => {
+// Auth profiles (/api/auth/profile and /api/auth/me)
+const handleAuthProfile = (req, res) => {
   const role = req.query.role || 'CLIENT';
-  const userId = req.query.userId;
+  const userId = req.query.userId || req.headers['x-user-id'];
   if (!userId) {
     return res.status(400).json({ error: 'userId query parameter is required' });
   }
 
   if (role === 'CLIENT') {
     const profile = getClientProfile(userId);
-    return res.json(profile);
+    return res.json(profile || { user_id: userId, country_residence: 'United States', currency: 'USD' });
   }
   if (role === 'PARTNER') {
     const profile = getPartnerProfile(userId);
-    return res.json(profile);
+    return res.json(profile || { user_id: userId, operating_region: 'Miryalaguda & Nalgonda Hub' });
   }
   const user = getUserById(userId);
   return res.json(user || { id: userId, role: 'ADMIN' });
-});
+};
+
+app.get('/api/auth/profile', handleAuthProfile);
+app.get('/api/auth/me', handleAuthProfile);
 
 // User Login (Client, Partner, Admin)
 app.post('/api/auth/login', async (req, res) => {
@@ -899,14 +902,24 @@ const userDist = path.join(__dirname, '../apps/user/dist');
 const adminDist = path.join(__dirname, '../apps/admin/dist');
 const partnerDist = path.join(__dirname, '../apps/partner/dist');
 
+const staticHtmlNoCache = {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  },
+};
+
 // Serve scoped static assets (/partner, /ops, /admin, and root)
-app.use('/partner', express.static(partnerDist));
-app.use('/ops', express.static(adminDist));
-app.use('/admin', express.static(adminDist));
+app.use('/partner', express.static(partnerDist, staticHtmlNoCache));
+app.use('/ops', express.static(adminDist, staticHtmlNoCache));
+app.use('/admin', express.static(adminDist, staticHtmlNoCache));
 app.use('/assets', express.static(path.join(userDist, 'assets')));
 app.use('/assets', express.static(path.join(partnerDist, 'assets')));
 app.use('/assets', express.static(path.join(adminDist, 'assets')));
-app.use('/', express.static(userDist));
+app.use('/', express.static(userDist, staticHtmlNoCache));
 
 app.use((req, res, next) => {
   if (
@@ -923,11 +936,17 @@ app.use((req, res, next) => {
   }
 
   const host = (req.headers.host || '').toLowerCase();
+  const sendHtmlNoCache = (htmlPath) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.sendFile(htmlPath);
+  };
 
   // 1. Partner Portal (via partner.familyhubs.in or /partner)
   if (host.startsWith('partner.') || host.includes('partner') || req.path.startsWith('/partner')) {
     if (fs.existsSync(path.join(partnerDist, 'index.html'))) {
-      return res.sendFile(path.join(partnerDist, 'index.html'));
+      return sendHtmlNoCache(path.join(partnerDist, 'index.html'));
     }
   }
 
@@ -940,13 +959,13 @@ app.use((req, res, next) => {
     req.path.startsWith('/admin')
   ) {
     if (fs.existsSync(path.join(adminDist, 'index.html'))) {
-      return res.sendFile(path.join(adminDist, 'index.html'));
+      return sendHtmlNoCache(path.join(adminDist, 'index.html'));
     }
   }
 
   // 3. NRI Client Portal (Root domain / default)
   if (fs.existsSync(path.join(userDist, 'index.html'))) {
-    return res.sendFile(path.join(userDist, 'index.html'));
+    return sendHtmlNoCache(path.join(userDist, 'index.html'));
   }
 
   next();

@@ -53,7 +53,9 @@ export default function AdminApp() {
   const [adminName, setAdminName] = useState<string>(() => {
     return localStorage.getItem('fh_admin_name') || 'Operations Admin';
   });
-  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminEmail, setAdminEmail] = useState<string>(() => {
+    return localStorage.getItem('fh_admin_email') || 'admin@familyhubs.in';
+  });
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(false);
@@ -383,8 +385,20 @@ export default function AdminApp() {
     return true;
   });
 
+  useEffect(() => {
+    if (filteredTasks.length > 0) {
+      if (!selectedTask || !filteredTasks.some((t) => t.id === selectedTask.id)) {
+        setSelectedTask(filteredTasks[0]);
+      }
+    } else {
+      setSelectedTask(null);
+    }
+  }, [statusFilter, localityFilter, tasks]);
+
   const pendingReviewCount = tasks.filter((t) => t.status === 'PENDING_OPS_REVIEW').length;
+  const ongoingCount = tasks.filter((t) => ['DISPATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(t.status)).length;
   const pendingAuditCount = tasks.filter((t) => t.status === 'VERIFICATION_SUBMITTED').length;
+  const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const activePartnersCount = partners.filter((p) => p.is_active).length;
   const isEmergencyFreeze = securitySettings.emergency_escrow_freeze === '1';
 
@@ -415,11 +429,14 @@ export default function AdminApp() {
 
       const uid = data.user?.id || '';
       const uname = data.user?.full_name || 'Operations Admin';
+      const uemail = data.user?.email || adminEmail.trim();
       localStorage.setItem('fh_admin_logged_in', 'true');
       localStorage.setItem('fh_admin_id', uid);
       localStorage.setItem('fh_admin_name', uname);
+      localStorage.setItem('fh_admin_email', uemail);
       setAdminId(uid);
       setAdminName(uname);
+      setAdminEmail(uemail);
       setIsLoggedIn(true);
       if (audioEnabled) playNotificationChime('success');
     } catch (err: any) {
@@ -724,44 +741,89 @@ export default function AdminApp() {
 
       {/* Main Content */}
       <main className="flex-1 p-6 space-y-6">
-        {/* Metric Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        {/* Metric Cards - Interactive Filter Controls */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+          <div
+            onClick={() => { setStatusFilter('PENDING'); setActiveTab('dispatch'); }}
+            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+              statusFilter === 'PENDING' && activeTab === 'dispatch'
+                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-amber-300 shadow-xs'
+            }`}
+          >
             <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Needs Dispatch</div>
-              <div className="text-2xl font-bold text-amber-600 mt-1">{pendingReviewCount}</div>
+              <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Needs Dispatch</div>
+              <div className="text-2xl font-black text-amber-600 mt-1">{pendingReviewCount}</div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
               <AlertCircle className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div
+            onClick={() => { setStatusFilter('ACTIVE'); setActiveTab('dispatch'); }}
+            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+              statusFilter === 'ACTIVE' && activeTab === 'dispatch'
+                ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-500/20 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-blue-300 shadow-xs'
+            }`}
+          >
             <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Photos to Audit</div>
-              <div className="text-2xl font-bold text-purple-600 mt-1">{pendingAuditCount}</div>
+              <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Ongoing In-Field</div>
+              <div className="text-2xl font-black text-blue-600 mt-1">{ongoingCount}</div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+              <Activity className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div
+            onClick={() => setActiveTab('verifications')}
+            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+              activeTab === 'verifications'
+                ? 'bg-purple-50 border-purple-300 ring-2 ring-purple-500/20 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-purple-300 shadow-xs'
+            }`}
+          >
+            <div>
+              <div className="text-[11px] font-bold text-purple-700 uppercase tracking-wider">Photos to Audit</div>
+              <div className="text-2xl font-black text-purple-600 mt-1">{pendingAuditCount}</div>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
               <Camera className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div
+            onClick={() => { setStatusFilter('COMPLETED'); setActiveTab('dispatch'); }}
+            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+              statusFilter === 'COMPLETED' && activeTab === 'dispatch'
+                ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-emerald-300 shadow-xs'
+            }`}
+          >
             <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Helpers Online</div>
-              <div className="text-2xl font-bold text-emerald-600 mt-1">{activePartnersCount}</div>
+              <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Completed</div>
+              <div className="text-2xl font-black text-emerald-600 mt-1">{completedCount}</div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <UserCheck className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div
+            onClick={() => { setStatusFilter('ALL'); setActiveTab('dispatch'); }}
+            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+              statusFilter === 'ALL' && activeTab === 'dispatch'
+                ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-500/20 shadow-sm'
+                : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
+            }`}
+          >
             <div>
-              <div className="text-[11px] font-bold text-slate-400 uppercase">Escrow in Vault</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">${totalHeldEscrow.toFixed(2)}</div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Escrow in Vault</div>
+              <div className="text-2xl font-black text-slate-900 mt-1 font-mono">${totalHeldEscrow.toFixed(2)}</div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
             </div>
           </div>
@@ -790,11 +852,39 @@ export default function AdminApp() {
                 </button>
               </div>
 
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {[
+                  { id: 'ALL', label: 'All', count: tasks.length },
+                  { id: 'PENDING', label: 'Needs Dispatch', count: pendingReviewCount },
+                  { id: 'ACTIVE', label: 'Ongoing', count: ongoingCount },
+                  { id: 'AUDIT', label: 'Needs Audit', count: pendingAuditCount },
+                  { id: 'COMPLETED', label: 'Completed', count: completedCount },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setStatusFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                      statusFilter === f.id
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                  >
+                    <span>{f.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      statusFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {f.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               {filteredTasks.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
                   <Layers className="w-8 h-8 mx-auto text-slate-300" />
-                  <div className="text-xs font-bold text-slate-600">No active care requests in triage.</div>
-                  <div className="text-[11px] text-slate-400">When an NRI client books a home service, it will appear here immediately.</div>
+                  <div className="text-xs font-bold text-slate-600">No requests match this filter.</div>
+                  <div className="text-[11px] text-slate-400">Try selecting 'All' or a different filter pill above.</div>
                 </div>
               ) : (
                 filteredTasks.map((task) => (
@@ -811,7 +901,19 @@ export default function AdminApp() {
                       <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
                         {task.tracking_code}
                       </span>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        task.status === 'COMPLETED'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : task.status === 'VERIFICATION_SUBMITTED'
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                          : task.status === 'IN_PROGRESS'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : task.status === 'ACCEPTED'
+                          ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                          : task.status === 'DISPATCHED'
+                          ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
                         {task.status.replace(/_/g, ' ')}
                       </span>
                     </div>
@@ -837,19 +939,56 @@ export default function AdminApp() {
               )}
             </div>
 
-            {/* Right Task Details & 1-Click Dispatch */}
+            {/* Right Task Details: Specialized for Ongoing, Completed & Pending */}
             <div className="lg:col-span-7">
               {selectedTask ? (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                  {/* Status Banner */}
+                  <div className={`p-3.5 rounded-2xl flex items-center justify-between text-xs font-bold border ${
+                    selectedTask.status === 'COMPLETED'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : selectedTask.status === 'VERIFICATION_SUBMITTED'
+                      ? 'bg-purple-50 border-purple-200 text-purple-900'
+                      : ['DISPATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(selectedTask.status)
+                      ? 'bg-blue-50 border-blue-200 text-blue-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {selectedTask.status === 'COMPLETED' ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : selectedTask.status === 'VERIFICATION_SUBMITTED' ? (
+                        <Camera className="w-4 h-4 text-purple-600" />
+                      ) : ['DISPATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(selectedTask.status) ? (
+                        <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                      )}
+                      <span>
+                        {selectedTask.status === 'COMPLETED'
+                          ? 'SERVICE COMPLETED & ESCROW RELEASED'
+                          : selectedTask.status === 'VERIFICATION_SUBMITTED'
+                          ? 'VERIFICATION CHECK-IN SUBMITTED — READY FOR AUDIT'
+                          : selectedTask.status === 'IN_PROGRESS'
+                          ? 'ONGOING IN-FIELD — PARTNER PERFORMING SERVICE'
+                          : selectedTask.status === 'ACCEPTED'
+                          ? 'ONGOING IN-FIELD — PARTNER EN ROUTE'
+                          : selectedTask.status === 'DISPATCHED'
+                          ? 'DISPATCHED — AWAITING PARTNER ACCEPTANCE'
+                          : 'NEEDS IMMEDIATE DISPATCH'}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] opacity-75">{selectedTask.tracking_code}</span>
+                  </div>
+
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                     <div>
-                      <div className="text-xs font-mono font-bold text-indigo-700">{selectedTask.tracking_code}</div>
-                      <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedTask.title}</h3>
+                      <h3 className="text-lg font-bold text-slate-900">{selectedTask.title}</h3>
+                      <div className="text-xs text-slate-400 mt-0.5">Category: {selectedTask.category?.replace(/_/g, ' ')}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[11px] text-slate-400">Escrow Security</div>
                       <div className="text-2xl font-bold font-mono text-emerald-600">
-                        ${selectedTask.escrow?.amount.toFixed(2)} USD
+                        ${selectedTask.escrow?.amount ? selectedTask.escrow.amount.toFixed(2) : '50.00'} USD
                       </div>
                     </div>
                   </div>
@@ -879,47 +1018,194 @@ export default function AdminApp() {
                     </div>
                   </div>
 
-                  {/* 1-Click Dispatch Helpers */}
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                        <UserCheck className="w-4 h-4 text-indigo-600" />
-                        Available Local Helpers
-                      </div>
-                      <span className="text-[11px] text-slate-400">{partners.length} Vetted Partners</span>
-                    </div>
+                  {/* DYNAMIC SECTION BASED ON TASK STATUS */}
+                  {selectedTask.status === 'COMPLETED' ? (
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Completed Job Execution Summary
+                      </h4>
 
-                    <div className="space-y-2">
-                      {partners.map((partner) => (
-                        <div
-                          key={partner.user_id}
-                          className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3"
-                        >
-                          <div>
-                            <div className="text-xs font-bold text-slate-900">{partner.full_name || partner.user?.full_name || 'Field Partner'}</div>
-                            <div className="text-[11px] text-slate-500">{partner.operating_region} • {partner.service_category}</div>
-                          </div>
-
-                          {selectedTask.assigned_partner_id === partner.user_id ? (
-                            <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" /> Assigned
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleAssignPartner(selectedTask.id, partner.user_id)}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
-                            >
-                              Dispatch Partner
-                            </button>
-                          )}
+                      <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 text-xs space-y-3">
+                        <div className="flex justify-between items-center pb-2 border-b border-emerald-100">
+                          <span className="text-slate-500">Service Status:</span>
+                          <span className="font-bold text-emerald-700">Completed &amp; Escrow Released</span>
                         </div>
-                      ))}
+                        <div className="flex justify-between items-center pb-2 border-b border-emerald-100">
+                          <span className="text-slate-500">Partner Payout:</span>
+                          <span className="font-bold font-mono text-emerald-800">${selectedTask.escrow?.amount} USD (Credited to Partner Wallet)</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">Executed by:</span>
+                          <span className="font-semibold text-slate-800">
+                            {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.full_name || 'Pavan Kumar (Field Partner)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Photo Proof Thumbnail if available */}
+                      {selectedTask.verification_logs && selectedTask.verification_logs.length > 0 && (
+                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                          <div className="text-xs font-bold text-slate-800">Forensic Check-In Verification Record</div>
+                          <div className="flex items-center gap-4">
+                            <img
+                              src={getImageUrl(selectedTask.verification_logs[0].selfie_image_url)}
+                              alt="Completed Proof"
+                              className="w-20 h-20 rounded-xl object-cover border border-slate-300 shadow-xs"
+                            />
+                            <div className="text-xs text-slate-600 space-y-1">
+                              <div className="font-bold text-emerald-700">✓ Geofence Verified (&lt; 150m from home)</div>
+                              <div className="text-[11px] font-mono text-slate-500">
+                                GPS: {selectedTask.verification_logs[0].latitude.toFixed(4)}°N, {selectedTask.verification_logs[0].longitude.toFixed(4)}°E
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Distance: {Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m from residence
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ) : selectedTask.status === 'VERIFICATION_SUBMITTED' ? (
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-purple-600" />
+                          Photo Check-In Submitted — Audit &amp; Escrow Release
+                        </h4>
+                      </div>
+
+                      {selectedTask.verification_logs && selectedTask.verification_logs.length > 0 && (
+                        <div className="p-4 bg-purple-50/50 rounded-2xl border border-purple-200 text-xs flex items-center gap-4">
+                          <img
+                            src={getImageUrl(selectedTask.verification_logs[0].selfie_image_url)}
+                            alt="Check-in Photo"
+                            className="w-24 h-24 rounded-xl object-cover border border-purple-300 shadow-sm"
+                          />
+                          <div className="space-y-1">
+                            <div className="font-bold text-purple-900">Check-In Selfie at Parent Home</div>
+                            <div className="text-[11px] text-slate-600">
+                              Distance: {Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m (Tolerance: {geofenceLimit}m)
+                            </div>
+                            <div className="text-[11px] font-mono text-emerald-700 font-bold">
+                              ✓ Server Geofence Passed
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            setAuditTarget(selectedTask);
+                            setShowRejectModal(true);
+                          }}
+                          className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition"
+                        >
+                          Request Retake
+                        </button>
+                        <button
+                          onClick={() => openEscrowPinModal(selectedTask.id)}
+                          className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          Authorize Escrow Payout (${selectedTask.escrow?.amount})
+                        </button>
+                      </div>
+                    </div>
+                  ) : ['DISPATCHED', 'ACCEPTED', 'IN_PROGRESS'].includes(selectedTask.status) ? (
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-blue-700 flex items-center gap-1.5">
+                        <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
+                        Assigned Field Partner (Ongoing In-Field)
+                      </h4>
+
+                      <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-200 text-xs space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">
+                              {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.full_name || 'Pavan Kumar (Field Partner)'}
+                            </div>
+                            <div className="text-slate-500 text-[11px]">
+                              {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.operating_region || 'Miryalaguda & Nalgonda Hub'}
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-xl">
+                            {selectedTask.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+
+                        {/* Phone and Call action */}
+                        <div className="flex items-center justify-between pt-2 border-t border-blue-100">
+                          <span className="text-slate-500">Contact Partner:</span>
+                          <a
+                            href={`tel:${partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.phone || '+919440155667'}`}
+                            className="font-bold text-indigo-700 hover:underline flex items-center gap-1"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.phone || '+91 94401 55667'}
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Photo checkin preview if already submitted */}
+                      {selectedTask.verification_logs && selectedTask.verification_logs.length > 0 && (
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
+                          <img
+                            src={getImageUrl(selectedTask.verification_logs[0].selfie_image_url)}
+                            alt="Check-in"
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-300"
+                          />
+                          <div className="text-xs text-slate-600">
+                            <div className="font-bold text-slate-900">Arrival Check-In Registered</div>
+                            <div className="text-[11px] text-slate-500">Distance: {Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m from home</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* PENDING_OPS_REVIEW - Needs Dispatch */
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <UserCheck className="w-4 h-4 text-indigo-600" />
+                          Available Local Helpers for Dispatch
+                        </div>
+                        <span className="text-[11px] text-slate-400">{partners.length} Vetted Partners</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {partners.map((partner) => (
+                          <div
+                            key={partner.user_id}
+                            className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3"
+                          >
+                            <div>
+                              <div className="text-xs font-bold text-slate-900">{partner.full_name || partner.user?.full_name || 'Field Partner'}</div>
+                              <div className="text-[11px] text-slate-500">{partner.operating_region} • {partner.service_category}</div>
+                            </div>
+
+                            {selectedTask.assigned_partner_id === partner.user_id ? (
+                              <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1">
+                                <Check className="w-3.5 h-3.5" /> Assigned
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleAssignPartner(selectedTask.id, partner.user_id)}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-xs"
+                              >
+                                Dispatch Partner
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-white p-12 text-center rounded-3xl border border-slate-200 text-slate-400">
-                  Select a task from the triage list to inspect details or assign a partner.
+                  Select a task from the list to inspect details or manage dispatch.
                 </div>
               )}
             </div>
@@ -1237,17 +1523,26 @@ export default function AdminApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Dispatcher Name</label>
                   <input
                     type="text"
-                    defaultValue="Prasad Varma"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={adminName || 'Operations Administrator'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>
                 <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Admin Email</label>
+                  <input
+                    type="email"
+                    value={adminEmail || 'admin@familyhubs.in'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
+                    readOnly
+                  />
+                </div>
+                <div className="sm:col-span-2">
                   <label className="text-slate-400 font-semibold block mb-1">Operational Area</label>
                   <input
                     type="text"
-                    defaultValue="Miryalaguda & Old Nalgonda Command"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value="Miryalaguda & Old Nalgonda Command"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
                 </div>

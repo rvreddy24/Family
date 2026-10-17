@@ -369,7 +369,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
-                    placeholder="e.g. Ananya Reddy"
+                    placeholder="Enter your full name"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -386,7 +386,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     required
-                    placeholder="ananya@gmail.com"
+                    placeholder="you@example.com"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>

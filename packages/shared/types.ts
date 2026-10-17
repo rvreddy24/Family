@@ -60,6 +60,8 @@ export interface PartnerProfile {
   is_active: boolean;
   wallet_balance: number;
   full_name?: string;
+  email?: string;
+  phone?: string;
   user?: User;
 }
 
