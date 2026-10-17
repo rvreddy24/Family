@@ -831,13 +831,13 @@ app.post('/api/security/settings', (req, res) => {
 });
 
 // Emergency Escrow Freeze Toggle
-app.post('/api/security/panic-freeze', (req, res) => {
+app.post(['/api/security/panic-freeze', '/api/security/settings/emergency-freeze'], (req, res) => {
   try {
     const settings = getSecuritySettings();
     const nextState = settings.emergency_escrow_freeze === '1' ? '0' : '1';
     const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'admin');
     broadcastEvent('EMERGENCY_FREEZE_TOGGLED', { active: nextState === '1' });
-    res.json({ success: true, emergencyFreezeActive: nextState === '1', settings: updated });
+    res.json({ success: true, active: nextState === '1', emergencyFreezeActive: nextState === '1', settings: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

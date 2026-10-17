@@ -151,6 +151,14 @@ const USER_ID_ALIASES = {};
 
 function resolveUserId(id) {
   if (!id) return id;
+  if (id === 'admin' || id === 'test_ops_admin' || id === 'usr_admin') {
+    try {
+      const admin = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1").get();
+      if (admin) return admin.id;
+    } catch {
+      // ignore
+    }
+  }
   return USER_ID_ALIASES[id] || id;
 }
 

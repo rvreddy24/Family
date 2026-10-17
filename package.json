@@ -11,6 +11,7 @@
     "start:prod": "npm run build && node server/server.js",
     "typecheck": "tsc --noEmit",
     "test": "node tests/test_suite.js",
+    "test:cases": "node tests/case_studies_runner.js",
     "dev:user": "vite apps/user --port 3001",
     "dev:admin": "vite apps/admin --port 3002",
     "dev:partner": "vite apps/partner --port 3003",
