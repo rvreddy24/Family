@@ -890,27 +890,46 @@ const userDist = path.join(__dirname, '../apps/user/dist');
 const adminDist = path.join(__dirname, '../apps/admin/dist');
 const partnerDist = path.join(__dirname, '../apps/partner/dist');
 
+// Serve compiled static assets (/assets/*) across all 3 web apps
+app.use('/assets', express.static(path.join(userDist, 'assets')));
+app.use('/assets', express.static(path.join(partnerDist, 'assets')));
+app.use('/assets', express.static(path.join(adminDist, 'assets')));
+
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/ws')) {
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/ws') ||
+    req.path.startsWith('/assets')
+  ) {
     return next();
   }
 
   const host = (req.headers.host || '').toLowerCase();
 
-  if (host.startsWith('ops.') || host.includes('admin') || req.path.startsWith('/ops')) {
-    if (fs.existsSync(path.join(adminDist, 'index.html'))) {
-      return express.static(adminDist)(req, res, () => res.sendFile(path.join(adminDist, 'index.html')));
-    }
-  }
-
+  // 1. Partner Portal (via partner.familyhubs.in or /partner)
   if (host.startsWith('partner.') || host.includes('partner') || req.path.startsWith('/partner')) {
     if (fs.existsSync(path.join(partnerDist, 'index.html'))) {
-      return express.static(partnerDist)(req, res, () => res.sendFile(path.join(partnerDist, 'index.html')));
+      return res.sendFile(path.join(partnerDist, 'index.html'));
     }
   }
 
+  // 2. Operations Admin Portal (via ops.familyhubs.in, admin.familyhubs.in, or /ops, /admin)
+  if (
+    host.startsWith('ops.') ||
+    host.startsWith('admin.') ||
+    host.includes('admin') ||
+    req.path.startsWith('/ops') ||
+    req.path.startsWith('/admin')
+  ) {
+    if (fs.existsSync(path.join(adminDist, 'index.html'))) {
+      return res.sendFile(path.join(adminDist, 'index.html'));
+    }
+  }
+
+  // 3. NRI Client Portal (Root domain / default)
   if (fs.existsSync(path.join(userDist, 'index.html'))) {
-    return express.static(userDist)(req, res, () => res.sendFile(path.join(userDist, 'index.html')));
+    return res.sendFile(path.join(userDist, 'index.html'));
   }
 
   next();
