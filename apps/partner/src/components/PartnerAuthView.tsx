@@ -262,7 +262,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       {/* Top Header & Language Bar */}
       <header className="border-b border-slate-800/80 py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-lg shadow-indigo-600/30" />
+          <img src="./logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow" />
           <div>
             <span className="text-xl font-bold text-white tracking-tight">FamilyHubs</span>
             <span className="text-xs bg-amber-500/20 text-amber-300 font-semibold px-2.5 py-0.5 rounded-full ml-2 border border-amber-500/30">
@@ -300,6 +300,13 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       {/* Main Content Card */}
       <main className="flex-1 max-w-4xl mx-auto px-4 py-8 md:py-12 flex flex-col items-center justify-center z-10 w-full">
         <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5">
+          {/* Official Brand Logo */}
+          <div className="text-center">
+            <div className="inline-block bg-white p-3 rounded-2xl shadow-xl">
+              <img src="./logo.png" alt="FamilyHubs - Partner Hub" className="w-44 h-auto object-contain mx-auto" />
+            </div>
+          </div>
+
           {/* Header */}
           <div className="text-center space-y-1.5">
             <h1 className="text-2xl font-black text-white">{t.portalTitle}</h1>

@@ -670,7 +670,7 @@ export default function PartnerApp() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-md shadow-indigo-600/20" />
+            <img src="./logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
             <div>
               <div className="text-base font-bold text-slate-900 flex items-center gap-2">
                 {profile?.user?.full_name || 'Field Partner'}

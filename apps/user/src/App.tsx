@@ -566,7 +566,7 @@ export default function UserApp() {
               onClick={() => setActiveTab('explore')}
               className="flex items-center gap-3 cursor-pointer"
             >
-              <img src="/logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-md shadow-indigo-600/20" />
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
               <div>
                 <span className="text-lg font-bold text-slate-900 tracking-tight">FamilyHubs</span>
                 <span className="text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full ml-2">
@@ -727,8 +727,10 @@ export default function UserApp() {
                 </div>
               </div>
 
-              {/* Escrow Vault Glance */}
-              <div className="flex items-center gap-4 bg-white/10 p-5 rounded-2xl backdrop-blur-md border border-white/10 shrink-0">
+              {/* Escrow Vault Glance & Brand Emblem */}
+              <div className="flex items-center gap-6 shrink-0">
+                <img src="/logo_icon.png" alt="FamilyHubs" className="w-20 h-20 object-contain hidden lg:block drop-shadow-lg" />
+                <div className="flex items-center gap-4 bg-white/10 p-5 rounded-2xl backdrop-blur-md border border-white/10 shrink-0">
                 <div>
                   <div className="text-[11px] text-slate-300 font-medium">Secured in Escrow</div>
                   <div className="text-2xl font-bold font-mono text-emerald-400">
@@ -741,6 +743,7 @@ export default function UserApp() {
                 </div>
               </div>
             </div>
+          </div>
 
             {/* Quick Category Filter Pills */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2">

@@ -159,7 +159,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
       {/* Header */}
       <header className="border-b border-slate-800/80 py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-lg shadow-indigo-600/30" />
+          <img src="/logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
           <div>
             <span className="text-xl font-bold text-white tracking-tight">FamilyHubs</span>
             <span className="text-xs bg-indigo-500/20 text-indigo-300 font-semibold px-2.5 py-0.5 rounded-full ml-2 border border-indigo-500/30">
@@ -207,6 +207,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
 
         {/* Right Column: Auth Card with Sign In / Sign Up Tabs */}
         <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 md:p-8 shadow-2xl">
+          {/* Official Brand Logo */}
+          <div className="text-center mb-6">
+            <div className="inline-block bg-white p-3 rounded-2xl shadow-xl">
+              <img src="/logo.png" alt="FamilyHubs - Care For Your Parent From Anywhere" className="w-48 h-auto object-contain mx-auto" />
+            </div>
+          </div>
+
           {/* Tabs */}
           <div className="flex bg-slate-900/80 p-1 rounded-2xl mb-6 border border-slate-700">
             <button

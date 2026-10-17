@@ -439,7 +439,12 @@ export default function AdminApp() {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl p-8 rounded-3xl border border-slate-700/80 shadow-2xl space-y-6 z-10">
-          <img src="./logo.png" alt="FamilyHubs" className="w-16 h-16 rounded-2xl object-cover bg-white mx-auto shadow-lg shadow-indigo-600/30" />
+          {/* Official Brand Logo */}
+          <div className="text-center">
+            <div className="inline-block bg-white p-3 rounded-2xl shadow-xl">
+              <img src="./logo.png" alt="FamilyHubs Operations" className="w-44 h-auto object-contain mx-auto" />
+            </div>
+          </div>
 
           <div className="text-center">
             <h1 className="text-2xl font-black text-white">FamilyHubs Operations</h1>
@@ -564,7 +569,7 @@ export default function AdminApp() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-3.5 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-md shadow-indigo-600/20" />
+            <img src="./logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold text-slate-900">
