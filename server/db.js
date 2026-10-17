@@ -166,6 +166,21 @@ function seedCleanCoreData() {
     insertSetting.run('geofence_tolerance_meters', '150');
     insertSetting.run('emergency_escrow_freeze', '0');
   }
+
+  // Ensure single official Operations Admin exists
+  const existingAdmin = db.prepare("SELECT * FROM users WHERE role = 'ADMIN'").get();
+  if (!existingAdmin) {
+    db.prepare(`
+      INSERT OR REPLACE INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+      VALUES (?, 'ADMIN', ?, ?, ?, ?, datetime('now'))
+    `).run(
+      '8c7b8a7c-e474-49be-a9ba-ba780a5d056c',
+      'admin@familyhubs.in',
+      '+91 90000 88888',
+      'Operations Administrator',
+      '8c7b8a7c-e474-49be-a9ba-ba780a5d056c'
+    );
+  }
 }
 
 // ----------------- SECURITY & AUDIT HELPERS -----------------
