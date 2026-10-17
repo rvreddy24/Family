@@ -65,7 +65,7 @@ export default function PartnerApp() {
   const [bankUpiId, setBankUpiId] = useState<string>(() => {
     return localStorage.getItem('fh_partner_upi') || 'partner@okaxis';
   });
-  const [operatingTown, setOperatingTown] = useState<string>('Miryalaguda & Nalgonda Hub');
+  const [operatingTown, setOperatingTown] = useState<string>('Pan-India Hub');
 
   // Geolocation
   const [deviceLat, setDeviceLat] = useState<number>(16.8724);
@@ -103,7 +103,7 @@ export default function PartnerApp() {
       confirmUpload: 'Confirm & Upload',
       retake: 'Retake',
       languageSelect: 'Language',
-      dutyNotice: 'You are currently active and eligible to receive local job dispatches in Miryalaguda.',
+      dutyNotice: 'You are currently active and eligible to receive local job dispatches across India.',
       signInBtn: 'Sign In to Partner Portal',
       signOutBtn: 'Sign Out from Partner Portal',
       helperProfile: 'Field Helper Profile',
@@ -115,7 +115,7 @@ export default function PartnerApp() {
       jobDetails: 'Job Details & Parent Location',
       instructions: 'Instructions from Family Abroad',
       markComplete: 'Mark Task Completed',
-      noAssignedJobs: 'No pending jobs assigned right now. You are online and ready for new dispatches in Miryalaguda.',
+      noAssignedJobs: 'No pending jobs assigned right now. You are online and ready for new dispatches across India.',
       privacyMaskNotice: 'Parent contact protected via FamilyHubs Secure Relay',
       emptyWallet: 'No completed jobs yet. Payouts are credited instantly upon verified task completion.',
       kycTitle: 'KYC & Security Verification',
@@ -594,7 +594,7 @@ export default function PartnerApp() {
 
     ctx.fillStyle = '#38bdf8';
     ctx.font = '12px sans-serif';
-    ctx.fillText(`TIME: ${new Date().toLocaleTimeString()} IST | Miryalaguda Hub`, 30, 610);
+    ctx.fillText(`TIME: ${new Date().toLocaleTimeString()} IST | Pan-India Hub`, 30, 610);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedPhoto(dataUrl);
@@ -1010,7 +1010,7 @@ export default function PartnerApp() {
           <div className="space-y-6 max-w-2xl mx-auto">
             <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-3xl p-8 text-white shadow-lg space-y-4">
               <span className="text-xs bg-white/20 text-white px-3 py-1 rounded-full font-semibold">
-                Instant UPI Settlement • Miryalaguda
+                Instant UPI Settlement • Pan-India Network
               </span>
               <div className="text-xs text-emerald-200">{t.walletBalance}</div>
               <div className="text-4xl font-extrabold font-mono">
@@ -1117,7 +1117,7 @@ export default function PartnerApp() {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-slate-900">Police Clearance Certificate (PCC)</div>
-                    <div className="text-slate-500 text-[11px]">Miryalaguda Town Police Station • PCC #401</div>
+                    <div className="text-slate-500 text-[11px]">State Police Department Verification • PCC #401</div>
                   </div>
                   <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
                     Verified

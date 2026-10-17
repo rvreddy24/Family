@@ -45,6 +45,7 @@ export interface ParentProfile {
   client_id: string;
   parent_name: string;
   primary_phone: string;
+  whatsapp_phone?: string;
   locality: string;
   full_address: string;
   coordinates_lat: number;

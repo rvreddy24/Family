@@ -46,13 +46,13 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [signupPhone, setSignupPhone] = useState<string>('');
   const [signupEmail, setSignupEmail] = useState<string>('');
   const [serviceCategory, setServiceCategory] = useState<string>('MEDICAL_TRANSPORT');
-  const [operatingRegion, setOperatingRegion] = useState<string>('Miryalaguda Town & Rural Hub');
+  const [operatingRegion, setOperatingRegion] = useState<string>('Pan-India Verified Network');
   const [signupPassword, setSignupPassword] = useState<string>('');
 
   const dict = {
     en: {
       portalTitle: 'FamilyHubs Partner Portal',
-      subtitle: 'Miryalaguda & Nalgonda Verified Field Network',
+      subtitle: 'Pan-India Verified Field Concierge Network',
       signInTab: 'Partner Sign In',
       signUpTab: 'Join as New Partner',
       emailOrPhone: 'Mobile or Email Address',
@@ -538,10 +538,12 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                       onChange={(e) => setOperatingRegion(e.target.value)}
                       className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                     >
-                      <option value="Miryalaguda Town & Rural Hub">Miryalaguda Town</option>
-                      <option value="Reddy Colony & Sagar Road">Reddy Colony</option>
-                      <option value="Housing Board Colony">Housing Board</option>
-                      <option value="Old Nalgonda & Clock Tower">Old Nalgonda</option>
+                      <option value="Pan-India Verified Network">Pan-India (All India)</option>
+                      <option value="Telangana & Andhra Hub">Telangana &amp; Andhra Pradesh</option>
+                      <option value="Karnataka & Bengaluru Hub">Karnataka &amp; Bengaluru</option>
+                      <option value="Maharashtra & Mumbai Hub">Maharashtra &amp; Mumbai</option>
+                      <option value="Delhi NCR Hub">Delhi NCR &amp; North India</option>
+                      <option value="Tamil Nadu & Southern Hub">Tamil Nadu &amp; South India</option>
                     </select>
                   </div>
                 </div>
@@ -629,7 +631,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        FamilyHubs Field Partner Operations • Miryalaguda &amp; Nalgonda, Telangana
+        FamilyHubs Field Partner Operations • Pan-India Eldercare Network Across India
       </footer>
     </div>
   );

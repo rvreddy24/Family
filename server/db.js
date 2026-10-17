@@ -142,6 +142,14 @@ function initDatabase() {
     INSERT OR IGNORE INTO security_settings (key, value) VALUES ('emergency_escrow_freeze', '0')
   `).run();
 
+  // Ensure whatsapp_phone exists in parents_profile
+  try {
+    db.prepare('ALTER TABLE parents_profile ADD COLUMN whatsapp_phone TEXT').run();
+  } catch {}
+  try {
+    db.prepare('UPDATE parents_profile SET whatsapp_phone = primary_phone WHERE whatsapp_phone IS NULL OR whatsapp_phone = ""').run();
+  } catch {}
+
   seedCleanCoreData();
 }
 
@@ -735,27 +743,29 @@ function getParents(clientId) {
 
 function createParent(data) {
   const id = 'prt_' + Math.random().toString(36).substring(2, 9);
+  const resolvedClientId = resolveUserId(data.clientId);
   db.prepare(`
-    INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
-    data.clientId,
+    resolvedClientId,
     data.parentName,
     data.primaryPhone,
+    data.whatsappPhone || data.primaryPhone,
     data.locality,
     data.fullAddress,
-    data.coordinatesLat || 16.8724,
-    data.coordinatesLng || 79.5631,
+    data.coordinatesLat || 20.5937,
+    data.coordinatesLng || 78.9629,
     data.medicalNotes || null
   );
 
   addAuditLog({
     eventType: 'PARENT_RESIDENCE_REGISTERED',
-    actorId: data.clientId,
+    actorId: resolvedClientId,
     actorRole: 'CLIENT',
     severity: 'LOW',
-    details: { parentId: id, name: data.parentName, locality: data.locality },
+    details: { parentId: id, name: data.parentName, locality: data.locality, whatsappPhone: data.whatsappPhone },
   });
 
   return db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(id);
@@ -922,10 +932,11 @@ function registerClientAccount({
   subscriptionTier = 'GOLD',
   parentName,
   parentPhone,
-  locality = 'Reddy Colony, Miryalaguda',
-  fullAddress = 'Miryalaguda, Telangana',
-  coordinatesLat = 16.8724,
-  coordinatesLng = 79.5631,
+  parentWhatsappPhone,
+  locality = 'Pan-India',
+  fullAddress = 'India',
+  coordinatesLat = 20.5937,
+  coordinatesLng = 78.9629,
   medicalNotes = null,
   authProviderId = null,
 }) {
@@ -951,9 +962,20 @@ function registerClientAccount({
     if (parentName) {
       const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
       db.prepare(`
-        INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(parentId, userId, parentName, parentPhone || phone, locality, fullAddress, coordinatesLat, coordinatesLng, medicalNotes);
+        INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        parentId,
+        userId,
+        parentName,
+        parentPhone || phone,
+        parentWhatsappPhone || parentPhone || phone,
+        locality,
+        fullAddress,
+        coordinatesLat,
+        coordinatesLng,
+        medicalNotes
+      );
     }
 
     addAuditLog({
@@ -961,12 +983,116 @@ function registerClientAccount({
       actorId: userId,
       actorRole: 'CLIENT',
       severity: 'LOW',
-      details: { email, fullName, countryResidence },
+      details: { email, fullName, countryResidence, parentName, parentPhone, parentWhatsappPhone },
     });
   });
 
   tx();
   return getClientProfile(userId);
+}
+
+function updateClientProfile(userId, {
+  fullName,
+  email,
+  phone,
+  countryResidence,
+  currency,
+  parentName,
+  parentPrimaryPhone,
+  parentWhatsappPhone,
+  parentLocality,
+  parentAddress,
+  parentNotes,
+}) {
+  const resolved = resolveUserId(userId);
+  const user = getUserById(resolved);
+  if (!user) throw new Error('User not found.');
+
+  const tx = db.transaction(() => {
+    // 1. Update user
+    if (fullName || email || phone) {
+      db.prepare(`
+        UPDATE users 
+        SET full_name = COALESCE(?, full_name),
+            email = COALESCE(?, email),
+            phone = COALESCE(?, phone)
+        WHERE id = ?
+      `).run(
+        fullName ? fullName.trim() : null,
+        email ? email.trim().toLowerCase() : null,
+        phone ? phone.trim() : null,
+        resolved
+      );
+    }
+
+    // 2. Update client profile
+    if (countryResidence || currency) {
+      db.prepare(`
+        UPDATE clients_profile 
+        SET country_residence = COALESCE(?, country_residence),
+            currency = COALESCE(?, currency)
+        WHERE user_id = ?
+      `).run(
+        countryResidence ? countryResidence.trim() : null,
+        currency || null,
+        resolved
+      );
+    }
+
+    // 3. Update or Insert parent profile
+    if (parentName || parentPrimaryPhone || parentWhatsappPhone || parentLocality || parentAddress || parentNotes !== undefined) {
+      const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ? LIMIT 1').get(resolved);
+      if (existingParent) {
+        db.prepare(`
+          UPDATE parents_profile 
+          SET parent_name = COALESCE(?, parent_name),
+              primary_phone = COALESCE(?, primary_phone),
+              whatsapp_phone = COALESCE(?, whatsapp_phone),
+              locality = COALESCE(?, locality),
+              full_address = COALESCE(?, full_address),
+              medical_notes = COALESCE(?, medical_notes)
+          WHERE id = ?
+        `).run(
+          parentName ? parentName.trim() : null,
+          parentPrimaryPhone ? parentPrimaryPhone.trim() : null,
+          parentWhatsappPhone ? parentWhatsappPhone.trim() : null,
+          parentLocality ? parentLocality.trim() : null,
+          parentAddress ? parentAddress.trim() : null,
+          parentNotes !== undefined ? parentNotes : null,
+          existingParent.id
+        );
+      } else {
+        const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
+        db.prepare(`
+          INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 20.5937, 78.9629, ?)
+        `).run(
+          parentId,
+          resolved,
+          parentName ? parentName.trim() : 'Parents in India',
+          parentPrimaryPhone ? parentPrimaryPhone.trim() : (phone || '+91 94400 00000'),
+          parentWhatsappPhone ? parentWhatsappPhone.trim() : (parentPrimaryPhone || phone || '+91 94400 00000'),
+          parentLocality ? parentLocality.trim() : 'Pan-India',
+          parentAddress ? parentAddress.trim() : 'Home Residence, India',
+          parentNotes || null
+        );
+      }
+    }
+
+    addAuditLog({
+      eventType: 'CLIENT_PROFILE_UPDATED',
+      actorId: resolved,
+      actorRole: 'CLIENT',
+      severity: 'LOW',
+      details: { fullName, countryResidence, parentName, parentPrimaryPhone, parentWhatsappPhone },
+    });
+  });
+
+  tx();
+  return {
+    profile: getClientProfile(resolved),
+    parents: getParents(resolved),
+  };
 }
 
 function registerPartnerAccount({
@@ -1109,5 +1235,6 @@ module.exports = {
   getUserById,
   registerClientAccount,
   registerPartnerAccount,
+  updateClientProfile,
   syncUserFromCloud,
 };

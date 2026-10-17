@@ -79,15 +79,35 @@ export default function UserApp() {
   const [twoFactorActive, setTwoFactorActive] = useState<boolean>(true);
   const [biometricEnabled, setBiometricEnabled] = useState<boolean>(true);
 
+  // Google OAuth Onboarding State
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<{
+    email: string;
+    fullName: string;
+    authProviderId?: string;
+  } | null>(null);
+
   // Search & Filter State (Urban Company UX)
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedLocality, setSelectedLocality] = useState<string>('Reddy Colony, Miryalaguda');
 
-  // Settings State
+  // Settings State - Fully User Editable (Client Profile)
+  const [settingsFullName, setSettingsFullName] = useState<string>('');
+  const [settingsEmail, setSettingsEmail] = useState<string>('');
+  const [settingsPhone, setSettingsPhone] = useState<string>('');
+  const [settingsCountry, setSettingsCountry] = useState<string>('United States');
+  const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
   const [userCurrency, setUserCurrency] = useState<string>('USD');
   const [emailAlerts, setEmailAlerts] = useState<boolean>(true);
   const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(true);
+
+  // Settings State - Parents' Care Details (Mandatory Pan-India)
+  const [settingsParentName, setSettingsParentName] = useState<string>('');
+  const [settingsParentPhone, setSettingsParentPhone] = useState<string>('');
+  const [settingsParentWhatsapp, setSettingsParentWhatsapp] = useState<string>('');
+  const [settingsParentCity, setSettingsParentCity] = useState<string>('Pan-India');
+  const [settingsParentAddress, setSettingsParentAddress] = useState<string>('');
+  const [settingsParentNotes, setSettingsParentNotes] = useState<string>('');
+  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
 
   // Booking Modal State (Urban Company Quick Book)
   const [showBookModal, setShowBookModal] = useState<boolean>(false);
@@ -108,17 +128,18 @@ export default function UserApp() {
   const [reqInstructions, setReqInstructions] = useState<string>('');
   const [reqEscrowAmount, setReqEscrowAmount] = useState<number>(45);
 
-  // New Parent Modal
+  // New Parent Modal (Pan-India)
   const [showAddParentModal, setShowAddParentModal] = useState<boolean>(false);
   const [newParentName, setNewParentName] = useState<string>('');
   const [newParentPhone, setNewParentPhone] = useState<string>('+91 ');
-  const [newParentLocality, setNewParentLocality] = useState<string>('Reddy Colony, Miryalaguda');
+  const [newParentWhatsapp, setNewParentWhatsapp] = useState<string>('+91 ');
+  const [newParentLocality, setNewParentLocality] = useState<string>('');
   const [newParentAddress, setNewParentAddress] = useState<string>('');
   const [newParentNotes, setNewParentNotes] = useState<string>('');
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Curated Urban Company Style Services
+  // Curated Urban Company Style Services - Pan-India
   const servicesCatalog = [
     {
       id: 'srv_med_1',
@@ -128,7 +149,7 @@ export default function UserApp() {
       reviews: '142 reviews',
       price: 45,
       banner: getImageUrl('/uploads/service_medical.svg'),
-      desc: 'Certified doctor home visit for complete elderly health assessment and vitals check.',
+      desc: 'Certified doctor home visit for complete elderly health assessment and vitals check across India.',
       features: ['BP, Pulse & Blood Sugar Monitoring', 'Doctor prescription review & advice', 'Instant digital health report to NRI on WhatsApp'],
       badge: 'Bestseller',
     },
@@ -140,7 +161,7 @@ export default function UserApp() {
       reviews: '230 reviews',
       price: 35,
       banner: getImageUrl('/uploads/service_medical.svg'),
-      desc: 'Reliable monthly prescription replenishment from Apollo or MedPlus Miryalaguda.',
+      desc: 'Reliable monthly prescription replenishment from Apollo, MedPlus, or verified local pharmacies across India.',
       features: ['Original pharmacist bill included', 'Same-day home delivery to parents', 'Expiration date verification check'],
       badge: 'Same Day',
     },
@@ -152,7 +173,7 @@ export default function UserApp() {
       reviews: '98 reviews',
       price: 40,
       banner: getImageUrl('/uploads/service_repair.svg'),
-      desc: 'Complete power backup checkup to safeguard aging parents during summer power cuts.',
+      desc: 'Complete power backup checkup to safeguard aging parents during power cuts.',
       features: ['Distilled water top-up for all tubular cells', 'Terminal corrosion cleanup & grease', 'Inverter load & voltage testing'],
       badge: 'Popular',
     },
@@ -164,7 +185,7 @@ export default function UserApp() {
       reviews: '115 reviews',
       price: 50,
       banner: getImageUrl('/uploads/service_plumbing.svg'),
-      desc: 'Clean, safe drinking water guaranteed. Water filter maintenance and plumbing fix.',
+      desc: 'Clean, safe drinking water guaranteed. Water filter maintenance and plumbing fix at home.',
       features: ['Sediment & carbon candle inspection', 'Digital TDS level purity meter check', 'Overhead tank float valve & tap leak fix'],
       badge: 'Essential',
     },
@@ -176,7 +197,7 @@ export default function UserApp() {
       reviews: '86 reviews',
       price: 30,
       banner: getImageUrl('/uploads/service_errands.svg'),
-      desc: 'Fresh farm fruits, cooking oils, lentils, and temple pooja items from Miryalaguda markets.',
+      desc: 'Fresh farm fruits, cold-pressed oils, lentils, and temple pooja items from trusted local markets across India.',
       features: ['Handpicked fresh fruits & temple flowers', 'Pure cold-pressed sesame / groundnut oils', 'Itemized market receipt photo sent to NRI'],
       badge: 'Custom List',
     },
@@ -188,8 +209,8 @@ export default function UserApp() {
       reviews: '64 reviews',
       price: 65,
       banner: getImageUrl('/uploads/service_emergency.svg'),
-      desc: 'Immediate emergency transport escort with trained caretaker staying by their side.',
-      features: ['Under 20-minute rapid response dispatch', 'Vehicle escort to Lifeline or Kamineni Hospital', 'Continuous WhatsApp call coordination with NRI'],
+      desc: 'Immediate emergency transport escort with trained caretaker staying by your parents side.',
+      features: ['Under 20-minute rapid response dispatch', 'Vehicle escort to nearest tertiary care hospital', 'Continuous WhatsApp call coordination with NRI'],
       badge: 'Priority 24/7',
     },
   ];
@@ -216,25 +237,45 @@ export default function UserApp() {
       if (parentsRes && parentsRes.ok) {
         const parentsData: ParentProfile[] = await parentsRes.json();
         setParents(parentsData);
-        if (parentsData.length > 0 && !reqParentId) {
-          setReqParentId(parentsData[0].id);
+        if (parentsData.length > 0) {
+          if (!reqParentId) {
+            setReqParentId(parentsData[0].id);
+          }
+          const p = parentsData[0];
+          setSettingsParentName(p.parent_name || '');
+          setSettingsParentPhone(p.primary_phone || '');
+          setSettingsParentWhatsapp(p.whatsapp_phone || p.primary_phone || '');
+          setSettingsParentCity(p.locality || 'Pan-India');
+          setSettingsParentAddress(p.full_address || '');
+          setSettingsParentNotes(p.medical_notes || '');
         }
       }
       if (profRes && profRes.ok) {
         const profData = await profRes.json();
         if (profData) {
           setClientProfile(profData);
-          if (profData.user?.full_name) {
-            setCurrentUserName(profData.user.full_name);
-            localStorage.setItem('fh_user_name', profData.user.full_name);
+          const fName = profData.user?.full_name || '';
+          const mail = profData.user?.email || '';
+          const ph = profData.user?.phone || '';
+          const country = profData.country_residence || 'United States';
+          const curr = profData.currency || 'USD';
+
+          if (fName) {
+            setCurrentUserName(fName);
+            localStorage.setItem('fh_user_name', fName);
+            setSettingsFullName(fName);
           }
-          if (profData.user?.email) {
-            setCurrentUserEmail(profData.user.email);
-            localStorage.setItem('fh_user_email', profData.user.email);
+          if (mail) {
+            setCurrentUserEmail(mail);
+            localStorage.setItem('fh_user_email', mail);
+            setSettingsEmail(mail);
           }
-          if (profData.currency) {
-            setUserCurrency(profData.currency);
+          if (ph) {
+            setSettingsPhone(ph);
           }
+          setSettingsCountry(country);
+          setSettingsCurrency(curr);
+          setUserCurrency(curr);
         }
       }
 
@@ -273,6 +314,65 @@ export default function UserApp() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settingsFullName.trim() || !settingsEmail.trim()) {
+      setToastMessage('Please provide your name and email.');
+      playNotificationChime('alert');
+      return;
+    }
+    if (!settingsParentName.trim() || !settingsParentPhone.trim() || !settingsParentWhatsapp.trim() || !settingsParentAddress.trim()) {
+      setToastMessage("Parents' name, calling phone, WhatsApp number, and address are mandatory.");
+      playNotificationChime('alert');
+      return;
+    }
+
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/client/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          fullName: settingsFullName.trim(),
+          email: settingsEmail.trim(),
+          phone: settingsPhone.trim(),
+          countryResidence: settingsCountry.trim(),
+          currency: settingsCurrency,
+          parentName: settingsParentName.trim(),
+          parentPrimaryPhone: settingsParentPhone.trim(),
+          parentWhatsappPhone: settingsParentWhatsapp.trim(),
+          parentLocality: settingsParentCity.trim() || 'Pan-India',
+          parentAddress: settingsParentAddress.trim(),
+          parentNotes: settingsParentNotes.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update settings.');
+      }
+
+      setCurrentUserName(settingsFullName.trim());
+      setCurrentUserEmail(settingsEmail.trim());
+      localStorage.setItem('fh_user_name', settingsFullName.trim());
+      localStorage.setItem('fh_user_email', settingsEmail.trim());
+      if (data.profile) setClientProfile(data.profile);
+      if (data.parents) setParents(data.parents);
+
+      playNotificationChime('success');
+      setToastMessage('Account profile & parents care details saved successfully!');
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Settings save error:', err);
+      playNotificationChime('alert');
+      setToastMessage(err.message || 'Failed to update settings.');
+      setTimeout(() => setToastMessage(null), 5000);
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -318,9 +418,23 @@ export default function UserApp() {
           setCurrentUserName(data.user.full_name);
           setCurrentUserEmail(data.user.email);
           setIsLoggedIn(true);
+          setPendingGoogleUser(null);
           fetchAllData(data.user.id);
 
           // Clean up OAuth tokens/code from address bar without reloading
+          if (window.location.search || window.location.hash) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } else if (data.noAccount || res.status === 404) {
+          // If no account with that Google email, redirect to signup to collect mandatory phone & parents details!
+          setPendingGoogleUser({
+            email: data.email || email,
+            fullName: data.fullName || fullName,
+            authProviderId: data.authProviderId || u.id,
+          });
+          setIsLoggedIn(false);
+          setToastMessage('Google verified! Please enter your phone & parents details in India.');
+          setTimeout(() => setToastMessage(null), 6000);
           if (window.location.search || window.location.hash) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
@@ -476,28 +590,38 @@ export default function UserApp() {
 
   const handleAddParent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newParentName.trim() || !newParentPhone.trim() || !newParentWhatsapp.trim() || !newParentAddress.trim()) {
+      setToastMessage("Please fill in parent name, calling phone, WhatsApp number, and address.");
+      playNotificationChime('alert');
+      return;
+    }
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/parents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: currentUserId,
-          parentName: newParentName,
-          primaryPhone: newParentPhone,
-          locality: newParentLocality,
-          fullAddress: newParentAddress,
-          coordinatesLat: 16.8724,
-          coordinatesLng: 79.5631,
-          medicalNotes: newParentNotes,
+          parentName: newParentName.trim(),
+          primaryPhone: newParentPhone.trim(),
+          whatsappPhone: newParentWhatsapp.trim() || newParentPhone.trim(),
+          locality: newParentLocality.trim() || 'Pan-India',
+          fullAddress: newParentAddress.trim(),
+          coordinatesLat: 20.5937,
+          coordinatesLng: 78.9629,
+          medicalNotes: newParentNotes.trim() || null,
         }),
       });
 
       if (res.ok) {
         setShowAddParentModal(false);
         setNewParentName('');
+        setNewParentPhone('+91 ');
+        setNewParentWhatsapp('+91 ');
+        setNewParentLocality('');
         setNewParentAddress('');
         setNewParentNotes('');
         fetchAllData();
+        playNotificationChime('success');
         setToastMessage('Parent residence added successfully!');
         setTimeout(() => setToastMessage(null), 5000);
       }
@@ -566,6 +690,7 @@ export default function UserApp() {
   if (!isLoggedIn) {
     return (
       <AuthView
+        pendingGoogleData={pendingGoogleUser}
         onSuccess={(user) => {
           localStorage.setItem('fh_user_logged_in', 'true');
           localStorage.setItem('fh_user_id', user.id);
@@ -575,6 +700,7 @@ export default function UserApp() {
           setCurrentUserName(user.full_name);
           setCurrentUserEmail(user.email);
           setIsLoggedIn(true);
+          setPendingGoogleUser(null);
           fetchAllData(user.id);
         }}
       />
@@ -611,19 +737,11 @@ export default function UserApp() {
               </div>
             </div>
 
-            {/* Location Selector (Urban Company Style) */}
-            <div className="hidden md:flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3.5 py-1.5 rounded-xl cursor-pointer text-xs">
-              <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
-              <select
-                value={selectedLocality}
-                onChange={(e) => setSelectedLocality(e.target.value)}
-                className="bg-transparent font-semibold text-slate-700 border-none outline-none cursor-pointer"
-              >
-                <option value="Reddy Colony, Miryalaguda">Reddy Colony, Miryalaguda</option>
-                <option value="Housing Board Colony, Miryalaguda">Housing Board, Miryalaguda</option>
-                <option value="Old Nalgonda (Clock Tower)">Old Nalgonda Clock Tower</option>
-                <option value="Sagar Road, Miryalaguda">Sagar Road, Miryalaguda</option>
-              </select>
+            {/* Pan-India Eldercare Network Badge */}
+            <div className="hidden md:flex items-center gap-2 bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs">
+              <Globe className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="font-semibold text-indigo-950">Pan-India Eldercare Network</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">All India</span>
             </div>
           </div>
 
@@ -741,7 +859,7 @@ export default function UserApp() {
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-lg">
               <div className="space-y-4 max-w-xl">
                 <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-3 py-1 rounded-full font-semibold">
-                  Eldercare Concierge • Miryalaguda &amp; Nalgonda
+                  Pan-India Eldercare Concierge • Nationwide Care Across India
                 </span>
                 <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
                   What care do your parents need today?
@@ -927,11 +1045,11 @@ export default function UserApp() {
                     </div>
                     <div className="text-sm font-bold text-slate-800">No active care requests yet</div>
                     <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                      Book doctor visits, inverter repair, water plumbing, or groceries for your parents in Miryalaguda or Nalgonda.
+                      Book doctor visits, inverter repair, water plumbing, or groceries for your parents anywhere in India.
                     </p>
                     <button
                       onClick={() => setActiveTab('explore')}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700"
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700 cursor-pointer"
                     >
                       Browse Services ➔
                     </button>
@@ -974,7 +1092,7 @@ export default function UserApp() {
                         <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            {task.parent?.locality || 'Miryalaguda'}
+                            {task.parent?.locality || 'Pan-India'}
                           </span>
                           <span className="font-semibold text-slate-700">
                             ${task.escrow?.amount || 50} Escrow
@@ -1102,11 +1220,11 @@ export default function UserApp() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Your Parents in India</h2>
-                <p className="text-xs text-slate-500">Registered residences in Miryalaguda and Old Nalgonda.</p>
+                <p className="text-xs text-slate-500">Registered residences across all Indian cities and towns.</p>
               </div>
               <button
                 onClick={() => setShowAddParentModal(true)}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm"
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Add New Residence
@@ -1128,7 +1246,8 @@ export default function UserApp() {
 
                   <div className="text-xs text-slate-600 space-y-1.5">
                     <div><span className="font-semibold text-slate-700">Address:</span> {parent.full_address}</div>
-                    <div><span className="font-semibold text-slate-700">WhatsApp:</span> {parent.primary_phone}</div>
+                    <div><span className="font-semibold text-slate-700">Calling Phone:</span> <span className="font-mono text-slate-800">{parent.primary_phone}</span></div>
+                    <div><span className="font-semibold text-slate-700">WhatsApp:</span> <span className="font-mono text-emerald-700 font-bold">{parent.whatsapp_phone || parent.primary_phone}</span></div>
                   </div>
 
                   {parent.medical_notes && (
@@ -1167,62 +1286,232 @@ export default function UserApp() {
           </div>
         )}
 
-        {/* ================= TAB 5: SETTINGS PAGE ================= */}
+        {/* ================= TAB 5: SETTINGS PAGE (FULLY USER EDITABLE) ================= */}
         {activeTab === 'settings' && (
-          <div className="max-w-2xl mx-auto space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Account &amp; Care Settings</h2>
-              <p className="text-xs text-slate-500">Manage your profile, preferred currency, and notification channels.</p>
+          <form onSubmit={handleSaveSettings} className="max-w-2xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Account &amp; Care Settings</h2>
+                <p className="text-xs text-slate-500">Edit your contact info, currency, and parents' care details in India.</p>
+              </div>
+              <button
+                type="submit"
+                disabled={isSavingSettings}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isSavingSettings ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                <span>Save Changes</span>
+              </button>
             </div>
 
-            {/* Profile Info */}
+            {/* NRI Client Profile - USER EDITABLE */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <User className="w-4 h-4 text-indigo-600" />
-                NRI Client Profile
-              </h3>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <User className="w-4 h-4 text-indigo-600" />
+                  NRI Client Profile
+                </h3>
+                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">
+                  User Editable
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Full Name</label>
+                  <label className="text-slate-600 font-bold block mb-1">Your Full Name</label>
                   <input
                     type="text"
-                    value={currentUserName || clientProfile?.user?.full_name || ''}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
-                    readOnly
+                    value={settingsFullName}
+                    onChange={(e) => setSettingsFullName(e.target.value)}
+                    required
+                    placeholder="Enter your full name"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Email</label>
+                  <label className="text-slate-600 font-bold block mb-1">Your Email</label>
                   <input
                     type="email"
-                    value={currentUserEmail || clientProfile?.user?.email || ''}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
-                    readOnly
+                    value={settingsEmail}
+                    onChange={(e) => setSettingsEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Country of Residence</label>
+                  <label className="text-slate-600 font-bold block mb-1">Your Mobile Phone</label>
                   <input
-                    type="text"
-                    value={clientProfile?.country_residence || 'United States'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
-                    readOnly
+                    type="tel"
+                    value={settingsPhone}
+                    onChange={(e) => setSettingsPhone(e.target.value)}
+                    placeholder="+1 408 555 0192"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Preferred Currency</label>
+                  <label className="text-slate-600 font-bold block mb-1">Country of Residence</label>
                   <select
-                    value={userCurrency}
-                    onChange={(e) => setUserCurrency(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    value={settingsCountry}
+                    onChange={(e) => setSettingsCountry(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="CAD">CAD ($)</option>
-                    <option value="INR">INR (₹)</option>
+                    <option value="United States">United States</option>
+                    <option value="United Kingdom">United Kingdom</option>
+                    <option value="Canada">Canada</option>
+                    <option value="Australia">Australia</option>
+                    <option value="UAE (Dubai)">UAE (Dubai)</option>
+                    <option value="Singapore">Singapore</option>
+                    <option value="Germany">Germany</option>
+                    <option value="India">India</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold block mb-1">Preferred Currency</label>
+                  <select
+                    value={settingsCurrency}
+                    onChange={(e) => {
+                      setSettingsCurrency(e.target.value);
+                      setUserCurrency(e.target.value);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                  >
+                    <option value="USD">USD ($ - United States Dollar)</option>
+                    <option value="GBP">GBP (£ - British Pound)</option>
+                    <option value="EUR">EUR (€ - Euro)</option>
+                    <option value="CAD">CAD ($ - Canadian Dollar)</option>
+                    <option value="INR">INR (₹ - Indian Rupee)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Parents' Care Details in India - USER EDITABLE & MANDATORY CONTACTS */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+                  Parents' Care Details in India (Pan-India)
+                </h3>
+                <span className="text-[10px] bg-rose-50 text-rose-700 font-semibold px-2 py-0.5 rounded-full">
+                  Mandatory Phone &amp; WhatsApp
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold block mb-1">
+                    Parents' Full Name(s) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={settingsParentName}
+                    onChange={(e) => setSettingsParentName(e.target.value)}
+                    required
+                    placeholder="e.g. Lakshmi & Ramana Reddy"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-600 font-bold block mb-1">
+                    Parents' Primary Calling Phone <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={settingsParentPhone}
+                    onChange={(e) => setSettingsParentPhone(e.target.value)}
+                    required
+                    placeholder="+91 94401 23456"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-mono font-medium outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-600 font-bold">
+                      Parents' WhatsApp Number <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsParentWhatsapp(settingsParentPhone)}
+                      className="text-[10px] text-indigo-600 hover:underline"
+                    >
+                      Same as calling
+                    </button>
+                  </div>
+                  <input
+                    type="tel"
+                    value={settingsParentWhatsapp}
+                    onChange={(e) => setSettingsParentWhatsapp(e.target.value)}
+                    required
+                    placeholder="+91 94401 23456"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-mono font-medium outline-none transition"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold block mb-1">
+                    City / Town / District in India (Pan-India) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={settingsParentCity}
+                    onChange={(e) => setSettingsParentCity(e.target.value)}
+                    required
+                    placeholder="e.g. Hyderabad, Bengaluru, Miryalaguda, Pune, Delhi, etc."
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold block mb-1">
+                    Full Street Address in India <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settingsParentAddress}
+                    onChange={(e) => setSettingsParentAddress(e.target.value)}
+                    required
+                    placeholder="House / Flat No, Apartment Name, Street / Lane, Landmark, Pincode"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-slate-600 font-bold block mb-1">
+                    Medical &amp; Care Notes (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={settingsParentNotes}
+                    onChange={(e) => setSettingsParentNotes(e.target.value)}
+                    placeholder="Special instructions: medications, allergies, preferred hospital..."
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingSettings}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSavingSettings ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Save Profile &amp; Care Changes</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -1254,8 +1543,9 @@ export default function UserApp() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleToggleEscrowFreeze}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${isEscrowFrozen
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${isEscrowFrozen
                         ? 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
                         : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs'
                       }`}
@@ -1348,14 +1638,15 @@ export default function UserApp() {
             {/* Log Out Button */}
             <div className="pt-2">
               <button
+                type="button"
                 onClick={handleLogout}
-                className="w-full py-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out from FamilyHubs
               </button>
             </div>
-          </div>
+          </form>
         )}
       </main>
 
@@ -1546,30 +1837,51 @@ export default function UserApp() {
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">WhatsApp Phone</label>
-                <input
-                  type="text"
-                  value={newParentPhone}
-                  onChange={(e) => setNewParentPhone(e.target.value)}
-                  placeholder="+91 94901 22334"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Calling Phone *</label>
+                  <input
+                    type="tel"
+                    value={newParentPhone}
+                    onChange={(e) => setNewParentPhone(e.target.value)}
+                    placeholder="+91 94401 22334"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-bold">WhatsApp *</label>
+                    <button
+                      type="button"
+                      onClick={() => setNewParentWhatsapp(newParentPhone)}
+                      className="text-[10px] text-indigo-600 hover:underline"
+                    >
+                      Same as call
+                    </button>
+                  </div>
+                  <input
+                    type="tel"
+                    value={newParentWhatsapp}
+                    onChange={(e) => setNewParentWhatsapp(e.target.value)}
+                    placeholder="+91 94401 22334"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Town / Area</label>
-                <select
+                <label className="block text-slate-700 font-bold mb-1">City / Town in India (Pan-India) *</label>
+                <input
+                  type="text"
                   value={newParentLocality}
                   onChange={(e) => setNewParentLocality(e.target.value)}
+                  placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
-                >
-                  <option value="Reddy Colony, Miryalaguda">Reddy Colony, Miryalaguda</option>
-                  <option value="Housing Board Colony, Miryalaguda">Housing Board Colony, Miryalaguda</option>
-                  <option value="Old Nalgonda (Clock Tower)">Old Nalgonda (Clock Tower)</option>
-                  <option value="Sagar Road, Miryalaguda">Sagar Road, Miryalaguda</option>
-                </select>
+                  required
+                />
               </div>
 
               <div>

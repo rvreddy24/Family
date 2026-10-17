@@ -36,6 +36,7 @@ const {
   getUserById,
   registerClientAccount,
   registerPartnerAccount,
+  updateClientProfile,
   syncUserFromCloud,
 } = require('./db');
 
@@ -353,7 +354,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Google OAuth Sync & Login
+// Google OAuth Check & Login
 app.post('/api/auth/google', async (req, res) => {
   try {
     const { id, email, full_name, role = 'CLIENT' } = req.body;
@@ -363,22 +364,19 @@ app.post('/api/auth/google', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Check existing user in local DB or sync from cloud
+    // 1. Check existing user in local DB
     let user = getUserByEmail(cleanEmail);
     if (!user) {
-      user = syncUserFromCloud({
-        id: id || ('usr_' + Math.random().toString(36).substring(2, 9)),
-        role: role || 'CLIENT',
+      // If no account exists with that Google email, redirect to sign-up to capture mandatory phone & parent details!
+      return res.status(404).json({
+        success: false,
+        noAccount: true,
+        error: 'NO_ACCOUNT_FOUND',
+        message: 'No registered FamilyHubs account found with this Google email. Please complete your registration.',
         email: cleanEmail,
-        phone: '',
-        full_name: full_name || 'FamilyHubs User',
-        auth_provider_id: id || null,
-        created_at: new Date().toISOString(),
+        fullName: full_name || '',
+        authProviderId: id || null,
       });
-    }
-
-    if (!user) {
-      return res.status(500).json({ error: 'Failed to synchronize Google account profile.' });
     }
 
     let profile = null;
@@ -390,6 +388,7 @@ app.post('/api/auth/google', async (req, res) => {
 
     return res.json({
       success: true,
+      exists: true,
       user: {
         id: user.id,
         role: user.role,
@@ -400,7 +399,54 @@ app.post('/api/auth/google', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Google auth sync error:', err);
+    console.error('Google auth error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// User Editable Settings & Profile Update (Pan-India)
+app.put('/api/client/profile', async (req, res) => {
+  try {
+    const {
+      userId,
+      fullName,
+      email,
+      phone,
+      countryResidence,
+      currency,
+      parentName,
+      parentPrimaryPhone,
+      parentWhatsappPhone,
+      parentLocality,
+      parentAddress,
+      parentNotes,
+    } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    const updated = updateClientProfile(userId, {
+      fullName,
+      email,
+      phone,
+      countryResidence,
+      currency,
+      parentName,
+      parentPrimaryPhone,
+      parentWhatsappPhone,
+      parentLocality,
+      parentAddress,
+      parentNotes,
+    });
+
+    res.json({
+      success: true,
+      message: 'Account settings and parents care details updated successfully.',
+      ...updated,
+    });
+  } catch (err) {
+    console.error('Update client profile error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -419,6 +465,7 @@ app.post('/api/auth/register', async (req, res) => {
       subscriptionTier,
       parentName,
       parentPhone,
+      parentWhatsappPhone,
       parentLocality,
       parentAddress,
       parentNotes,
@@ -438,7 +485,18 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone ? phone.trim() : '+91 94400 00000';
+    const cleanPhone = phone ? phone.trim() : '';
+
+    if (role === 'CLIENT') {
+      if (!cleanPhone) {
+        return res.status(400).json({ error: 'Your mobile / WhatsApp phone number is required.' });
+      }
+      if (!parentName || !parentPhone || !parentLocality || !parentAddress) {
+        return res.status(400).json({
+          error: 'Parents details in India are mandatory: Parents Full Name, Calling Phone, WhatsApp Number, City/Locality, and Street Address.',
+        });
+      }
+    }
 
     let authProviderId = null;
 
@@ -476,8 +534,9 @@ app.post('/api/auth/register', async (req, res) => {
         subscriptionTier: subscriptionTier || 'GOLD',
         parentName: parentName ? parentName.trim() : null,
         parentPhone: parentPhone ? parentPhone.trim() : null,
-        locality: parentLocality || 'Reddy Colony, Miryalaguda',
-        fullAddress: parentAddress || 'Miryalaguda, Telangana',
+        parentWhatsappPhone: parentWhatsappPhone ? parentWhatsappPhone.trim() : (parentPhone ? parentPhone.trim() : null),
+        locality: parentLocality || 'Pan-India',
+        fullAddress: parentAddress || 'India',
         medicalNotes: parentNotes || null,
         authProviderId,
       });

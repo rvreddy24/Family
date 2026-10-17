@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Heart,
@@ -15,35 +15,60 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  MessageCircle,
 } from 'lucide-react';
 import { getApiBaseUrl, playNotificationChime } from '@shared/utils';
 import { supabase } from '@shared/supabase';
 
 interface AuthViewProps {
   onSuccess: (user: any) => void;
+  pendingGoogleData?: {
+    email: string;
+    fullName: string;
+    authProviderId?: string;
+  } | null;
 }
 
-export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData }) => {
+  const [mode, setMode] = useState<'signin' | 'signup'>(pendingGoogleData ? 'signup' : 'signin');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [googleBanner, setGoogleBanner] = useState<string | null>(
+    pendingGoogleData
+      ? `Google account verified (${pendingGoogleData.email}). Please enter your phone number and parents' details in India to complete registration.`
+      : null
+  );
 
   // Sign In Form State
   const [loginEmail, setLoginEmail] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
 
-  // Sign Up Form State
-  const [fullName, setFullName] = useState<string>('');
-  const [signupEmail, setSignupEmail] = useState<string>('');
+  // Sign Up Form State - Client Details
+  const [fullName, setFullName] = useState<string>(pendingGoogleData?.fullName || '');
+  const [signupEmail, setSignupEmail] = useState<string>(pendingGoogleData?.email || '');
   const [signupPhone, setSignupPhone] = useState<string>('');
-  const [countryResidence, setCountryResidence] = useState<string>('United States (San Jose, CA)');
+  const [countryResidence, setCountryResidence] = useState<string>('United States');
   const [signupPassword, setSignupPassword] = useState<string>('');
-  const [includeParent, setIncludeParent] = useState<boolean>(true);
+
+  // Sign Up Form State - Parents' Care Details (MANDATORY PAN-INDIA)
   const [parentName, setParentName] = useState<string>('');
   const [parentPhone, setParentPhone] = useState<string>('');
-  const [parentLocality, setParentLocality] = useState<string>('Reddy Colony, Miryalaguda');
+  const [parentWhatsappPhone, setParentWhatsappPhone] = useState<string>('');
+  const [parentLocality, setParentLocality] = useState<string>('');
   const [parentAddress, setParentAddress] = useState<string>('');
+  const [parentNotes, setParentNotes] = useState<string>('');
+
+  useEffect(() => {
+    if (pendingGoogleData) {
+      setMode('signup');
+      if (pendingGoogleData.fullName && !fullName) setFullName(pendingGoogleData.fullName);
+      if (pendingGoogleData.email && !signupEmail) setSignupEmail(pendingGoogleData.email);
+      setGoogleBanner(
+        `Google account verified (${pendingGoogleData.email}). No existing account found. Please enter your mobile phone and parents' care details in India to complete your registration.`
+      );
+    }
+  }, [pendingGoogleData]);
 
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
@@ -103,13 +128,53 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
     e.preventDefault();
     setErrorMessage(null);
 
+    // Validate User Client Details
     if (!fullName.trim() || !signupEmail.trim()) {
       setErrorMessage('Please enter your full name and email address.');
+      playNotificationChime('alert');
       return;
     }
 
-    if (signupPassword && signupPassword.length < 6) {
+    if (!signupPhone.trim()) {
+      setErrorMessage('Please enter your mobile phone number.');
+      playNotificationChime('alert');
+      return;
+    }
+
+    if (!pendingGoogleData && signupPassword && signupPassword.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
+      playNotificationChime('alert');
+      return;
+    }
+
+    // Validate Mandatory Parents Details
+    if (!parentName.trim()) {
+      setErrorMessage("Please enter your parents' full name.");
+      playNotificationChime('alert');
+      return;
+    }
+
+    if (!parentPhone.trim()) {
+      setErrorMessage("Please enter your parents' primary calling phone number.");
+      playNotificationChime('alert');
+      return;
+    }
+
+    if (!parentWhatsappPhone.trim()) {
+      setErrorMessage("Please enter your parents' WhatsApp phone number.");
+      playNotificationChime('alert');
+      return;
+    }
+
+    if (!parentLocality.trim()) {
+      setErrorMessage("Please enter your parents' city, town, or locality in India.");
+      playNotificationChime('alert');
+      return;
+    }
+
+    if (!parentAddress.trim()) {
+      setErrorMessage("Please enter your parents' street address in India.");
+      playNotificationChime('alert');
       return;
     }
 
@@ -123,15 +188,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
           role: 'CLIENT',
           fullName: fullName.trim(),
           email: signupEmail.trim(),
-          phone: signupPhone.trim() || '+1 408 555 0192',
+          phone: signupPhone.trim(),
           password: signupPassword || 'FamilyHubs2026!',
           countryResidence,
           currency: 'USD',
           subscriptionTier: 'GOLD',
-          parentName: includeParent && parentName ? parentName.trim() : null,
-          parentPhone: includeParent && parentPhone ? parentPhone.trim() : null,
-          parentLocality: includeParent ? parentLocality : null,
-          parentAddress: includeParent && parentAddress ? parentAddress.trim() : null,
+          parentName: parentName.trim(),
+          parentPhone: parentPhone.trim(),
+          parentWhatsappPhone: parentWhatsappPhone.trim(),
+          parentLocality: parentLocality.trim(),
+          parentAddress: parentAddress.trim(),
+          parentNotes: parentNotes.trim() || null,
+          authProviderId: pendingGoogleData?.authProviderId || null,
         }),
       });
 
@@ -147,6 +215,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
       playNotificationChime('alert');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const copyParentCallingToWhatsapp = () => {
+    if (parentPhone.trim()) {
+      setParentWhatsappPhone(parentPhone.trim());
     }
   };
 
@@ -170,8 +244,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
 
         <div className="flex items-center gap-3">
           <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-xl">
-            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-            Miryalaguda &amp; Nalgonda Network
+            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+            Pan-India Eldercare Concierge Network
           </span>
         </div>
       </header>
@@ -182,15 +256,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
         <div className="max-w-lg space-y-6 text-center lg:text-left">
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-3.5 py-1.5 rounded-full text-xs font-semibold">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            100% Escrow Protection • GPS Photo Check-in
+            100% Escrow Protection • GPS Photo Check-in • Pan-India
           </div>
 
           <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight">
-            Loving, Reliable Care for Your Aging Parents in India.
+            Loving, Reliable Care for Your Aging Parents Across India.
           </h1>
 
           <p className="text-sm md:text-base text-slate-300 leading-relaxed">
-            From doctor appointments and home repairs to urgent medicine runs in Miryalaguda—you pay via escrow from abroad, and funds are only disbursed after verified arrival proof.
+            From doctor home visits and prescription deliveries to emergency hospital escorts anywhere in India—you pay securely via escrow from abroad, and funds are only disbursed after verified arrival proof.
           </p>
 
           <div className="grid grid-cols-2 gap-3 pt-2">
@@ -206,7 +280,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
         </div>
 
         {/* Right Column: Auth Card with Sign In / Sign Up Tabs */}
-        <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 md:p-8 shadow-2xl">
+        <div className="w-full max-w-lg bg-slate-800/90 backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 md:p-8 shadow-2xl">
           {/* Official Brand Logo */}
           <div className="text-center mb-6">
             <div className="inline-block bg-white p-3 rounded-2xl shadow-xl">
@@ -245,6 +319,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
               Create Account
             </button>
           </div>
+
+          {/* Google Onboarding Notice Banner */}
+          {googleBanner && mode === 'signup' && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/40 text-indigo-200 text-xs flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <span>{googleBanner}</span>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMessage && (
@@ -285,7 +367,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
           <div className="flex items-center my-4">
             <div className="flex-1 border-t border-slate-700/80"></div>
             <span className="px-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              or continue with email
+              or continue with details
             </span>
             <div className="flex-1 border-t border-slate-700/80"></div>
           </div>
@@ -339,7 +421,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -354,162 +436,238 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
           )}
 
           {/* ==================================== */}
-          {/* SIGN UP FORM */}
+          {/* SIGN UP FORM (MANDATORY PHONE & PARENTS) */}
           {/* ==================================== */}
           {mode === 'signup' && (
-            <form onSubmit={handleSignUp} className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Full Name <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    placeholder="Enter your full name"
-                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
+            <form onSubmit={handleSignUp} className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+              {/* NRI Client Section */}
+              <div className="space-y-3">
+                <div className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-indigo-400" />
+                  Your Details (NRI Child)
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Email Address <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    required
-                    placeholder="you@example.com"
-                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Your Phone
+                    Your Full Name <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
-                    <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={signupPhone}
-                      onChange={(e) => setSignupPhone(e.target.value)}
-                      placeholder="+1 408 555 0192"
-                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      placeholder="e.g. Rajesh Reddy"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Country
+                    Your Email Address <span className="text-rose-400">*</span>
                   </label>
                   <div className="relative">
-                    <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <select
-                      value={countryResidence}
-                      onChange={(e) => setCountryResidence(e.target.value)}
-                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    >
-                      <option value="United States (San Jose, CA)">United States</option>
-                      <option value="United Kingdom (London)">United Kingdom</option>
-                      <option value="Canada (Toronto)">Canada</option>
-                      <option value="Australia (Sydney)">Australia</option>
-                      <option value="UAE (Dubai)">UAE (Dubai)</option>
-                      <option value="Singapore">Singapore</option>
-                      <option value="Germany (Munich)">Germany</option>
-                    </select>
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                      placeholder="you@example.com"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Create Password (min 6 chars) <span className="text-rose-400">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    required
-                    placeholder="••••••••"
-                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Optional Parent Residence Registration */}
-              <div className="p-3 bg-slate-900/70 border border-slate-700/80 rounded-2xl space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-indigo-300">
-                  <input
-                    type="checkbox"
-                    checked={includeParent}
-                    onChange={(e) => setIncludeParent(e.target.checked)}
-                    className="rounded border-slate-700 text-indigo-600 focus:ring-0"
-                  />
-                  <span>Add My Parents' Residence in India</span>
-                </label>
-
-                {includeParent && (
-                  <div className="space-y-2 pt-1">
-                    <input
-                      type="text"
-                      value={parentName}
-                      onChange={(e) => setParentName(e.target.value)}
-                      placeholder="Parents' Name (e.g. Lakshmi & Ramana Reddy)"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Your Mobile Phone <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
-                        type="text"
-                        value={parentPhone}
-                        onChange={(e) => setParentPhone(e.target.value)}
-                        placeholder="Parent Phone (+91...)"
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+                        type="tel"
+                        value={signupPhone}
+                        onChange={(e) => setSignupPhone(e.target.value)}
+                        required
+                        placeholder="+1 408 555 0192"
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Country of Residence
+                    </label>
+                    <div className="relative">
+                      <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <select
-                        value={parentLocality}
-                        onChange={(e) => setParentLocality(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
+                        value={countryResidence}
+                        onChange={(e) => setCountryResidence(e.target.value)}
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                       >
-                        <option value="Reddy Colony, Miryalaguda">Reddy Colony, Miryalaguda</option>
-                        <option value="Housing Board Colony, Miryalaguda">Housing Board, Miryalaguda</option>
-                        <option value="Sagar Road, Miryalaguda">Sagar Road, Miryalaguda</option>
-                        <option value="Old Nalgonda & Clock Tower">Old Nalgonda &amp; Clock Tower</option>
+                        <option value="United States">United States</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Australia">Australia</option>
+                        <option value="UAE (Dubai)">UAE (Dubai)</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="Germany">Germany</option>
+                        <option value="India">India</option>
+                        <option value="Other">Other</option>
                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                {!pendingGoogleData && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Create Password (min 6 chars) <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        required={!pendingGoogleData}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
+              {/* Parents' Details Section - MANDATORY */}
+              <div className="p-3.5 bg-slate-900/90 border border-indigo-500/40 rounded-2xl space-y-3 mt-3">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                  <div className="text-[11px] font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
+                    Parents' Residence &amp; Contact in India <span className="text-rose-400">*</span>
+                  </div>
+                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-semibold">
+                    Mandatory
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Parents' Full Name(s) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={parentName}
+                    onChange={(e) => setParentName(e.target.value)}
+                    required
+                    placeholder="e.g. Lakshmi & Ramana Reddy"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Parent Calling Phone <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={parentPhone}
+                      onChange={(e) => setParentPhone(e.target.value)}
+                      required
+                      placeholder="+91 94401 23456"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        WhatsApp Number <span className="text-rose-400">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={copyParentCallingToWhatsapp}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium"
+                      >
+                        Same as calling
+                      </button>
+                    </div>
+                    <input
+                      type="tel"
+                      value={parentWhatsappPhone}
+                      onChange={(e) => setParentWhatsappPhone(e.target.value)}
+                      required
+                      placeholder="+91 94401 23456"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    City / Town / District in India (Pan-India) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={parentLocality}
+                    onChange={(e) => setParentLocality(e.target.value)}
+                    required
+                    placeholder="e.g. Hyderabad, Bengaluru, Miryalaguda, Pune, Delhi, etc."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Full Street Address in India <span className="text-rose-400">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={parentAddress}
+                    onChange={(e) => setParentAddress(e.target.value)}
+                    required
+                    placeholder="House / Flat No, Apartment Name, Street / Landmark, Pincode"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Special Health or Care Notes (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={parentNotes}
+                    onChange={(e) => setParentNotes(e.target.value)}
+                    placeholder="e.g. Diabetic, needs BP checking, prefers morning visits"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>Create NRI Family Account</span>
+                    <span>Complete NRI Registration &amp; Activate Care</span>
                     <CheckCircle2 className="w-4 h-4" />
                   </>
                 )}
@@ -527,7 +685,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                       setMode('signup');
                       setErrorMessage(null);
                     }}
-                    className="text-indigo-400 font-bold hover:underline"
+                    className="text-indigo-400 font-bold hover:underline cursor-pointer"
                   >
                     Sign Up Free
                   </button>
@@ -540,7 +698,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                       setMode('signin');
                       setErrorMessage(null);
                     }}
-                    className="text-indigo-400 font-bold hover:underline"
+                    className="text-indigo-400 font-bold hover:underline cursor-pointer"
                   >
                     Sign In here
                   </button>
@@ -553,7 +711,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        FamilyHubs NRI Eldercare Concierge • Escrow-Secured Services in Miryalaguda &amp; Nalgonda, Telangana
+        FamilyHubs NRI Eldercare Concierge • Escrow-Secured Services Across All India
       </footer>
     </div>
   );

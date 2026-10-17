@@ -176,7 +176,7 @@ export default function AdminApp() {
             if (msg.type === 'TASK_CREATED') {
               setToastAlert({
                 title: 'New Service Request',
-                message: `Task ${msg.payload.tracking_code} submitted for ${msg.payload.parent?.locality || 'Miryalaguda'}.`,
+                message: `Task ${msg.payload.tracking_code} submitted for ${msg.payload.parent?.locality || 'Pan-India'}.`,
               });
             } else if (msg.type === 'PARTNER_CHECKED_IN' || msg.type === 'VERIFICATION_SUBMITTED') {
               setToastAlert({
@@ -593,7 +593,7 @@ export default function AdminApp() {
                   FamilyHubs Operations
                 </span>
                 <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2.5 py-0.5 rounded-full">
-                  Miryalaguda &amp; Nalgonda Command
+                  Pan-India Eldercare Command
                 </span>
               </div>
               <p className="text-xs text-slate-500">
@@ -841,10 +841,11 @@ export default function AdminApp() {
                     onChange={(e) => setLocalityFilter(e.target.value)}
                     className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700"
                   >
-                    <option value="ALL">All Hubs (Miryalaguda &amp; Nalgonda)</option>
-                    <option value="Reddy Colony">Reddy Colony</option>
-                    <option value="Housing Board">Housing Board</option>
-                    <option value="Old Nalgonda">Old Nalgonda</option>
+                    <option value="ALL">All Hubs (Pan-India)</option>
+                    <option value="Telangana">Telangana</option>
+                    <option value="Karnataka">Karnataka</option>
+                    <option value="Maharashtra">Maharashtra</option>
+                    <option value="Delhi">Delhi NCR</option>
                   </select>
                 </div>
                 <button onClick={fetchData} className="p-1.5 text-slate-400 hover:text-slate-700">
@@ -1127,7 +1128,7 @@ export default function AdminApp() {
                               {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.full_name || 'Pavan Kumar (Field Partner)'}
                             </div>
                             <div className="text-slate-500 text-[11px]">
-                              {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.operating_region || 'Miryalaguda & Nalgonda Hub'}
+                              {partners.find((p) => p.user_id === selectedTask.assigned_partner_id)?.operating_region || 'Pan-India Operations Hub'}
                             </div>
                           </div>
                           <span className="px-3 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-xl">
@@ -1541,7 +1542,7 @@ export default function AdminApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Operational Area</label>
                   <input
                     type="text"
-                    value="Miryalaguda & Old Nalgonda Command"
+                    value="Pan-India Eldercare Operations Command"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
                     readOnly
                   />
