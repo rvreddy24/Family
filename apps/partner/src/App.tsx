@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import type { Task, PartnerProfile } from '@shared/types';
 import { calculateDistanceMeters, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
+import { supabase } from '@shared/supabase';
 import { PartnerAuthView } from './components/PartnerAuthView';
 
 type LanguageCode = 'en' | 'te' | 'hi' | 'ta' | 'kn';
@@ -322,6 +323,68 @@ export default function PartnerApp() {
     fetchData();
   }, [partnerId]);
 
+  // Listen for Supabase OAuth Redirect or Existing Active Session for Partner
+  useEffect(() => {
+    if (!supabase) return;
+
+    const syncGoogleSession = async (session: any) => {
+      if (!session?.user) return;
+      const u = session.user;
+      const email = u.email;
+      if (!email) return;
+
+      const fullName =
+        u.user_metadata?.full_name ||
+        u.user_metadata?.name ||
+        u.user_metadata?.user_name ||
+        email.split('@')[0];
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: u.id,
+            email,
+            full_name: fullName,
+            role: 'PARTNER',
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.user) {
+          localStorage.setItem('fh_partner_logged_in', 'true');
+          localStorage.setItem('fh_partner_id', data.user.id);
+          setPartnerId(data.user.id);
+          setIsLoggedIn(true);
+          fetchData(data.user.id);
+
+          if (window.location.search || window.location.hash) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to synchronize Partner Google user:', err);
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        syncGoogleSession(session);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
+        syncGoogleSession(session);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // WebSocket for Job Alerts & Dispatch Updates with clean reconnection
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -385,8 +448,16 @@ export default function PartnerApp() {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      console.warn('Supabase signOut warning:', e);
+    }
     localStorage.removeItem('fh_partner_logged_in');
+    localStorage.removeItem('fh_partner_id');
     setIsLoggedIn(false);
   };
 

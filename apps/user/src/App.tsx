@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import type { Task, ParentProfile, VerificationLog } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
+import { supabase } from '@shared/supabase';
 import { AuthView } from './components/AuthView';
 
 export default function UserApp() {
@@ -259,6 +260,75 @@ export default function UserApp() {
     fetchAllData();
   }, []);
 
+  // Listen for Supabase OAuth Redirect or Existing Active Session
+  useEffect(() => {
+    if (!supabase) return;
+
+    const syncGoogleSession = async (session: any) => {
+      if (!session?.user) return;
+      const u = session.user;
+      const email = u.email;
+      if (!email) return;
+
+      const fullName =
+        u.user_metadata?.full_name ||
+        u.user_metadata?.name ||
+        u.user_metadata?.user_name ||
+        email.split('@')[0];
+
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: u.id,
+            email,
+            full_name: fullName,
+            role: 'CLIENT',
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.user) {
+          localStorage.setItem('fh_user_logged_in', 'true');
+          localStorage.setItem('fh_user_id', data.user.id);
+          localStorage.setItem('fh_user_name', data.user.full_name);
+          localStorage.setItem('fh_user_email', data.user.email);
+          setCurrentUserId(data.user.id);
+          setCurrentUserName(data.user.full_name);
+          setCurrentUserEmail(data.user.email);
+          setIsLoggedIn(true);
+          fetchAllData(data.user.id);
+
+          // Clean up OAuth tokens/code from address bar without reloading
+          if (window.location.search || window.location.hash) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to synchronize Google user with platform:', err);
+      }
+    };
+
+    // Check active session on mount (handles OAuth redirect callback)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        syncGoogleSession(session);
+      }
+    });
+
+    // Listen for auth changes (SIGNED_IN after Google redirect)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
+        syncGoogleSession(session);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Background WebSocket listener for instant state updates with clean reconnection handling
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -322,8 +392,18 @@ export default function UserApp() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      console.warn('Supabase signOut warning:', e);
+    }
     localStorage.removeItem('fh_user_logged_in');
+    localStorage.removeItem('fh_user_id');
+    localStorage.removeItem('fh_user_name');
+    localStorage.removeItem('fh_user_email');
     setIsLoggedIn(false);
     setToastMessage('Signed out successfully.');
     setTimeout(() => setToastMessage(null), 3000);
@@ -557,11 +637,10 @@ export default function UserApp() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-slate-100 pt-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab('explore')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'explore'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'explore'
                 ? 'bg-indigo-50 text-indigo-700 font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <Sparkles className="w-4 h-4 text-indigo-600" />
             Find Services
@@ -569,11 +648,10 @@ export default function UserApp() {
 
           <button
             onClick={() => setActiveTab('trackers')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'trackers'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'trackers'
                 ? 'bg-indigo-50 text-indigo-700 font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <Activity className="w-4 h-4 text-blue-600" />
             Active Requests
@@ -584,11 +662,10 @@ export default function UserApp() {
 
           <button
             onClick={() => setActiveTab('parents')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'parents'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'parents'
                 ? 'bg-indigo-50 text-indigo-700 font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <UserCheck className="w-4 h-4 text-emerald-600" />
             My Parents
@@ -599,11 +676,10 @@ export default function UserApp() {
 
           <button
             onClick={() => setActiveTab('billing')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'billing'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'billing'
                 ? 'bg-indigo-50 text-indigo-700 font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             Escrow Vault
@@ -611,11 +687,10 @@ export default function UserApp() {
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'settings'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'settings'
                 ? 'bg-indigo-50 text-indigo-700 font-bold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+              }`}
           >
             <Settings className="w-4 h-4 text-slate-500" />
             Settings
@@ -684,11 +759,10 @@ export default function UserApp() {
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${
-                      isSelected
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${isSelected
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <IconComponent className="w-3.5 h-3.5" />
                     {cat.label}
@@ -800,22 +874,20 @@ export default function UserApp() {
                       <div
                         key={task.id}
                         onClick={() => setSelectedTask(task)}
-                        className={`p-4 rounded-2xl cursor-pointer transition border text-left ${
-                          isSelected
+                        className={`p-4 rounded-2xl cursor-pointer transition border text-left ${isSelected
                             ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/10'
                             : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
                             {task.tracking_code}
                           </span>
                           <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                              isCompleted
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}
+                              }`}
                           >
                             {task.status.replace(/_/g, ' ')}
                           </span>
@@ -869,11 +941,10 @@ export default function UserApp() {
                           return (
                             <div key={idx} className="relative flex items-start gap-3.5">
                               <div
-                                className={`absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition ${
-                                  isDone
+                                className={`absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition ${isDone
                                     ? 'bg-emerald-600 text-white shadow-sm'
                                     : 'bg-white text-slate-400 border border-slate-300'
-                                }`}
+                                  }`}
                               >
                                 {isDone ? '✓' : idx + 1}
                               </div>
@@ -1108,11 +1179,10 @@ export default function UserApp() {
 
                   <button
                     onClick={handleToggleEscrowFreeze}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${
-                      isEscrowFrozen
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 ${isEscrowFrozen
                         ? 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
                         : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs'
-                    }`}
+                      }`}
                   >
                     {isEscrowFrozen ? 'Unlock Escrow' : 'Lock Escrow'}
                   </button>

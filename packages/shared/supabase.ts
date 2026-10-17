@@ -7,7 +7,13 @@ export let supabase: SupabaseClient | null = null;
 
 try {
   if (supabaseUrl && supabaseAnonKey) {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
   }
 } catch (err) {
   console.warn('[SUPABASE CLIENT WARN] Could not initialize client:', err);

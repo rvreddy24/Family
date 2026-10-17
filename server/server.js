@@ -344,6 +344,58 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Google OAuth Sync & Login
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { id, email, full_name, role = 'CLIENT' } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required for Google authentication.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Check existing user in local DB or sync from cloud
+    let user = getUserByEmail(cleanEmail);
+    if (!user) {
+      user = syncUserFromCloud({
+        id: id || ('usr_' + Math.random().toString(36).substring(2, 9)),
+        role: role || 'CLIENT',
+        email: cleanEmail,
+        phone: '',
+        full_name: full_name || 'FamilyHubs User',
+        auth_provider_id: id || null,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    if (!user) {
+      return res.status(500).json({ error: 'Failed to synchronize Google account profile.' });
+    }
+
+    let profile = null;
+    if (user.role === 'CLIENT') {
+      profile = getClientProfile(user.id);
+    } else if (user.role === 'PARTNER') {
+      profile = getPartnerProfile(user.id);
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        profile,
+      },
+    });
+  } catch (err) {
+    console.error('Google auth sync error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // User Registration (Client & Partner ONLY - Admin sign-up is disabled by design)
 app.post('/api/auth/register', async (req, res) => {
   try {
