@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Enterprise-Grade Real-Time Managed Concierge Platform for Aging Parents in India",
   "main": "server/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server/server.js",
     "start:prod": "npm run build && node server/server.js",
