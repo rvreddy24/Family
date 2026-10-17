@@ -216,16 +216,20 @@ app.get('/api/supabase/status', async (req, res) => {
 app.get('/api/auth/profile', (req, res) => {
   const role = req.query.role || 'CLIENT';
   const userId = req.query.userId;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId query parameter is required' });
+  }
 
   if (role === 'CLIENT') {
-    const profile = getClientProfile(userId || 'usr_demo_client');
+    const profile = getClientProfile(userId);
     return res.json(profile);
   }
   if (role === 'PARTNER') {
-    const profile = getPartnerProfile(userId || 'usr_demo_partner');
+    const profile = getPartnerProfile(userId);
     return res.json(profile);
   }
-  return res.json({ id: 'usr_demo_admin', full_name: 'Demo Operations Admin', role: 'ADMIN' });
+  const user = getUserById(userId);
+  return res.json(user || { id: userId, role: 'ADMIN' });
 });
 
 // User Login (Client, Partner, Admin)
@@ -285,17 +289,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 1. Admin Verification
     if (role === 'ADMIN') {
-      if (cleanEmail === 'demo.admin@familyhubs.com') {
-        return res.json({
-          success: true,
-          user: {
-            id: 'usr_demo_admin',
-            role: 'ADMIN',
-            email: 'demo.admin@familyhubs.com',
-            full_name: 'Demo Operations Admin',
-          },
-        });
-      }
       if (user && user.role === 'ADMIN') {
         return res.json({ success: true, user });
       }
@@ -303,17 +296,8 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     // 2. Client & Partner Verification
-    // Support Demo credentials shortcuts
     if (!user) {
-      if (role === 'CLIENT' && (cleanEmail === 'demo.client@familyhubs.com' || cleanEmail === 'usr_demo_client')) {
-        user = getUserById('usr_demo_client');
-      } else if (role === 'PARTNER' && (cleanEmail === 'demo.partner@familyhubs.com' || cleanEmail === 'usr_demo_partner')) {
-        user = getUserById('usr_demo_partner');
-      }
-    }
-
-    if (!user) {
-      return res.status(404).json({ error: 'No registered account found with this email. Please sign up.' });
+      return res.status(404).json({ error: 'No registered account found with this email. Please sign up or sign in with Google.' });
     }
 
     if (role && user.role !== role) {
@@ -621,7 +605,7 @@ app.post('/api/tasks/:id/assign', (req, res) => {
     const { partnerId, adminId } = req.body;
     if (!partnerId) return res.status(400).json({ error: 'partnerId is required' });
 
-    const updatedTask = assignPartner(req.params.id, partnerId, adminId || 'usr_demo_admin');
+    const updatedTask = assignPartner(req.params.id, partnerId, adminId || 'admin');
 
     broadcastEvent('TASK_DISPATCHED', updatedTask, { targetUserId: partnerId });
     broadcastEvent('TASK_UPDATED', updatedTask);
@@ -689,7 +673,7 @@ app.post('/api/tasks/:id/verify', (req, res) => {
 // Admin Audits & Approves Escrow Release (Requires 6-Digit Escrow Authorization PIN)
 app.post('/api/tasks/:id/escrow/approve', (req, res) => {
   try {
-    const adminId = req.body.adminId || 'usr_demo_admin';
+    const adminId = req.body.adminId || 'admin';
     const escrowPin = req.body.escrowPin || '';
 
     const updatedTask = approveEscrow(req.params.id, adminId, escrowPin);
@@ -709,7 +693,7 @@ app.post('/api/tasks/:id/escrow/approve', (req, res) => {
 app.post('/api/tasks/:id/verify/reject', (req, res) => {
   try {
     const { logId, reason, adminId } = req.body;
-    const updatedTask = rejectVerification(req.params.id, logId, adminId || 'usr_demo_admin', reason);
+    const updatedTask = rejectVerification(req.params.id, logId, adminId || 'admin', reason);
 
     broadcastEvent('VERIFICATION_REJECTED', {
       task: updatedTask,
@@ -724,7 +708,10 @@ app.post('/api/tasks/:id/verify/reject', (req, res) => {
 
 // Parent Management
 app.get('/api/parents', (req, res) => {
-  const clientId = req.query.clientId || 'usr_demo_client';
+  const clientId = req.query.clientId;
+  if (!clientId) {
+    return res.json([]);
+  }
   const parents = getParents(clientId);
   res.json(parents);
 });
@@ -813,7 +800,7 @@ app.post('/api/security/settings', (req, res) => {
   try {
     const { key, value, actorId } = req.body;
     if (!key) return res.status(400).json({ error: 'Setting key is required' });
-    const updated = updateSecuritySetting(key, value, actorId || 'usr_demo_admin');
+    const updated = updateSecuritySetting(key, value, actorId || 'admin');
     broadcastEvent('SECURITY_SETTINGS_UPDATED', updated);
     res.json(updated);
   } catch (err) {
@@ -826,7 +813,7 @@ app.post('/api/security/panic-freeze', (req, res) => {
   try {
     const settings = getSecuritySettings();
     const nextState = settings.emergency_escrow_freeze === '1' ? '0' : '1';
-    const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'usr_demo_admin');
+    const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'admin');
     broadcastEvent('EMERGENCY_FREEZE_TOGGLED', { active: nextState === '1' });
     res.json({ success: true, emergencyFreezeActive: nextState === '1', settings: updated });
   } catch (err) {

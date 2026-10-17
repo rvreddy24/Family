@@ -147,11 +147,7 @@ function initDatabase() {
 
 // Clean core setup: ONLY system users, KYC-verified partners with 0 balance, and clean parent profiles
 // ZERO preloaded tasks, ZERO preloaded escrows, ZERO preloaded verification logs!
-const USER_ID_ALIASES = {
-  'usr_client_ananya': 'usr_demo_client',
-  'usr_admin_lead': 'usr_demo_admin',
-  'usr_partner_srinivas': 'usr_demo_partner',
-};
+const USER_ID_ALIASES = {};
 
 function resolveUserId(id) {
   if (!id) return id;
@@ -159,102 +155,17 @@ function resolveUserId(id) {
 }
 
 function seedCleanCoreData() {
-  const userCount = db.prepare('SELECT COUNT(*) as cnt FROM users').get().cnt;
-  if (userCount > 0) return;
-
-  const insertUser = db.prepare(`
-    INSERT INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
-    VALUES (@id, @role, @email, @phone, @full_name, @auth_provider_id, datetime('now'))
-  `);
-
-  const insertClient = db.prepare(`
-    INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
-    VALUES (@user_id, @country_residence, @currency, @subscription_tier)
-  `);
-
-  const insertParent = db.prepare(`
-    INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
-    VALUES (@id, @client_id, @parent_name, @primary_phone, @locality, @full_address, @coordinates_lat, @coordinates_lng, @medical_notes)
-  `);
-
-  const insertPartner = db.prepare(`
-    INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
-    VALUES (@user_id, @service_category, @operating_region, @kyc_verified, @is_active, @wallet_balance)
-  `);
-
-  const seedTx = db.transaction(() => {
-    // 1. Demo Client Account (NRI Family)
-    insertUser.run({
-      id: 'usr_demo_client',
-      role: 'CLIENT',
-      email: 'demo.client@familyhubs.com',
-      phone: '+1 408 555 0192',
-      full_name: 'Demo Client (NRI Family)',
-      auth_provider_id: 'demo-auth|client-demo',
-    });
-    insertClient.run({
-      user_id: 'usr_demo_client',
-      country_residence: 'United States (San Jose, CA)',
-      currency: 'USD',
-      subscription_tier: 'GOLD',
-    });
-
-    // 2. Demo Operations Admin Account
-    insertUser.run({
-      id: 'usr_demo_admin',
-      role: 'ADMIN',
-      email: 'demo.admin@familyhubs.com',
-      phone: '+91 90000 88888',
-      full_name: 'Demo Operations Admin',
-      auth_provider_id: 'demo-auth|admin-demo',
-    });
-
-    // 3. Demo Field Partner Account
-    insertUser.run({
-      id: 'usr_demo_partner',
-      role: 'PARTNER',
-      email: 'demo.partner@familyhubs.com',
-      phone: '+91 94401 54321',
-      full_name: 'Demo Field Partner',
-      auth_provider_id: 'demo-auth|partner-demo',
-    });
-    insertPartner.run({
-      user_id: 'usr_demo_partner',
-      service_category: 'MEDICAL_TRANSPORT',
-      operating_region: 'Miryalaguda Town & Rural Hub',
-      kyc_verified: 1,
-      is_active: 1,
-      wallet_balance: 0.0,
-    });
-
-    // 4. Client's Registered Parent Residence in Miryalaguda
-    insertParent.run({
-      id: 'prt_demo_parent',
-      client_id: 'usr_demo_client',
-      parent_name: 'Lakshmi & Ramana Reddy (Parents)',
-      primary_phone: '+91 94901 22334',
-      locality: 'Reddy Colony, Miryalaguda',
-      full_address: 'H.No 4-128/A, Beside Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207',
-      coordinates_lat: 16.8724,
-      coordinates_lng: 79.5631,
-      medical_notes: 'Father: Daily BP monitoring & cardiac health. Mother: Knee care mobility support.',
-    });
-
-    // 5. Initial Audit Log
-    addAuditLog({
-      eventType: 'DEMO_ENVIRONMENT_READY',
-      actorId: 'usr_demo_admin',
-      actorRole: 'ADMIN',
-      ipAddress: '127.0.0.1',
-      severity: 'LOW',
-      details: {
-        message: 'FamilyHubs Clean Demo Environment Ready. Exactly 3 demo accounts active (Client, Admin, Partner).',
-      },
-    });
-  });
-
-  seedTx();
-  console.log('Database initialized cleanly: Exactly 3 demo accounts created, zero preloaded tasks.');
+  // Initialize default system security settings if not present
+  const existingSettings = db.prepare('SELECT COUNT(*) as cnt FROM security_settings').get().cnt;
+  if (existingSettings === 0) {
+    const insertSetting = db.prepare(`
+      INSERT OR REPLACE INTO security_settings (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+    `);
+    insertSetting.run('escrow_release_pin', '849201');
+    insertSetting.run('geofence_tolerance_meters', '150');
+    insertSetting.run('emergency_escrow_freeze', '0');
+  }
 }
 
 // ----------------- SECURITY & AUDIT HELPERS -----------------
@@ -282,7 +193,7 @@ function getSecuritySettings() {
   return settings;
 }
 
-function updateSecuritySetting(key, value, actorId = 'usr_demo_admin') {
+function updateSecuritySetting(key, value, actorId = 'admin') {
   actorId = resolveUserId(actorId);
   db.prepare(`
     INSERT OR REPLACE INTO security_settings (key, value, updated_at)
@@ -532,7 +443,7 @@ function createTask({ clientId, parentId, category, title, instructions, schedul
   return getTaskById(taskId);
 }
 
-function assignPartner(taskId, partnerId, adminId = 'usr_demo_admin') {
+function assignPartner(taskId, partnerId, adminId = 'admin') {
   partnerId = resolveUserId(partnerId);
   adminId = resolveUserId(adminId);
   const now = new Date().toISOString();
@@ -672,7 +583,7 @@ function submitVerification({ taskId, partnerId, stage, selfieImageUrl, latitude
 }
 
 // Escrow Release with Step-Up PIN Authentication & Emergency Freeze Check
-function approveEscrow(taskId, adminId = 'usr_demo_admin', enteredPin = '') {
+function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
   adminId = resolveUserId(adminId);
   const settings = getSecuritySettings();
 

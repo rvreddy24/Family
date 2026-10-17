@@ -144,29 +144,6 @@ INSERT INTO security_settings (key, value) VALUES
   ('geofence_tolerance_meters', '150'),
   ('emergency_escrow_freeze', '0');
 
--- Users
--- Users (Exactly 3 Demo Accounts for Checking & Verification)
-INSERT INTO users (id, role, email, phone, full_name) VALUES
-  ('usr_demo_admin', 'ADMIN', 'demo.admin@familyhubs.com', '+91 90000 88888', 'Demo Operations Admin'),
-  ('usr_demo_client', 'CLIENT', 'demo.client@familyhubs.com', '+1 408 555 0192', 'Demo Client (NRI Family)'),
-  ('usr_demo_partner', 'PARTNER', 'demo.partner@familyhubs.com', '+91 94401 54321', 'Demo Field Partner');
-
--- Client Profile
-INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier) VALUES
-  ('usr_demo_client', 'United States (San Jose, CA)', 'USD', 'GOLD');
-
--- Field Partner Profile
-INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance) VALUES
-  ('usr_demo_partner', 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', TRUE, TRUE, 0.00);
-
--- Parent Residence
-INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes) VALUES
-  ('prt_demo_parent', 'usr_demo_client', 'Lakshmi & Ramana Reddy (Parents)', '+91 94901 22334', 'Reddy Colony, Miryalaguda', 'H.No 4-128/A, Beside Venkateswara Swamy Temple, Reddy Colony, Miryalaguda, Telangana 508207', 16.8724, 79.5631, 'Father: Daily BP monitoring & cardiac health. Mother: Knee care mobility support.');
-
--- System Initialization Audit Log
-INSERT INTO audit_logs (id, event_type, actor_id, actor_role, severity, details_json) VALUES
-  ('aud_init_demo', 'DEMO_ENVIRONMENT_READY', 'usr_demo_admin', 'ADMIN', 'LOW', '{"message": "FamilyHubs Clean Demo Environment Initialized with 3 accounts."}');
-
 -- ========================================================
 -- ENABLE ROW LEVEL SECURITY (RLS) WITH OPEN ACCESS POLICIES
 -- ========================================================

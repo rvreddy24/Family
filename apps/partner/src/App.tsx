@@ -43,7 +43,7 @@ export default function PartnerApp() {
 
   const [wsConnected, setWsConnected] = useState<boolean>(false);
   const [partnerId, setPartnerId] = useState<string>(() => {
-    return localStorage.getItem('fh_partner_id') || 'usr_demo_partner';
+    return localStorage.getItem('fh_partner_id') || '';
   });
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -582,7 +582,7 @@ export default function PartnerApp() {
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '13px sans-serif';
-    ctx.fillText(`HELPER: ${profile?.user?.full_name || 'K. Srinivas'} | TASK: ${activeTask?.tracking_code || 'FH-84920'}`, 30, 585);
+    ctx.fillText(`HELPER: ${profile?.user?.full_name || 'Field Partner'} | TASK: ${activeTask?.tracking_code || ''}`, 30, 585);
 
     ctx.fillStyle = '#38bdf8';
     ctx.font = '12px sans-serif';
@@ -609,7 +609,10 @@ export default function PartnerApp() {
       });
 
       const uploadData = await uploadRes.json();
-      const imageUrl = uploadData.imageUrl || '/uploads/selfie_srinivas_reddycolony.jpg';
+      if (!uploadRes.ok || !uploadData.imageUrl) {
+        throw new Error(uploadData.error || 'Failed to upload photo proof.');
+      }
+      const imageUrl = uploadData.imageUrl;
 
       const verifyRes = await fetch(`${apiBase}/api/tasks/${activeTask.id}/verify`, {
         method: 'POST',
@@ -667,12 +670,10 @@ export default function PartnerApp() {
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold">
-              FH
-            </div>
+            <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-md shadow-indigo-600/20" />
             <div>
               <div className="text-base font-bold text-slate-900 flex items-center gap-2">
-                {profile?.user?.full_name || 'K. Srinivas'}
+                {profile?.user?.full_name || 'Field Partner'}
                 <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
                   ✓ Verified
                 </span>
@@ -1057,7 +1058,7 @@ export default function PartnerApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Full Name</label>
                   <input
                     type="text"
-                    defaultValue={profile?.user?.full_name || 'K. Srinivas'}
+                    defaultValue={profile?.user?.full_name || ''}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
                     readOnly
                   />
@@ -1066,7 +1067,7 @@ export default function PartnerApp() {
                   <label className="text-slate-400 font-semibold block mb-1">Phone Number</label>
                   <input
                     type="text"
-                    defaultValue="+91 94401 54321"
+                    defaultValue={profile?.user?.phone || ''}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
                     readOnly
                   />
@@ -1138,7 +1139,7 @@ export default function PartnerApp() {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-slate-900">NPCI Direct Bank Settlement</div>
-                    <div className="text-slate-500 text-[11px]">Beneficiary Name: K. Srinivas (Axis Bank)</div>
+                    <div className="text-slate-500 text-[11px]">Beneficiary Name: {profile?.user?.full_name || 'Verified Field Partner'}</div>
                   </div>
                   <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
                     Linked

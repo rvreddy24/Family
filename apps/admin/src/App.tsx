@@ -48,13 +48,13 @@ export default function AdminApp() {
   });
 
   const [adminId, setAdminId] = useState<string>(() => {
-    return localStorage.getItem('fh_admin_id') || 'usr_demo_admin';
+    return localStorage.getItem('fh_admin_id') || '';
   });
   const [adminName, setAdminName] = useState<string>(() => {
-    return localStorage.getItem('fh_admin_name') || 'Demo Operations Admin';
+    return localStorage.getItem('fh_admin_name') || 'Operations Admin';
   });
-  const [adminEmail, setAdminEmail] = useState<string>('demo.admin@familyhubs.com');
-  const [adminPassword, setAdminPassword] = useState<string>('DemoPassword123!');
+  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(false);
   const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
@@ -392,13 +392,10 @@ export default function AdminApp() {
     .filter((t) => t.escrow?.status === 'HOLD_IN_ESCROW')
     .reduce((acc, t) => acc + (t.escrow?.amount || 0), 0);
 
-  const handleAdminSignIn = async (e?: React.FormEvent, isDemo = false) => {
+  const handleAdminSignIn = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setAdminAuthError(null);
     setAdminAuthLoading(true);
-
-    const emailToUse = isDemo ? 'demo.admin@familyhubs.com' : adminEmail;
-    const passwordToUse = isDemo ? 'DemoPassword123!' : adminPassword;
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
@@ -406,8 +403,8 @@ export default function AdminApp() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: 'ADMIN',
-          email: emailToUse,
-          password: passwordToUse,
+          email: adminEmail.trim(),
+          password: adminPassword,
         }),
       });
 
@@ -416,8 +413,8 @@ export default function AdminApp() {
         throw new Error(data.error || 'Invalid admin credentials or clearance failure.');
       }
 
-      const uid = data.user?.id || 'usr_demo_admin';
-      const uname = data.user?.full_name || 'Demo Operations Admin';
+      const uid = data.user?.id || '';
+      const uname = data.user?.full_name || 'Operations Admin';
       localStorage.setItem('fh_admin_logged_in', 'true');
       localStorage.setItem('fh_admin_id', uid);
       localStorage.setItem('fh_admin_name', uname);
@@ -442,9 +439,7 @@ export default function AdminApp() {
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="w-full max-w-md bg-slate-800/90 backdrop-blur-xl p-8 rounded-3xl border border-slate-700/80 shadow-2xl space-y-6 z-10">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/30">
-            <Radio className="w-8 h-8" />
-          </div>
+          <img src="./logo.png" alt="FamilyHubs" className="w-16 h-16 rounded-2xl object-cover bg-white mx-auto shadow-lg shadow-indigo-600/30" />
 
           <div className="text-center">
             <h1 className="text-2xl font-black text-white">FamilyHubs Operations</h1>
@@ -471,7 +466,7 @@ export default function AdminApp() {
             </div>
           )}
 
-          <form onSubmit={(e) => handleAdminSignIn(e, false)} className="space-y-4">
+          <form onSubmit={(e) => handleAdminSignIn(e)} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Admin Email Address
@@ -483,7 +478,7 @@ export default function AdminApp() {
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   required
-                  placeholder="demo.admin@familyhubs.com"
+                  placeholder="admin@familyhubs.in"
                   className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -527,24 +522,6 @@ export default function AdminApp() {
                 </>
               )}
             </button>
-
-            <div className="relative my-3 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-700" />
-              </div>
-              <span className="relative bg-slate-800 px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Or Instant Clearance
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleAdminSignIn(undefined, true)}
-              className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 border border-slate-600/80 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Continue as Demo Admin (demo.admin@familyhubs.com)</span>
-            </button>
           </form>
         </div>
       </div>
@@ -587,9 +564,7 @@ export default function AdminApp() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-3.5 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-md shadow-indigo-600/20">
-              <Radio className="w-5 h-5" />
-            </div>
+            <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-md shadow-indigo-600/20" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold text-slate-900">
@@ -1322,7 +1297,7 @@ export default function AdminApp() {
                   required
                 />
                 <div className="text-[11px] text-slate-400 mt-1.5 flex justify-between">
-                  <span>Demo Authorized PIN: <code className="text-indigo-600 font-bold font-mono">849201</code></span>
+                  <span>Authorized Escrow PIN Required</span>
                   <span>Logged in Security Audit</span>
                 </div>
               </div>

@@ -38,8 +38,8 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sign In Form State
-  const [loginEmail, setLoginEmail] = useState<string>('demo.partner@familyhubs.com');
-  const [loginPassword, setLoginPassword] = useState<string>('DemoPassword123!');
+  const [loginEmail, setLoginEmail] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
 
   // Sign Up Form State
   const [fullName, setFullName] = useState<string>('');
@@ -58,7 +58,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       emailOrPhone: 'Mobile or Email Address',
       password: 'Password',
       signInBtn: 'Sign In to Partner Portal',
-      quickDemo: '⚡ 1-Click Demo Partner (demo.partner@familyhubs.com)',
       fullNameLabel: 'Full Name (as per Aadhaar)',
       mobileLabel: 'Mobile / WhatsApp Number',
       emailLabel: 'Email Address',
@@ -78,7 +77,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       emailOrPhone: 'మొబైల్ లేదా ఈమెయిల్ చిరునామా',
       password: 'పాస్‌వర్డ్',
       signInBtn: 'పోర్టల్‌లోకి ప్రవేశించండి',
-      quickDemo: '⚡ 1-క్లిక్ డెమో భాగస్వామి (demo.partner@familyhubs.com)',
       fullNameLabel: 'పూర్తి పేరు (ఆధార్ ప్రకారం)',
       mobileLabel: 'మొబైల్ / వాట్సాప్ నంబర్',
       emailLabel: 'ఈమెయిల్ చిరునామా',
@@ -98,7 +96,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       emailOrPhone: 'मोबाइल या ईमेल पता',
       password: 'पासवर्ड',
       signInBtn: 'पार्टनर पोर्टल में प्रवेश करें',
-      quickDemo: '⚡ 1-क्लिक डेमो पार्टनर (demo.partner@familyhubs.com)',
       fullNameLabel: 'पूरा नाम (आधार के अनुसार)',
       mobileLabel: 'मोबाइल / व्हाट्सएप नंबर',
       emailLabel: 'ईमेल पता',
@@ -118,7 +115,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       emailOrPhone: 'மொபைல் அல்லது மின்னஞ்சல்',
       password: 'கடவுச்சொல்',
       signInBtn: 'போர்டலில் நுழையுங்கள்',
-      quickDemo: '⚡ 1-கிளிக் டெமோ கூட்டாளர் (demo.partner@familyhubs.com)',
       fullNameLabel: 'முழு பெயர்',
       mobileLabel: 'மொபைல் எண்',
       emailLabel: 'மின்னஞ்சல்',
@@ -138,7 +134,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       emailOrPhone: 'ಮೊಬೈಲ್ ಅಥವಾ ಇಮೇಲ್',
       password: 'ಪಾಸ್‌ವರ್ಡ್',
       signInBtn: 'ಪೋರ್ಟಲ್‌ಗೆ ಪ್ರವೇಶಿಸಿ',
-      quickDemo: '⚡ 1-ಕ್ಲಿಕ್ ಡೆಮೊ ಪಾಲುದಾರ (demo.partner@familyhubs.com)',
       fullNameLabel: 'ಪೂರ್ಣ ಹೆಸರು',
       mobileLabel: 'ಮೊಬೈಲ್ ಸಂಖ್ಯೆ',
       emailLabel: 'ಇಮೇಲ್',
@@ -177,13 +172,10 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
     }
   };
 
-  const handleSignIn = async (e?: React.FormEvent, isDemo = false) => {
+  const handleSignIn = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
     setIsLoading(true);
-
-    const emailToUse = isDemo ? 'demo.partner@familyhubs.com' : loginEmail;
-    const passwordToUse = isDemo ? 'DemoPassword123!' : loginPassword;
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
@@ -191,8 +183,8 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: 'PARTNER',
-          email: emailToUse,
-          password: passwordToUse,
+          email: loginEmail.trim(),
+          password: loginPassword,
         }),
       });
 
@@ -270,9 +262,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       {/* Top Header & Language Bar */}
       <header className="border-b border-slate-800/80 py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-            <Zap className="w-5 h-5 fill-white" />
-          </div>
+          <img src="./logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-lg shadow-indigo-600/30" />
           <div>
             <span className="text-xl font-bold text-white tracking-tight">FamilyHubs</span>
             <span className="text-xs bg-amber-500/20 text-amber-300 font-semibold px-2.5 py-0.5 rounded-full ml-2 border border-amber-500/30">
@@ -396,7 +386,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
           {/* SIGN IN FORM */}
           {/* ==================================== */}
           {mode === 'signin' && (
-            <form onSubmit={(e) => handleSignIn(e, false)} className="space-y-4">
+            <form onSubmit={(e) => handleSignIn(e)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   {t.emailOrPhone}
@@ -408,7 +398,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
-                    placeholder="demo.partner@familyhubs.com / 9440154321"
+                    placeholder="partner@familyhubs.in / 9440154321"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -452,25 +442,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   </>
                 )}
               </button>
-
-              <div className="relative my-4 text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-700" />
-                </div>
-                <span className="relative bg-slate-800 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Or Instant Access
-                </span>
-              </div>
-
-              {/* 1-Click Demo Shortcut */}
-              <button
-                type="button"
-                onClick={() => handleSignIn(undefined, true)}
-                className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 border border-slate-600/80 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>{t.quickDemo}</span>
-              </button>
             </form>
           )}
 
@@ -490,7 +461,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
-                    placeholder="e.g. K. Srinivas"
+                    placeholder="e.g. Ramesh Kumar"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -507,7 +478,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     value={signupPhone}
                     onChange={(e) => setSignupPhone(e.target.value)}
                     required
-                    placeholder="+91 94401 54321"
+                    placeholder="+91 98765 43210"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -523,7 +494,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     type="email"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
-                    placeholder="srinivas@partner.familyhubs.com"
+                    placeholder="partner@familyhubs.in"
                     className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                 </div>

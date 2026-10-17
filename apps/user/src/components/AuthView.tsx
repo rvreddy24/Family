@@ -30,8 +30,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sign In Form State
-  const [loginEmail, setLoginEmail] = useState<string>('demo.client@familyhubs.com');
-  const [loginPassword, setLoginPassword] = useState<string>('DemoPassword123!');
+  const [loginEmail, setLoginEmail] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
 
   // Sign Up Form State
   const [fullName, setFullName] = useState<string>('');
@@ -68,13 +68,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
     }
   };
 
-  const handleSignIn = async (e?: React.FormEvent, isDemo = false) => {
+  const handleSignIn = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
     setIsLoading(true);
-
-    const emailToUse = isDemo ? 'demo.client@familyhubs.com' : loginEmail;
-    const passwordToUse = isDemo ? 'DemoPassword123!' : loginPassword;
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
@@ -82,8 +79,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: 'CLIENT',
-          email: emailToUse,
-          password: passwordToUse,
+          email: loginEmail.trim(),
+          password: loginPassword,
         }),
       });
 
@@ -162,9 +159,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
       {/* Header */}
       <header className="border-b border-slate-800/80 py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
-            <Heart className="w-5 h-5 fill-white" />
-          </div>
+          <img src="/logo.png" alt="FamilyHubs" className="w-10 h-10 rounded-2xl object-cover bg-white shadow-lg shadow-indigo-600/30" />
           <div>
             <span className="text-xl font-bold text-white tracking-tight">FamilyHubs</span>
             <span className="text-xs bg-indigo-500/20 text-indigo-300 font-semibold px-2.5 py-0.5 rounded-full ml-2 border border-indigo-500/30">
@@ -178,13 +173,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
             <MapPin className="w-3.5 h-3.5 text-emerald-400" />
             Miryalaguda &amp; Nalgonda Network
           </span>
-          <button
-            onClick={() => handleSignIn(undefined, true)}
-            className="px-3.5 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-xs font-semibold flex items-center gap-1.5 transition"
-          >
-            <Zap className="w-3.5 h-3.5 text-indigo-400" />
-            1-Click Demo
-          </button>
         </div>
       </header>
 
@@ -299,7 +287,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
           {/* SIGN IN FORM */}
           {/* ==================================== */}
           {mode === 'signin' && (
-            <form onSubmit={(e) => handleSignIn(e, false)} className="space-y-4">
+            <form onSubmit={(e) => handleSignIn(e)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Email Address
@@ -354,25 +342,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess }) => {
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
-              </button>
-
-              <div className="relative my-4 text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-700" />
-                </div>
-                <span className="relative bg-slate-800 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Or Instant Checking
-                </span>
-              </div>
-
-              {/* 1-Click Demo Shortcut */}
-              <button
-                type="button"
-                onClick={() => handleSignIn(undefined, true)}
-                className="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-200 border border-slate-600/80 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Continue as Demo Client (demo.client@familyhubs.com)</span>
               </button>
             </form>
           )}
