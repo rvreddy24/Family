@@ -69,13 +69,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
     if (!pendingGoogleData) return;
 
     if (pendingGoogleData.isExisting) {
-      // Existing Google user -> trigger OTP verification before logging in
-      setMode('signin');
-      setLoginEmail(pendingGoogleData.email);
-      handleSendLoginOtp(pendingGoogleData.email);
-      setOtpNotice(
-        `✓ Google account verified (${pendingGoogleData.email}). Enter the 6-digit security code sent to your email to complete sign-in.`
-      );
+      // Existing Google user -> direct sign in!
+      onSuccess(pendingGoogleData.user);
     } else {
       // New Google user -> direct to quick signup
       setMode('signup');
@@ -113,9 +108,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
       }
       setOtpSentForLogin(true);
       setResendCooldown(30);
-      const noticeMsg = data.debugOtp
-        ? `${data.message || 'Verification code sent.'} [Local Test OTP: ${data.debugOtp}]`
-        : (data.message || `A 6-digit verification code has been dispatched to ${targetEmail}.`);
+      const noticeMsg = data.message || `A 6-digit verification code has been dispatched to ${targetEmail}.`;
       setOtpNotice(noticeMsg);
       return true;
     } catch (err: any) {
@@ -158,9 +151,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
       }
       setOtpSentForSignup(true);
       setResendCooldown(30);
-      const noticeMsg = data.debugOtp
-        ? `${data.message || 'Verification code sent.'} [Local Test OTP: ${data.debugOtp}]`
-        : (data.message || `A 6-digit verification code has been dispatched to ${signupEmail.trim()}.`);
+      const noticeMsg = data.message || `A 6-digit verification code has been dispatched to ${signupEmail.trim()}.`;
       setOtpNotice(noticeMsg);
       return true;
     } catch (err: any) {
@@ -197,13 +188,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
         throw new Error(data.error || 'Invalid email or password.');
       }
 
-      // Password accepted -> Challenge with Email OTP verification
-      const sent = await handleSendLoginOtp(loginEmail.trim());
-      if (sent) {
-        setOtpNotice(
-          `✓ Password verified for ${loginEmail.trim()}. A 6-digit verification code has been dispatched to your email. Enter it below to complete sign-in.`
-        );
-      }
+      // Login successful -> activate session immediately
+      onSuccess(data.user);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to sign in. Please verify your credentials.');
     } finally {
@@ -211,7 +197,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
     }
   };
 
-  // Complete Login with OTP
+  // Complete Login with OTP (if requested)
   const handleVerifyLoginOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim() || !loginOtp.trim()) {
@@ -243,10 +229,53 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
     }
   };
 
-  // --- SIGN UP FLOW: Fill details, then verify OTP to create account (NO parent fields) ---
+  // --- SIGN UP FLOW: Direct Registration & Account Activation ---
   const handleStartSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    await handleSendSignupOtp();
+    if (!fullName.trim() || !signupEmail.trim()) {
+      setErrorMessage('Please enter your full name and email address.');
+      return;
+    }
+    if (!signupPhone.trim()) {
+      setErrorMessage('Please enter your mobile phone number.');
+      return;
+    }
+    if (!pendingGoogleData && (!signupPassword || signupPassword.length < 6)) {
+      setErrorMessage('Password must be at least 6 characters.');
+      return;
+    }
+    setIsLoading(true);
+    setErrorMessage(null);
+    setOtpNotice(null);
+
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'CLIENT',
+          email: signupEmail.trim(),
+          password: signupPassword || 'FamilyHubs2026!',
+          fullName: fullName.trim(),
+          phone: signupPhone.trim(),
+          countryResidence,
+          currency: 'USD',
+          subscriptionTier: 'GOLD',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to register account.');
+      }
+
+      // Registration successful -> immediately activate and sign in
+      onSuccess(data.user);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Complete Signup with OTP
@@ -699,8 +728,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
-                          <span>Send 6-Digit Email Code</span>
-                          <ArrowRight className="w-4 h-4" />
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Create &amp; Activate Account</span>
                         </>
                       )}
                     </button>

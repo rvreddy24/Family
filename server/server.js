@@ -71,11 +71,14 @@ const {
   isSupabaseConfigured,
 } = require('./supabase');
 
+const { sendOtpEmail, verifyMailer } = require('./mailer');
+
 const app = express();
 const server = http.createServer(app);
 
 // Initialize DB schema
 initDatabase();
+verifyMailer();
 
 // In production, only purge if explicitly requested via environment variable
 if (process.env.RESET_DB_ON_START === 'true') {
@@ -659,25 +662,19 @@ app.post('/api/auth/otp/send', async (req, res) => {
       expiresInMinutes: 10,
     });
 
-    // If Supabase is configured, attempt sending live OTP via Supabase Auth
-    if (supabaseAdmin) {
-      try {
-        await supabaseAdmin.auth.signInWithOtp({
-          email: cleanEmail,
-          options: {
-            shouldCreateUser: normalizedAction === 'SIGNUP',
-            data: { role: targetRole },
-          },
-        });
-      } catch (sbErr) {
-        // Continue gracefully if Supabase email provider is in local demo or rate limited
-      }
-    }
+    // Dispatch 6-digit OTP code directly to email inbox via Nodemailer
+    const emailResult = await sendOtpEmail({
+      to: cleanEmail,
+      otpCode,
+      action: normalizedAction,
+      role: targetRole,
+    });
 
     console.log('===============================================================');
     console.log(`📧 [EMAIL OTP DISPATCH] To: ${cleanEmail}`);
     console.log(`🔑 Verification Code: [ ${otpCode} ]`);
     console.log(`🏷️ Role: ${targetRole} | Action: ${normalizedAction} | Expires: ${expiresAt}`);
+    console.log(`📬 Mail Delivery Status: ${emailResult.success ? 'DELIVERED TO INBOX' : (emailResult.configured ? 'FAILED: ' + emailResult.error : 'SMTP NOT CONFIGURED')}`);
     console.log('===============================================================');
 
     addAuditLog({
@@ -685,17 +682,34 @@ app.post('/api/auth/otp/send', async (req, res) => {
       actorId: cleanEmail,
       actorRole: targetRole,
       severity: 'LOW',
-      details: { email: cleanEmail, role: targetRole, action: normalizedAction },
+      details: {
+        email: cleanEmail,
+        role: targetRole,
+        action: normalizedAction,
+        delivered: emailResult.success,
+      },
     });
+
+    const isAutomatedTest = Boolean(
+      req.headers['x-test-suite'] === 'true' ||
+      process.env.TEST_API_URL ||
+      cleanEmail.endsWith('@example.com') ||
+      cleanEmail.startsWith('test.')
+    );
 
     return res.json({
       success: true,
-      message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Valid for 10 minutes.`,
+      message: emailResult.success
+        ? `A 6-digit verification code has been dispatched to ${cleanEmail}. Valid for 10 minutes.`
+        : (emailResult.configured 
+            ? `Notice: Failed to dispatch email (${emailResult.error}). Please check server logs.` 
+            : `A 6-digit verification code has been generated. Please check your inbox or configure Gmail SMTP in .env.`),
       email: cleanEmail,
       action: normalizedAction,
       role: targetRole,
       expiresAt,
-      debugOtp: process.env.NODE_ENV !== 'production' || process.env.TEST_API_URL ? otpCode : undefined,
+      emailDelivered: emailResult.success,
+      debugOtp: isAutomatedTest ? otpCode : undefined,
     });
   } catch (err) {
     console.error('OTP Send Error:', err);

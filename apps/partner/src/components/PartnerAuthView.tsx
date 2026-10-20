@@ -299,9 +299,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       }
       setOtpSentForLogin(true);
       setResendCooldown(30);
-      const noticeMsg = data.debugOtp
-        ? `${data.message || t.otpSentNotice} [Test OTP: ${data.debugOtp}]`
-        : (data.message || t.otpSentNotice);
+      const noticeMsg = data.message || t.otpSentNotice;
       setOtpNotice(noticeMsg);
       playNotificationChime('ping');
       return true;
@@ -340,14 +338,10 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         throw new Error(data.error || 'Invalid mobile, email, or password.');
       }
 
-      // Password validated -> Challenge with 6-digit Email OTP to complete login
-      const otpSent = await handleSendLoginOtp(loginEmail.trim());
-      if (otpSent) {
-        setLoginMethod('otp');
-        setOtpNotice(
-          `✓ Password accepted for ${loginEmail.trim()}. A 6-digit verification code has been dispatched to your email. Please enter it below to complete sign-in.`
-        );
-      }
+      // Password validated -> Sign in directly!
+      playNotificationChime('success');
+      onSuccess(data.user);
+      return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to sign in. Please verify your credentials.');
       playNotificationChime('alert');

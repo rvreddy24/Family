@@ -38,6 +38,7 @@
     "framer-motion": "^12.4.10",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
+    "nodemailer": "^10.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
