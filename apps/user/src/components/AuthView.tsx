@@ -12,8 +12,6 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Sparkles,
-  KeyRound,
 } from 'lucide-react';
 import { getApiBaseUrl } from '@shared/utils';
 import { supabase } from '@shared/supabase';
@@ -40,29 +38,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
   // Sign In Form State
   const [loginEmail, setLoginEmail] = useState<string>(pendingGoogleData?.email || '');
   const [loginPassword, setLoginPassword] = useState<string>('');
-  const [loginOtp, setLoginOtp] = useState<string>('');
-  const [otpSentForLogin, setOtpSentForLogin] = useState<boolean>(false);
 
-  // Sign Up Form State - Only User details (NO parents during signup)
+  // Sign Up Form State
   const [fullName, setFullName] = useState<string>(pendingGoogleData?.fullName || '');
   const [signupEmail, setSignupEmail] = useState<string>(pendingGoogleData?.email || '');
   const [signupPhone, setSignupPhone] = useState<string>('');
   const [countryResidence, setCountryResidence] = useState<string>('United States');
   const [signupPassword, setSignupPassword] = useState<string>('');
-  const [signupOtp, setSignupOtp] = useState<string>('');
-  const [otpSentForSignup, setOtpSentForSignup] = useState<boolean>(false);
-
-  // OTP cooldown & notice state
-  const [resendCooldown, setResendCooldown] = useState<number>(0);
-  const [otpNotice, setOtpNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
 
   // Handle Google Auth state passed in from App.tsx
   useEffect(() => {
@@ -76,93 +58,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
       setMode('signup');
       if (pendingGoogleData.fullName) setFullName(pendingGoogleData.fullName);
       if (pendingGoogleData.email) setSignupEmail(pendingGoogleData.email);
-      setOtpNotice(
-        `Google account verified (${pendingGoogleData.email}). Please enter your mobile phone number to activate your account.`
-      );
     }
   }, [pendingGoogleData]);
 
-  // --- OTP DISPATCH HANDLERS ---
-  const handleSendLoginOtp = async (targetEmailParam?: string): Promise<boolean> => {
-    const targetEmail = (targetEmailParam || loginEmail).trim();
-    if (!targetEmail) {
-      setErrorMessage('Please enter your email address first.');
-      return false;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    setOtpNotice(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: targetEmail,
-          role: 'CLIENT',
-          action: 'LOGIN',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to dispatch verification code.');
-      }
-      setOtpSentForLogin(true);
-      setResendCooldown(30);
-      const noticeMsg = data.message || `A 6-digit verification code has been dispatched to ${targetEmail}.`;
-      setOtpNotice(noticeMsg);
-      return true;
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to dispatch verification code.');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendSignupOtp = async (): Promise<boolean> => {
-    if (!fullName.trim() || !signupEmail.trim()) {
-      setErrorMessage('Please enter your full name and email address.');
-      return false;
-    }
-    if (!signupPhone.trim()) {
-      setErrorMessage('Please enter your mobile phone number.');
-      return false;
-    }
-    if (!pendingGoogleData && (!signupPassword || signupPassword.length < 6)) {
-      setErrorMessage('Password must be at least 6 characters.');
-      return false;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    setOtpNotice(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: signupEmail.trim(),
-          role: 'CLIENT',
-          action: 'SIGNUP',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to send verification code.');
-      }
-      setOtpSentForSignup(true);
-      setResendCooldown(30);
-      const noticeMsg = data.message || `A 6-digit verification code has been dispatched to ${signupEmail.trim()}.`;
-      setOtpNotice(noticeMsg);
-      return true;
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to dispatch verification code.');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --- SIGN IN FLOW: Password first, then OTP verification challenge ---
+  // --- SIGN IN FLOW: Direct Password Sign In ---
   const handlePasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim() || !loginPassword) {
@@ -197,38 +96,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
     }
   };
 
-  // Complete Login with OTP (if requested)
-  const handleVerifyLoginOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail.trim() || !loginOtp.trim()) {
-      setErrorMessage('Please enter the 6-digit verification code sent to your email.');
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: loginEmail.trim(),
-          otp: loginOtp.trim(),
-          role: 'CLIENT',
-          action: 'LOGIN',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid or expired verification code.');
-      }
-      onSuccess(data.user);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'OTP verification failed. Please check the code.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // --- SIGN UP FLOW: Direct Registration & Account Activation ---
   const handleStartSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -246,7 +113,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
     }
     setIsLoading(true);
     setErrorMessage(null);
-    setOtpNotice(null);
 
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
@@ -273,45 +139,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
       onSuccess(data.user);
     } catch (err: any) {
       setErrorMessage(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Complete Signup with OTP
-  const handleVerifySignupOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!signupEmail.trim() || !signupOtp.trim()) {
-      setErrorMessage('Please enter the 6-digit verification code sent to your email.');
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: signupEmail.trim(),
-          otp: signupOtp.trim(),
-          role: 'CLIENT',
-          action: 'SIGNUP',
-          fullName: fullName.trim(),
-          phone: signupPhone.trim(),
-          countryResidence,
-          currency: 'USD',
-          subscriptionTier: 'GOLD',
-          password: signupPassword || 'FamilyHubs2026!',
-          // Note: Parent details are configured in the Parents tab after registration
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid or expired verification code.');
-      }
-      onSuccess(data.user);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Registration verification failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -402,8 +229,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
                 onClick={() => {
                   setMode('signin');
                   setErrorMessage(null);
-                  setOtpNotice(null);
-                  setOtpSentForLogin(false);
                 }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
                   mode === 'signin'
@@ -418,8 +243,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
                 onClick={() => {
                   setMode('signup');
                   setErrorMessage(null);
-                  setOtpNotice(null);
-                  setOtpSentForSignup(false);
                 }}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
                   mode === 'signup'
@@ -436,14 +259,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
               <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {/* Info / OTP Banner */}
-            {otpNotice && (
-              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>{otpNotice}</span>
               </div>
             )}
 
@@ -484,317 +299,191 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, pendingGoogleData
             </div>
 
             {/* ========================================================= */}
-            {/* SIGN IN FORM (Password first, then 6-digit Email OTP)    */}
+            {/* SIGN IN FORM                                              */}
             {/* ========================================================= */}
             {mode === 'signin' && (
-              <div className="space-y-4">
-                {!otpSentForLogin ? (
-                  <form onSubmit={handlePasswordSignIn} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="email"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
-                          required
-                          placeholder="you@gmail.com"
-                          className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                    </div>
+              <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      placeholder="you@gmail.com"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          required
-                          placeholder="••••••••"
-                          className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <span>Sign In</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-indigo-500/40 text-xs space-y-1">
-                      <div className="text-slate-400">Account verified:</div>
-                      <div className="text-white font-semibold font-mono">{loginEmail}</div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="block text-xs font-semibold text-slate-300">
-                          Enter 6-Digit Email Code
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => { handleSendLoginOtp(); }}
-                          disabled={isLoading || resendCooldown > 0}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
-                        >
-                          {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={loginOtp}
-                          onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, ''))}
-                          required
-                          placeholder="123456"
-                          autoFocus
-                          className="w-full bg-slate-950 border border-indigo-500/60 rounded-xl pl-10 pr-4 py-2.5 text-base tracking-widest font-mono text-center text-white placeholder-slate-600 focus:outline-none focus:border-indigo-400"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading || loginOtp.length < 6}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Verify Code &amp; Sign In</span>
-                        </>
-                      )}
-                    </button>
-
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
                     <button
                       type="button"
-                      onClick={() => setOtpSentForLogin(false)}
-                      className="w-full text-center text-xs text-slate-400 hover:text-slate-300 cursor-pointer"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
                     >
-                      ← Back to password sign-in
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                  </form>
-                )}
-              </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
             )}
 
             {/* ========================================================= */}
-            {/* SIGN UP FORM (User Details ONLY - No parents section)    */}
+            {/* SIGN UP FORM                                              */}
             {/* ========================================================= */}
             {mode === 'signup' && (
-              <div className="space-y-4">
-                {!otpSentForSignup ? (
-                  <form onSubmit={handleStartSignup} className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Full Name <span className="text-rose-400">*</span>
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          required
-                          placeholder="Rajesh Reddy"
-                          className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
+              <form onSubmit={handleStartSignup} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Full Name <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      placeholder="Rajesh Reddy"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Email Address <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                      placeholder="you@gmail.com"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Mobile Phone <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        value={signupPhone}
+                        onChange={(e) => setSignupPhone(e.target.value)}
+                        required
+                        placeholder="+1 408 555 0192"
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Email Address <span className="text-rose-400">*</span>
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="email"
-                          value={signupEmail}
-                          onChange={(e) => setSignupEmail(e.target.value)}
-                          required
-                          placeholder="you@gmail.com"
-                          className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Country of Residence
+                    </label>
+                    <div className="relative">
+                      <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <select
+                        value={countryResidence}
+                        onChange={(e) => setCountryResidence(e.target.value)}
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="United States">United States</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Australia">Australia</option>
+                        <option value="UAE (Dubai)">UAE (Dubai)</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="Germany">Germany</option>
+                        <option value="India">India</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Mobile Phone <span className="text-rose-400">*</span>
-                        </label>
-                        <div className="relative">
-                          <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="tel"
-                            value={signupPhone}
-                            onChange={(e) => setSignupPhone(e.target.value)}
-                            required
-                            placeholder="+1 408 555 0192"
-                            className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Country of Residence
-                        </label>
-                        <div className="relative">
-                          <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <select
-                            value={countryResidence}
-                            onChange={(e) => setCountryResidence(e.target.value)}
-                            className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                          >
-                            <option value="United States">United States</option>
-                            <option value="United Kingdom">United Kingdom</option>
-                            <option value="Canada">Canada</option>
-                            <option value="Australia">Australia</option>
-                            <option value="UAE (Dubai)">UAE (Dubai)</option>
-                            <option value="Singapore">Singapore</option>
-                            <option value="Germany">Germany</option>
-                            <option value="India">India</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-                      </div>
+                {!pendingGoogleData && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Create Password (min 6 chars) <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={signupPassword}
+                        onChange={(e) => setSignupPassword(e.target.value)}
+                        required
+                        placeholder="••••••••"
+                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
-
-                    {!pendingGoogleData && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Create Password (min 6 chars) <span className="text-rose-400">*</span>
-                        </label>
-                        <div className="relative">
-                          <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            value={signupPassword}
-                            onChange={(e) => setSignupPassword(e.target.value)}
-                            required
-                            placeholder="••••••••"
-                            className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer mt-2"
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Create &amp; Activate Account</span>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifySignupOtp} className="space-y-4">
-                    <div className="p-3 rounded-xl bg-slate-900/90 border border-indigo-500/40 text-xs space-y-1">
-                      <div className="text-slate-400">Verifying registration for:</div>
-                      <div className="text-white font-semibold font-mono">{signupEmail}</div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="block text-xs font-semibold text-slate-300">
-                          Enter 6-Digit Verification Code
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => { handleSendSignupOtp(); }}
-                          disabled={isLoading || resendCooldown > 0}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
-                        >
-                          {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={signupOtp}
-                          onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
-                          required
-                          placeholder="123456"
-                          autoFocus
-                          className="w-full bg-slate-950 border border-indigo-500/60 rounded-xl pl-10 pr-4 py-2.5 text-base tracking-widest font-mono text-center text-white placeholder-slate-600 focus:outline-none focus:border-indigo-400"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading || signupOtp.length < 6}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Verify &amp; Activate Account</span>
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setOtpSentForSignup(false)}
-                      className="w-full text-center text-xs text-slate-400 hover:text-slate-300 cursor-pointer"
-                    >
-                      ← Back to edit registration details
-                    </button>
-                  </form>
+                  </div>
                 )}
-              </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer mt-2"
+                >
+                  {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Create &amp; Activate Account</span>
+                    </>
+                  )}
+                </button>
+              </form>
             )}
           </div>
         </div>

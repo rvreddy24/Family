@@ -439,17 +439,18 @@ export default function UserApp() {
 
         const data = await res.json();
         if (data.success && data.user) {
-          // Require OTP verification for Google sign-in
-          setPendingGoogleUser({
-            email: data.user.email,
-            fullName: data.user.full_name,
-            authProviderId: data.user.id,
-            isExisting: true,
-            user: data.user,
-          });
-          setIsLoggedIn(false);
-          setToastMessage(`Google verified (${data.user.email}). Please enter the 6-digit OTP code.`);
-          setTimeout(() => setToastMessage(null), 5000);
+          localStorage.setItem('fh_user_logged_in', 'true');
+          localStorage.setItem('fh_user_id', data.user.id);
+          localStorage.setItem('fh_user_name', data.user.full_name);
+          localStorage.setItem('fh_user_email', data.user.email);
+          setCurrentUserId(data.user.id);
+          setCurrentUserName(data.user.full_name);
+          setCurrentUserEmail(data.user.email);
+          setIsLoggedIn(true);
+          setPendingGoogleUser(null);
+          fetchAllData(data.user.id);
+          setToastMessage(`Welcome back, ${data.user.full_name}!`);
+          setTimeout(() => setToastMessage(null), 4000);
 
           // Clean up OAuth tokens/code from address bar without reloading
           if (window.location.search || window.location.hash) {

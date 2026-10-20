@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Zap,
   Phone,
   Lock,
   User,
@@ -13,9 +12,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Sparkles,
   Globe,
-  KeyRound,
 } from 'lucide-react';
 import { getApiBaseUrl, playNotificationChime } from '@shared/utils';
 import { supabase } from '@shared/supabase';
@@ -49,45 +46,23 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Sign In Form State
-  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('otp');
   const [loginEmail, setLoginEmail] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState<string>('');
-  const [loginOtp, setLoginOtp] = useState<string>('');
-  const [otpSentForLogin, setOtpSentForLogin] = useState<boolean>(false);
 
   // Sign Up Form State
-  const [signupMethod, setSignupMethod] = useState<'password' | 'otp'>('otp');
   const [fullName, setFullName] = useState<string>(pendingGoogleData?.fullName || '');
   const [signupPhone, setSignupPhone] = useState<string>('');
   const [signupEmail, setSignupEmail] = useState<string>(pendingGoogleData?.email || '');
   const [serviceCategory, setServiceCategory] = useState<string>('MEDICAL_TRANSPORT');
   const [operatingRegion, setOperatingRegion] = useState<string>('Pan-India Verified Network');
   const [signupPassword, setSignupPassword] = useState<string>('');
-  const [signupOtp, setSignupOtp] = useState<string>('');
-  const [otpSentForSignup, setOtpSentForSignup] = useState<boolean>(false);
-
-  const [resendCooldown, setResendCooldown] = useState<number>(0);
-  const [otpNotice, setOtpNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendCooldown]);
 
   useEffect(() => {
     if (!pendingGoogleData) return;
 
     if (pendingGoogleData.isExisting) {
-      setMode('signin');
-      setLoginMethod('otp');
-      setLoginEmail(pendingGoogleData.email);
-      handleSendLoginOtp(pendingGoogleData.email);
-      setOtpNotice(
-        `✓ Google account verified (${pendingGoogleData.email}). Enter the 6-digit verification code to complete sign-in.`
-      );
+      playNotificationChime('success');
+      onSuccess(pendingGoogleData.user);
     } else {
       setMode('signup');
       if (pendingGoogleData.fullName && !fullName) setFullName(pendingGoogleData.fullName);
@@ -273,45 +248,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
     }
   };
 
-  const handleSendLoginOtp = async (targetEmailParam?: string): Promise<boolean> => {
-    const targetEmail = (targetEmailParam || loginEmail).trim();
-    if (!targetEmail) {
-      setErrorMessage('Please enter your registered mobile or email address.');
-      playNotificationChime('alert');
-      return false;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    setOtpNotice(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: targetEmail,
-          role: 'PARTNER',
-          action: 'LOGIN',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to send OTP code.');
-      }
-      setOtpSentForLogin(true);
-      setResendCooldown(30);
-      const noticeMsg = data.message || t.otpSentNotice;
-      setOtpNotice(noticeMsg);
-      playNotificationChime('ping');
-      return true;
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to dispatch verification code.');
-      playNotificationChime('alert');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSignIn = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginEmail.trim()) {
@@ -344,121 +280,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       return;
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to sign in. Please verify your credentials.');
-      playNotificationChime('alert');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyLoginOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!loginEmail.trim() || !loginOtp.trim()) {
-      setErrorMessage('Please enter your email and the 6-digit verification code.');
-      playNotificationChime('alert');
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: loginEmail.trim(),
-          otp: loginOtp.trim(),
-          role: 'PARTNER',
-          action: 'LOGIN',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid or expired verification code.');
-      }
-      playNotificationChime('success');
-      onSuccess(data.user);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'OTP verification failed. Please verify code.');
-      playNotificationChime('alert');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendSignupOtp = async () => {
-    if (!fullName.trim() || !signupPhone.trim()) {
-      setErrorMessage('Please enter your full name and mobile number.');
-      playNotificationChime('alert');
-      return;
-    }
-    const partnerEmail =
-      signupEmail.trim() ||
-      `partner_${signupPhone.replace(/[^0-9]/g, '')}@partner.familyhubs.com`;
-
-    setIsLoading(true);
-    setErrorMessage(null);
-    setOtpNotice(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: partnerEmail,
-          role: 'PARTNER',
-          action: 'SIGNUP',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to send OTP.');
-      }
-      setOtpSentForSignup(true);
-      setResendCooldown(30);
-      setOtpNotice(data.message || `Verification code sent to ${partnerEmail}`);
-      playNotificationChime('ping');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to dispatch verification code.');
-      playNotificationChime('alert');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifySignupOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const partnerEmail =
-      signupEmail.trim() ||
-      `partner_${signupPhone.replace(/[^0-9]/g, '')}@partner.familyhubs.com`;
-
-    if (!signupOtp.trim()) {
-      setErrorMessage('Please enter the 6-digit verification code.');
-      playNotificationChime('alert');
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/auth/otp/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: partnerEmail,
-          otp: signupOtp.trim(),
-          role: 'PARTNER',
-          action: 'SIGNUP',
-          fullName: fullName.trim(),
-          phone: signupPhone.trim(),
-          serviceCategory,
-          operatingRegion,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid or expired verification code.');
-      }
-      playNotificationChime('success');
-      onSuccess(data.user);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Verification failed. Please verify code.');
       playNotificationChime('alert');
     } finally {
       setIsLoading(false);
@@ -651,436 +472,212 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
             <div className="flex-1 border-t border-slate-700/80"></div>
           </div>
 
-          {otpNotice && (
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span>{otpNotice}</span>
-            </div>
-          )}
-
           {/* ==================================== */}
           {/* SIGN IN FORM */}
           {/* ==================================== */}
           {mode === 'signin' && (
-            <div className="space-y-4">
-              <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-700/80">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginMethod('otp');
-                    setErrorMessage(null);
-                    setOtpNotice(null);
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
-                    loginMethod === 'otp'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {t.otpLoginTab}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginMethod('password');
-                    setErrorMessage(null);
-                    setOtpNotice(null);
-                  }}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
-                    loginMethod === 'password'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {t.passwordLoginTab}
-                </button>
+            <form onSubmit={(e) => handleSignIn(e)} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  {t.emailOrPhone}
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                    placeholder="partner@familyhubs.in / 9440154321"
+                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
-              {loginMethod === 'password' ? (
-                <form onSubmit={(e) => handleSignIn(e)} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      {t.emailOrPhone}
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        required
-                        placeholder="partner@familyhubs.in / 9440154321"
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      {t.password}
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        required
-                        placeholder="••••••••"
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  {t.password}
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
                   <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
                   >
-                    {isLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <KeyRound className="w-4 h-4" />
-                        <span>Verify Password & Request OTP</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </form>
-              ) : (
-                <form
-                  onSubmit={
-                    otpSentForLogin
-                      ? handleVerifyLoginOtp
-                      : (e) => {
-                          e.preventDefault();
-                          handleSendLoginOtp();
-                        }
-                  }
-                  className="space-y-4"
-                >
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      {t.emailLabel}
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="email"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        required
-                        placeholder="partner@familyhubs.in"
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
+                </div>
+              </div>
 
-                  {!otpSentForLogin ? (
-                    <button
-                      type="submit"
-                      disabled={isLoading || !loginEmail.trim()}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                    >
-                      {isLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <KeyRound className="w-4 h-4" />
-                          <span>{t.sendOtpBtn}</span>
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <>
-                      <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <label className="block text-xs font-semibold text-slate-300">
-                            {t.enterOtp}
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => { handleSendLoginOtp(); }}
-                            disabled={isLoading || resendCooldown > 0}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
-                          >
-                            {resendCooldown > 0 ? `${t.resendCode} (${resendCooldown}s)` : t.resendCode}
-                          </button>
-                        </div>
-                        <div className="relative">
-                          <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            maxLength={6}
-                            value={loginOtp}
-                            onChange={(e) => setLoginOtp(e.target.value.replace(/\D/g, ''))}
-                            required
-                            placeholder="123456"
-                            className="w-full bg-slate-900/90 border border-indigo-500/60 rounded-xl pl-10 pr-4 py-2.5 text-base tracking-widest font-mono text-center text-white placeholder-slate-600 focus:outline-none focus:border-indigo-400"
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={isLoading || loginOtp.length < 6}
-                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                      >
-                        {isLoading ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>{t.verifySignIn}</span>
-                          </>
-                        )}
-                      </button>
-                    </>
-                  )}
-                </form>
-              )}
-            </div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>{t.signInBtn}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
           )}
 
           {/* ==================================== */}
           {/* SIGN UP FORM (JOIN AS PARTNER) */}
           {/* ==================================== */}
           {mode === 'signup' && (
-            <div className="space-y-3.5">
+            <form onSubmit={handleSignUp} className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t.fullNameLabel} <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t.mobileLabel} <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={signupPhone}
+                    onChange={(e) => setSignupPhone(e.target.value)}
+                    required
+                    placeholder="+91 98765 43210"
+                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t.emailLabel} (Optional)
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    placeholder="partner@familyhubs.in"
+                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    {t.categoryLabel}
+                  </label>
+                  <div className="relative">
+                    <Briefcase className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <select
+                      value={serviceCategory}
+                      onChange={(e) => setServiceCategory(e.target.value)}
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="MEDICAL_TRANSPORT">Healthcare &amp; Escort</option>
+                      <option value="HOME_MAINTENANCE">Electrical &amp; Plumbing</option>
+                      <option value="ERRANDS">Groceries &amp; Errands</option>
+                      <option value="EMERGENCY">Emergency Response</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    {t.regionLabel}
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <select
+                      value={operatingRegion}
+                      onChange={(e) => setOperatingRegion(e.target.value)}
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="Pan-India Verified Network">Pan-India (All India)</option>
+                      <option value="Telangana & Andhra Hub">Telangana &amp; Andhra Pradesh</option>
+                      <option value="Karnataka & Bengaluru Hub">Karnataka &amp; Bengaluru</option>
+                      <option value="Maharashtra & Mumbai Hub">Maharashtra &amp; Mumbai</option>
+                      <option value="Delhi NCR Hub">Delhi NCR &amp; North India</option>
+                      <option value="Tamil Nadu & Southern Hub">Tamil Nadu &amp; South India</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               {!pendingGoogleData && (
-                <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignupMethod('password');
-                      setErrorMessage(null);
-                      setOtpNotice(null);
-                    }}
-                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
-                      signupMethod === 'password'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t.passwordSignupTab}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignupMethod('otp');
-                      setErrorMessage(null);
-                    }}
-                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition ${
-                      signupMethod === 'otp'
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t.otpSignupTab}
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    {t.createPassword} (min 6 chars) <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <form
-                onSubmit={(e) => {
-                  if (signupMethod === 'otp') {
-                    if (!otpSentForSignup) {
-                      e.preventDefault();
-                      handleSendSignupOtp();
-                    } else {
-                      handleVerifySignupOtp(e);
-                    }
-                  } else {
-                    handleSignUp(e);
-                  }
-                }}
-                className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1"
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-[11px] text-emerald-300 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{t.trustNotice}</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t.fullNameLabel} <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
-                      placeholder="e.g. Ramesh Kumar"
-                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t.mobileLabel} <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={signupPhone}
-                      onChange={(e) => setSignupPhone(e.target.value)}
-                      required
-                      placeholder="+91 98765 43210"
-                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t.emailLabel} {signupMethod === 'otp' ? <span className="text-rose-400">*</span> : '(Optional)'}
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      required={signupMethod === 'otp'}
-                      placeholder="partner@familyhubs.in"
-                      className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.categoryLabel}
-                    </label>
-                    <div className="relative">
-                      <Briefcase className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <select
-                        value={serviceCategory}
-                        onChange={(e) => setServiceCategory(e.target.value)}
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="MEDICAL_TRANSPORT">Healthcare &amp; Escort</option>
-                        <option value="HOME_MAINTENANCE">Electrical &amp; Plumbing</option>
-                        <option value="ERRANDS">Groceries &amp; Errands</option>
-                        <option value="EMERGENCY">Emergency Response</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.regionLabel}
-                    </label>
-                    <div className="relative">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <select
-                        value={operatingRegion}
-                        onChange={(e) => setOperatingRegion(e.target.value)}
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-8 pr-2 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="Pan-India Verified Network">Pan-India (All India)</option>
-                        <option value="Telangana & Andhra Hub">Telangana &amp; Andhra Pradesh</option>
-                        <option value="Karnataka & Bengaluru Hub">Karnataka &amp; Bengaluru</option>
-                        <option value="Maharashtra & Mumbai Hub">Maharashtra &amp; Mumbai</option>
-                        <option value="Delhi NCR Hub">Delhi NCR &amp; North India</option>
-                        <option value="Tamil Nadu & Southern Hub">Tamil Nadu &amp; South India</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {!pendingGoogleData && signupMethod === 'password' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.createPassword} (min 6 chars) <span className="text-rose-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
-                        required={signupMethod === 'password'}
-                        placeholder="••••••••"
-                        className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>{t.registerBtn}</span>
+                    <CheckCircle2 className="w-4 h-4" />
+                  </>
                 )}
-
-                {!pendingGoogleData && signupMethod === 'otp' && otpSentForSignup && (
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[11px] text-slate-300 font-medium">{t.enterOtp}</span>
-                      <button
-                        type="button"
-                        onClick={handleSendSignupOtp}
-                        disabled={isLoading || resendCooldown > 0}
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
-                      >
-                        {resendCooldown > 0 ? `${t.resendCode} (${resendCooldown}s)` : t.resendCode}
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={signupOtp}
-                        onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
-                        placeholder="123456"
-                        className="w-full bg-slate-950 border border-indigo-500/60 rounded-xl pl-10 pr-3 py-2 text-sm font-mono tracking-widest text-center text-white placeholder-slate-600 focus:outline-none focus:border-indigo-400"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-[11px] text-emerald-300 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>{t.trustNotice}</span>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-                >
-                  {isLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : signupMethod === 'otp' && !otpSentForSignup ? (
-                    <>
-                      <KeyRound className="w-4 h-4" />
-                      <span>{t.sendSignupOtp}</span>
-                    </>
-                  ) : signupMethod === 'otp' ? (
-                    <>
-                      <span>{t.verifySignUp}</span>
-                      <CheckCircle2 className="w-4 h-4" />
-                    </>
-                  ) : (
-                    <>
-                      <span>{t.registerBtn}</span>
-                      <CheckCircle2 className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
+              </button>
+            </form>
           )}
 
           <div className="text-center pt-1">

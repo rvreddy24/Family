@@ -383,15 +383,12 @@ export default function PartnerApp() {
 
         const data = await res.json();
         if (data.success && data.user) {
-          // Require OTP verification for Google login
-          setPendingGooglePartner({
-            email: data.user.email,
-            fullName: data.user.full_name,
-            authProviderId: data.user.id,
-            isExisting: true,
-            user: data.user,
-          });
-          setIsLoggedIn(false);
+          localStorage.setItem('fh_partner_logged_in', 'true');
+          localStorage.setItem('fh_partner_id', data.user.id);
+          setPartnerId(data.user.id);
+          setIsLoggedIn(true);
+          setPendingGooglePartner(null);
+          fetchData(data.user.id);
 
           if (window.location.search || window.location.hash) {
             window.history.replaceState({}, document.title, window.location.pathname);
