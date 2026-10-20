@@ -60,6 +60,11 @@ export interface PartnerProfile {
   kyc_verified: boolean;
   is_active: boolean;
   wallet_balance: number;
+  rating?: number;
+  total_reviews?: number;
+  last_latitude?: number | null;
+  last_longitude?: number | null;
+  last_location_updated_at?: string | null;
   full_name?: string;
   email?: string;
   phone?: string;
@@ -99,6 +104,102 @@ export interface Task {
   escrow?: EscrowTransaction | null;
   verification_logs?: VerificationLog[];
   whatsapp_logs?: WhatsAppLog[];
+  review?: TaskReview | null;
+}
+
+export interface ParentVital {
+  id: string;
+  parent_id: string;
+  recorded_by: string;
+  blood_pressure_sys?: number | null;
+  blood_pressure_dia?: number | null;
+  blood_sugar?: number | null;
+  blood_sugar_type?: 'FASTING' | 'POST_PRANDIAL' | 'RANDOM' | 'NONE';
+  pulse?: number | null;
+  spo2?: number | null;
+  weight_kg?: number | null;
+  notes?: string | null;
+  recorded_at: string;
+}
+
+export interface ParentMedication {
+  id: string;
+  parent_id: string;
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  time_of_day: string;
+  stock_remaining: number;
+  low_stock_threshold: number;
+  instructions?: string | null;
+  is_active: boolean | number;
+  created_at: string;
+}
+
+export interface MedicalVaultDocument {
+  id: string;
+  parent_id: string;
+  title: string;
+  category: 'PRESCRIPTION' | 'LAB_REPORT' | 'DISCHARGE_SUMMARY' | 'SCAN' | 'OTHER';
+  file_url: string;
+  doctor_name?: string | null;
+  hospital_name?: string | null;
+  document_date?: string | null;
+  notes?: string | null;
+  uploaded_by: string;
+  created_at: string;
+}
+
+export interface EmergencyEvent {
+  id: string;
+  parent_id: string;
+  parent_name?: string;
+  parent_phone?: string;
+  parent_address?: string;
+  client_id?: string;
+  triggered_by_user_id: string;
+  status: 'ACTIVE' | 'DISPATCHED' | 'RESOLVED';
+  latitude?: number | null;
+  longitude?: number | null;
+  notes?: string | null;
+  ambulance_dispatched: boolean | number;
+  assigned_partner_id?: string | null;
+  assigned_partner_name?: string | null;
+  resolved_by?: string | null;
+  resolution_notes?: string | null;
+  triggered_at: string;
+  resolved_at?: string | null;
+}
+
+export interface TaskReview {
+  id: string;
+  task_id: string;
+  client_id: string;
+  partner_id: string;
+  rating: number;
+  tags: string[];
+  feedback_text?: string | null;
+  created_at: string;
+}
+
+export interface FamilyMember {
+  id: string;
+  client_id: string;
+  invited_name: string;
+  invited_email: string;
+  relationship: string;
+  status: 'INVITED' | 'ACTIVE';
+  created_at: string;
+}
+
+export interface PartnerLocationUpdate {
+  partner_id: string;
+  task_id?: string;
+  latitude: number;
+  longitude: number;
+  speed?: number;
+  heading?: number;
+  timestamp: string;
 }
 
 export interface EscrowTransaction {
@@ -155,6 +256,12 @@ export type WebSocketEventType =
   | 'PARTNER_AVAILABILITY_CHANGED'
   | 'SECURITY_SETTINGS_UPDATED'
   | 'EMERGENCY_FREEZE_TOGGLED'
+  | 'EMERGENCY_SOS_TRIGGERED'
+  | 'EMERGENCY_SOS_RESOLVED'
+  | 'PARTNER_LOCATION_UPDATE'
+  | 'VITALS_RECORDED'
+  | 'MEDICATION_UPDATED'
+  | 'TASK_REVIEW_SUBMITTED'
   | 'DATABASE_PURGED';
 
 export interface WebSocketMessage<T = unknown> {
@@ -181,4 +288,5 @@ export interface AuditLogEntry {
   details_json: string;
   created_at: string;
 }
+
 

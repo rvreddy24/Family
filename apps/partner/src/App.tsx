@@ -26,7 +26,10 @@ import {
   User,
   CreditCard,
   Building,
-  Smartphone
+  Smartphone,
+  Heart,
+  Activity,
+  Star,
 } from 'lucide-react';
 import type { Task, PartnerProfile } from '@shared/types';
 import { calculateDistanceMeters, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
@@ -52,6 +55,13 @@ export default function PartnerApp() {
   const [isAvailable, setIsAvailable] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'jobs' | 'active' | 'wallet' | 'settings'>('jobs');
   const [lang, setLang] = useState<LanguageCode>('te'); // Default to Telugu for local Miryalaguda field partner
+  const [pendingGooglePartner, setPendingGooglePartner] = useState<{
+    email: string;
+    fullName: string;
+    authProviderId?: string;
+    isExisting?: boolean;
+    user?: any;
+  } | null>(null);
 
   // Camera & GPS State
   const [showCameraModal, setShowCameraModal] = useState<boolean>(false);
@@ -60,6 +70,18 @@ export default function PartnerApp() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+
+  // Field Vitals Logging & GPS Telemetry State
+  const [showPartnerVitalModal, setShowPartnerVitalModal] = useState<boolean>(false);
+  const [partnerBpSys, setPartnerBpSys] = useState<string>('120');
+  const [partnerBpDia, setPartnerBpDia] = useState<string>('80');
+  const [partnerSugar, setPartnerSugar] = useState<string>('110');
+  const [partnerPulse, setPartnerPulse] = useState<string>('72');
+  const [partnerSpo2, setPartnerSpo2] = useState<string>('98');
+  const [vitalNotes, setVitalNotes] = useState<string>('');
+  const [isSubmittingVital, setIsSubmittingVital] = useState<boolean>(false);
+  const [vitalSuccessToast, setVitalSuccessToast] = useState<string | null>(null);
+  const [isBroadcastingGps, setIsBroadcastingGps] = useState<boolean>(true);
 
   // Settings State
   const [bankUpiId, setBankUpiId] = useState<string>(() => {
@@ -361,12 +383,27 @@ export default function PartnerApp() {
 
         const data = await res.json();
         if (data.success && data.user) {
-          localStorage.setItem('fh_partner_logged_in', 'true');
-          localStorage.setItem('fh_partner_id', data.user.id);
-          setPartnerId(data.user.id);
-          setIsLoggedIn(true);
-          fetchData(data.user.id);
+          // Require OTP verification for Google login
+          setPendingGooglePartner({
+            email: data.user.email,
+            fullName: data.user.full_name,
+            authProviderId: data.user.id,
+            isExisting: true,
+            user: data.user,
+          });
+          setIsLoggedIn(false);
 
+          if (window.location.search || window.location.hash) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } else if (data.noAccount || res.status === 404) {
+          setPendingGooglePartner({
+            email: data.email || email,
+            fullName: data.fullName || fullName,
+            authProviderId: data.authProviderId || u.id,
+            isExisting: false,
+          });
+          setIsLoggedIn(false);
           if (window.location.search || window.location.hash) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
@@ -516,6 +553,91 @@ export default function PartnerApp() {
     }
   };
 
+  // Periodic GPS broadcast to server for live tracking
+  useEffect(() => {
+    if (!isLoggedIn || !partnerId || !isBroadcastingGps) return;
+
+    const sendLocation = async (lat: number, lng: number) => {
+      try {
+        await fetch(`${getApiBaseUrl()}/api/partners/${partnerId}/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: lat,
+            longitude: lng,
+            speed: 12.5,
+            heading: 45,
+            taskId: activeTask?.id,
+          }),
+        });
+      } catch (err) {
+        // silently ignore telemetry send errors
+      }
+    };
+
+    let watchId: number | null = null;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setDeviceLat(pos.coords.latitude);
+          setDeviceLng(pos.coords.longitude);
+          sendLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          console.warn('Geolocation watch fallback:', err);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
+      );
+    }
+
+    const interval = setInterval(() => {
+      sendLocation(deviceLat, deviceLng);
+    }, 8000);
+
+    return () => {
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+      clearInterval(interval);
+    };
+  }, [isLoggedIn, partnerId, isBroadcastingGps, activeTask?.id, deviceLat, deviceLng]);
+
+  const handleSubmitPartnerVitals = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTask || !activeTask.parent_id) return;
+    setIsSubmittingVital(true);
+
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/parents/${activeTask.parent_id}/vitals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systolic: Number(partnerBpSys) || 120,
+          diastolic: Number(partnerBpDia) || 80,
+          blood_glucose: Number(partnerSugar) || undefined,
+          pulse: Number(partnerPulse) || undefined,
+          spo2: Number(partnerSpo2) || undefined,
+          notes: vitalNotes ? `[Field Visit] ${vitalNotes}` : '[Field Visit] Vitals measured by Care Partner',
+          recorded_by: profile?.user?.full_name || 'Care Partner',
+        }),
+      });
+
+      if (res.ok) {
+        setShowPartnerVitalModal(false);
+        setVitalSuccessToast('Parent vitals successfully recorded and transmitted to family!');
+        playNotificationChime('success');
+        setTimeout(() => setVitalSuccessToast(null), 4000);
+      } else {
+        alert('Failed to record vitals. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error recording vitals:', err);
+      alert('Error recording vitals.');
+    } finally {
+      setIsSubmittingVital(false);
+    }
+  };
+
   // Camera Handling
   const startCamera = async (stage: 'ARRIVAL_CHECKIN' | 'TASK_COMPLETION') => {
     setCameraStage(stage);
@@ -658,11 +780,13 @@ export default function PartnerApp() {
       <PartnerAuthView
         lang={lang}
         onLanguageChange={setLang}
+        pendingGoogleData={pendingGooglePartner}
         onSuccess={(partner) => {
           localStorage.setItem('fh_partner_logged_in', 'true');
           localStorage.setItem('fh_partner_id', partner.id);
           setPartnerId(partner.id);
           setIsLoggedIn(true);
+          setPendingGooglePartner(null);
           fetchData(partner.id);
         }}
       />
@@ -684,6 +808,13 @@ export default function PartnerApp() {
                 {profile?.user?.full_name || 'Field Partner'}
                 <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
                   ✓ Verified
+                </span>
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-bold">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span>{profile?.rating ? profile.rating.toFixed(1) : '5.0'}</span>
+                  <span className="text-[10px] text-amber-700/80 font-normal">
+                    ({profile?.total_reviews || 12})
+                  </span>
                 </span>
               </div>
               <div className="text-xs text-slate-500">
@@ -956,19 +1087,51 @@ export default function PartnerApp() {
                   </div>
                 </div>
 
-                {/* GPS Status Indicator */}
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                      <MapPin className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-emerald-800">{t.within150m}</div>
-                      <div className="text-[11px] text-slate-500">
-                        GPS: {deviceLat.toFixed(4)}°N, {deviceLng.toFixed(4)}°E • Distance: {Math.round(distanceToParentMeters)}m
+                {/* GPS Status Indicator & Live Telemetry Stream */}
+                <div className="space-y-2">
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-emerald-800">{t.within150m}</div>
+                        <div className="text-[11px] text-slate-500">
+                          GPS: {deviceLat.toFixed(4)}°N, {deviceLng.toFixed(4)}°E • Distance: {Math.round(distanceToParentMeters)}m
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-semibold text-indigo-900">Broadcasting Real-Time GPS to Family</span>
+                    </div>
+                    <span className="font-mono text-[11px] text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
+                      Live Telemetry Active
+                    </span>
+                  </div>
+                </div>
+
+                {/* Health Vitals Logging Trigger */}
+                <div className="p-4 bg-rose-50/60 border border-rose-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+                      <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-rose-950">Parent Health Check</div>
+                      <div className="text-[11px] text-rose-800/80">Log BP, Blood Glucose & Pulse directly to family vault</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowPartnerVitalModal(true)}
+                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Log Vitals
+                  </button>
                 </div>
 
                 {/* Forensic Check-in Camera Triggers */}
@@ -1257,6 +1420,136 @@ export default function PartnerApp() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ================= PARTNER RECORD VITALS MODAL ================= */}
+      {showPartnerVitalModal && activeTask && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Record Parent Vitals</h3>
+                  <p className="text-xs text-slate-500">For {activeTask.parent?.parent_name || 'Parent'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPartnerVitalModal(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPartnerVitals} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Pressure (Sys)</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={partnerBpSys}
+                      onChange={(e) => setPartnerBpSys(e.target.value)}
+                      placeholder="120"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                    />
+                    <span className="text-[10px] text-slate-400">mmHg</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Pressure (Dia)</label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={partnerBpDia}
+                      onChange={(e) => setPartnerBpDia(e.target.value)}
+                      placeholder="80"
+                      required
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                    />
+                    <span className="text-[10px] text-slate-400">mmHg</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Glucose</label>
+                  <input
+                    type="number"
+                    value={partnerSugar}
+                    onChange={(e) => setPartnerSugar(e.target.value)}
+                    placeholder="110"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                  />
+                  <span className="text-[9px] text-slate-400 block mt-0.5">mg/dL</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pulse</label>
+                  <input
+                    type="number"
+                    value={partnerPulse}
+                    onChange={(e) => setPartnerPulse(e.target.value)}
+                    placeholder="72"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                  />
+                  <span className="text-[9px] text-slate-400 block mt-0.5">BPM</span>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">SpO2</label>
+                  <input
+                    type="number"
+                    value={partnerSpo2}
+                    onChange={(e) => setPartnerSpo2(e.target.value)}
+                    placeholder="98"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                  />
+                  <span className="text-[9px] text-slate-400 block mt-0.5">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Visit Observations / Notes</label>
+                <textarea
+                  value={vitalNotes}
+                  onChange={(e) => setVitalNotes(e.target.value)}
+                  placeholder="e.g. Parents took morning medicine, in high spirits, resting comfortably."
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPartnerVitalModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingVital}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                >
+                  {isSubmittingVital ? 'Recording...' : 'Save Vitals'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUCCESS TOAST ================= */}
+      {vitalSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+          <span>{vitalSuccessToast}</span>
         </div>
       )}
     </div>

@@ -17,13 +17,20 @@ async function cleanAllExceptAdmin() {
 
   const deleteSqlite = db.transaction(() => {
     // Delete all dependent child tables first
-    db.prepare('DELETE FROM whatsapp_logs').run();
-    db.prepare('DELETE FROM verification_logs').run();
-    db.prepare('DELETE FROM escrow_transactions').run();
-    db.prepare('DELETE FROM tasks').run();
-    db.prepare('DELETE FROM parents_profile').run();
-    db.prepare('DELETE FROM clients_profile').run();
-    db.prepare('DELETE FROM partners_profile').run();
+    try { db.prepare('DELETE FROM parent_vitals').run(); } catch {}
+    try { db.prepare('DELETE FROM parent_medications').run(); } catch {}
+    try { db.prepare('DELETE FROM medical_vault_documents').run(); } catch {}
+    try { db.prepare('DELETE FROM emergency_events').run(); } catch {}
+    try { db.prepare('DELETE FROM task_reviews').run(); } catch {}
+    try { db.prepare('DELETE FROM family_members').run(); } catch {}
+    try { db.prepare('DELETE FROM email_otps').run(); } catch {}
+    try { db.prepare('DELETE FROM whatsapp_logs').run(); } catch {}
+    try { db.prepare('DELETE FROM verification_logs').run(); } catch {}
+    try { db.prepare('DELETE FROM escrow_transactions').run(); } catch {}
+    try { db.prepare('DELETE FROM tasks').run(); } catch {}
+    try { db.prepare('DELETE FROM parents_profile').run(); } catch {}
+    try { db.prepare('DELETE FROM clients_profile').run(); } catch {}
+    try { db.prepare('DELETE FROM partners_profile').run(); } catch {}
 
     // Delete all users except admin
     const delResult = db.prepare('DELETE FROM users WHERE email != ?').run(ADMIN_EMAIL);
@@ -60,6 +67,12 @@ async function cleanAllExceptAdmin() {
 
   // A. Purge public tables in Supabase
   try {
+    try { await supabase.from('parent_vitals').delete().neq('id', 'keep_none'); } catch {}
+    try { await supabase.from('parent_medications').delete().neq('id', 'keep_none'); } catch {}
+    try { await supabase.from('medical_vault_documents').delete().neq('id', 'keep_none'); } catch {}
+    try { await supabase.from('emergency_events').delete().neq('id', 'keep_none'); } catch {}
+    try { await supabase.from('task_reviews').delete().neq('id', 'keep_none'); } catch {}
+    try { await supabase.from('family_members').delete().neq('id', 'keep_none'); } catch {}
     await supabase.from('whatsapp_logs').delete().neq('id', 'keep_none');
     await supabase.from('verification_logs').delete().neq('id', 'keep_none');
     await supabase.from('escrow_transactions').delete().neq('id', 'keep_none');

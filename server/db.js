@@ -129,6 +129,106 @@ function initDatabase() {
       value TEXT NOT NULL,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS parent_vitals (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      recorded_by TEXT NOT NULL,
+      blood_pressure_sys INTEGER,
+      blood_pressure_dia INTEGER,
+      blood_sugar REAL,
+      blood_sugar_type TEXT CHECK(blood_sugar_type IN ('FASTING', 'POST_PRANDIAL', 'RANDOM', 'NONE')),
+      pulse INTEGER,
+      spo2 INTEGER,
+      weight_kg REAL,
+      notes TEXT,
+      recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES parents_profile(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS parent_medications (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      medicine_name TEXT NOT NULL,
+      dosage TEXT NOT NULL,
+      frequency TEXT NOT NULL,
+      time_of_day TEXT,
+      stock_remaining INTEGER DEFAULT 30,
+      low_stock_threshold INTEGER DEFAULT 7,
+      instructions TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES parents_profile(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS medical_vault_documents (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('PRESCRIPTION', 'LAB_REPORT', 'DISCHARGE_SUMMARY', 'SCAN', 'OTHER')),
+      file_url TEXT NOT NULL,
+      doctor_name TEXT,
+      hospital_name TEXT,
+      document_date TEXT,
+      notes TEXT,
+      uploaded_by TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES parents_profile(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS emergency_events (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      triggered_by_user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'DISPATCHED', 'RESOLVED')),
+      latitude REAL,
+      longitude REAL,
+      notes TEXT,
+      ambulance_dispatched INTEGER DEFAULT 0,
+      assigned_partner_id TEXT,
+      resolved_by TEXT,
+      resolution_notes TEXT,
+      triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      resolved_at DATETIME,
+      FOREIGN KEY (parent_id) REFERENCES parents_profile(id) ON DELETE CASCADE,
+      FOREIGN KEY (triggered_by_user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS task_reviews (
+      id TEXT PRIMARY KEY,
+      task_id TEXT UNIQUE NOT NULL,
+      client_id TEXT NOT NULL,
+      partner_id TEXT NOT NULL,
+      rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+      tags_json TEXT,
+      feedback_text TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (client_id) REFERENCES users(id),
+      FOREIGN KEY (partner_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS family_members (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      invited_name TEXT NOT NULL,
+      invited_email TEXT NOT NULL,
+      relationship TEXT NOT NULL DEFAULT 'SIBLING',
+      status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('INVITED', 'ACTIVE')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (client_id) REFERENCES clients_profile(user_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS email_otps (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      otp_code TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('CLIENT', 'ADMIN', 'PARTNER')),
+      action TEXT NOT NULL CHECK(action IN ('LOGIN', 'SIGNUP')),
+      expires_at DATETIME NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Ensure default security settings
@@ -148,6 +248,23 @@ function initDatabase() {
   } catch {}
   try {
     db.prepare('UPDATE parents_profile SET whatsapp_phone = primary_phone WHERE whatsapp_phone IS NULL OR whatsapp_phone = ""').run();
+  } catch {}
+
+  // Ensure telemetry & rating columns exist in partners_profile
+  try {
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN last_latitude REAL').run();
+  } catch {}
+  try {
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN last_longitude REAL').run();
+  } catch {}
+  try {
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN last_location_updated_at DATETIME').run();
+  } catch {}
+  try {
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN rating REAL DEFAULT 4.95').run();
+  } catch {}
+  try {
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN total_reviews INTEGER DEFAULT 18').run();
   } catch {}
 
   seedCleanCoreData();
@@ -374,6 +491,23 @@ function formatTaskRow(r) {
     SELECT * FROM whatsapp_logs WHERE task_id = ? ORDER BY sent_at DESC
   `).all(r.id);
 
+  let review = null;
+  try {
+    const revRow = db.prepare('SELECT * FROM task_reviews WHERE task_id = ?').get(r.id);
+    if (revRow) {
+      review = {
+        id: revRow.id,
+        task_id: revRow.task_id,
+        client_id: revRow.client_id,
+        partner_id: revRow.partner_id,
+        rating: revRow.rating,
+        tags: JSON.parse(revRow.tags_json || '[]'),
+        feedback_text: revRow.feedback_text,
+        created_at: revRow.created_at,
+      };
+    }
+  } catch {}
+
   return {
     id: r.id,
     tracking_code: r.tracking_code,
@@ -424,7 +558,10 @@ function formatTaskRow(r) {
       tx_digest: r.escrow_tx_digest,
     } : null,
     verification_logs: verifications,
+    verificationLogs: verifications,
     whatsapp_logs: whatsappLogs,
+    whatsappLogs: whatsappLogs,
+    review,
   };
 }
 
@@ -771,6 +908,61 @@ function createParent(data) {
   return db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(id);
 }
 
+function updateParent(id, data) {
+  const existing = db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(id);
+  if (!existing) return null;
+
+  db.prepare(`
+    UPDATE parents_profile
+    SET parent_name = ?,
+        primary_phone = ?,
+        whatsapp_phone = ?,
+        locality = ?,
+        full_address = ?,
+        coordinates_lat = ?,
+        coordinates_lng = ?,
+        medical_notes = ?
+    WHERE id = ?
+  `).run(
+    data.parentName !== undefined ? data.parentName : existing.parent_name,
+    data.primaryPhone !== undefined ? data.primaryPhone : existing.primary_phone,
+    data.whatsappPhone !== undefined ? data.whatsappPhone : (data.primaryPhone || existing.whatsapp_phone),
+    data.locality !== undefined ? data.locality : existing.locality,
+    data.fullAddress !== undefined ? data.fullAddress : existing.full_address,
+    data.coordinatesLat !== undefined ? data.coordinatesLat : existing.coordinates_lat,
+    data.coordinatesLng !== undefined ? data.coordinatesLng : existing.coordinates_lng,
+    data.medicalNotes !== undefined ? data.medicalNotes : existing.medical_notes,
+    id
+  );
+
+  addAuditLog({
+    eventType: 'PARENT_RESIDENCE_UPDATED',
+    actorId: existing.client_id,
+    actorRole: 'CLIENT',
+    severity: 'LOW',
+    details: { parentId: id, name: data.parentName || existing.parent_name },
+  });
+
+  return db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(id);
+}
+
+function deleteParent(id) {
+  const existing = db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(id);
+  if (!existing) return false;
+
+  db.prepare('DELETE FROM parents_profile WHERE id = ?').run(id);
+
+  addAuditLog({
+    eventType: 'PARENT_RESIDENCE_DELETED',
+    actorId: existing.client_id,
+    actorRole: 'CLIENT',
+    severity: 'MEDIUM',
+    details: { parentId: id, name: existing.parent_name },
+  });
+
+  return true;
+}
+
 function getPartners(category, region) {
   let query = `
     SELECT 
@@ -888,6 +1080,35 @@ function syncUserFromCloud(user) {
       user.auth_provider_id || user.id || existing.auth_provider_id,
       existing.id
     );
+
+    const effRole = user.role || existing.role;
+    const effId = existing.id;
+    if (effRole === 'PARTNER') {
+      const existingPartner = db.prepare('SELECT * FROM partners_profile WHERE user_id = ?').get(effId);
+      if (!existingPartner) {
+        db.prepare(`
+          INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
+          VALUES (?, 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', 1, 1, 0.0)
+        `).run(effId);
+      }
+    } else if (effRole === 'CLIENT') {
+      const existingClient = db.prepare('SELECT * FROM clients_profile WHERE user_id = ?').get(effId);
+      if (!existingClient) {
+        db.prepare(`
+          INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
+          VALUES (?, 'United States', 'USD', 'GOLD')
+        `).run(effId);
+      }
+      const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').get(effId);
+      if (!existingParent) {
+        const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
+        db.prepare(`
+          INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng)
+          VALUES (?, ?, 'Aging Parents in India', '+91 94401 23456', '+91 94401 23456', 'Pan-India', 'India', 16.8724, 79.5631)
+        `).run(parentId, effId);
+      }
+    }
+
     return getUserByEmail(cleanEmail);
   }
 
@@ -918,6 +1139,14 @@ function syncUserFromCloud(user) {
         VALUES (?, 'United States', 'USD', 'GOLD')
       `).run(id);
     }
+    const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').get(id);
+    if (!existingParent) {
+      const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
+      db.prepare(`
+        INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng)
+        VALUES (?, ?, 'Aging Parents in India', '+91 94401 23456', '+91 94401 23456', 'Pan-India', 'India', 16.8724, 79.5631)
+      `).run(parentId, id);
+    }
   }
 
   return getUserByEmail(cleanEmail);
@@ -935,11 +1164,15 @@ function registerClientAccount({
   parentWhatsappPhone,
   locality = 'Pan-India',
   fullAddress = 'India',
-  coordinatesLat = 20.5937,
-  coordinatesLng = 78.9629,
+  coordinatesLat = 16.8724,
+  coordinatesLng = 79.5631,
   medicalNotes = null,
   authProviderId = null,
 }) {
+  if (locality.toLowerCase().includes('miryalaguda') || fullAddress.toLowerCase().includes('miryalaguda')) {
+    coordinatesLat = 16.8724;
+    coordinatesLng = 79.5631;
+  }
   const existing = getUserByEmail(email);
   if (existing) {
     return getClientProfile(existing.id);
@@ -1184,6 +1417,8 @@ function resetCleanDatabase() {
     DELETE FROM whatsapp_logs;
     DELETE FROM verification_logs;
     DELETE FROM escrow_transactions;
+    DELETE FROM task_reviews;
+    DELETE FROM emergency_events;
     DELETE FROM tasks;
     DELETE FROM audit_logs;
     UPDATE partners_profile SET wallet_balance = 0.00;
@@ -1204,6 +1439,339 @@ function closeDatabase() {
   }
 }
 
+// ----------------- HEALTH & CARE VITALS -----------------
+function getVitals(parentId) {
+  return db.prepare('SELECT * FROM parent_vitals WHERE parent_id = ? ORDER BY recorded_at DESC LIMIT 50').all(parentId);
+}
+
+function addVital(data) {
+  const id = 'vit_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const sys = data.bloodPressureSys !== undefined ? data.bloodPressureSys : data.systolic;
+  const dia = data.bloodPressureDia !== undefined ? data.bloodPressureDia : data.diastolic;
+  const sugar = data.bloodSugar !== undefined ? data.bloodSugar : data.blood_glucose;
+  const sugarType = data.bloodSugarType || data.blood_sugar_type || 'FASTING';
+  const weight = data.weightKg !== undefined ? data.weightKg : data.weight_kg;
+
+  db.prepare(`
+    INSERT INTO parent_vitals (id, parent_id, recorded_by, blood_pressure_sys, blood_pressure_dia, blood_sugar, blood_sugar_type, pulse, spo2, weight_kg, notes, recorded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    data.parentId,
+    data.recordedBy || data.recorded_by || 'CLIENT',
+    sys !== undefined && sys !== null ? Number(sys) : null,
+    dia !== undefined && dia !== null ? Number(dia) : null,
+    sugar !== undefined && sugar !== null ? Number(sugar) : null,
+    sugarType,
+    data.pulse !== undefined && data.pulse !== null ? Number(data.pulse) : null,
+    data.spo2 !== undefined && data.spo2 !== null ? Number(data.spo2) : null,
+    weight !== undefined && weight !== null ? Number(weight) : null,
+    data.notes || null,
+    now
+  );
+  return db.prepare('SELECT * FROM parent_vitals WHERE id = ?').get(id);
+}
+
+// ----------------- MEDICATIONS SCHEDULE -----------------
+function getMedications(parentId) {
+  return db.prepare('SELECT * FROM parent_medications WHERE parent_id = ? AND is_active = 1 ORDER BY created_at ASC').all(parentId);
+}
+
+function addMedication(data) {
+  const id = 'med_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const name = data.medicineName || data.medicine_name || 'Prescription';
+  const time = data.timeOfDay || data.time_of_day || 'Morning (After Breakfast)';
+  const stock = data.stockRemaining !== undefined ? data.stockRemaining : (data.current_stock !== undefined ? data.current_stock : data.stock_remaining);
+  const thresh = data.lowStockThreshold !== undefined ? data.lowStockThreshold : (data.refill_threshold !== undefined ? data.refill_threshold : data.low_stock_threshold);
+
+  db.prepare(`
+    INSERT INTO parent_medications (id, parent_id, medicine_name, dosage, frequency, time_of_day, stock_remaining, low_stock_threshold, instructions, is_active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+  `).run(
+    id,
+    data.parentId,
+    name,
+    data.dosage || '500mg',
+    data.frequency || 'DAILY',
+    time,
+    Number(stock) || 30,
+    Number(thresh) || 7,
+    data.instructions || null,
+    now
+  );
+  return db.prepare('SELECT * FROM parent_medications WHERE id = ?').get(id);
+}
+
+function deleteMedication(medId) {
+  db.prepare('UPDATE parent_medications SET is_active = 0 WHERE id = ?').run(medId);
+  return { success: true };
+}
+
+function updateMedicationStock(medId, stockRemaining) {
+  db.prepare('UPDATE parent_medications SET stock_remaining = ? WHERE id = ?').run(Number(stockRemaining), medId);
+  return db.prepare('SELECT * FROM parent_medications WHERE id = ?').get(medId);
+}
+
+// ----------------- MEDICAL VAULT DOCUMENTS -----------------
+function getVaultDocuments(parentId) {
+  return db.prepare('SELECT * FROM medical_vault_documents WHERE parent_id = ? ORDER BY document_date DESC, created_at DESC').all(parentId);
+}
+
+function addVaultDocument(data) {
+  const id = 'doc_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const title = data.title || data.documentName || data.document_name || 'Medical Document';
+  const category = data.category || data.documentCategory || data.document_category || 'PRESCRIPTION';
+  const fileUrl = data.fileUrl || data.file_url || '/uploads/sample_doc.pdf';
+  const doctor = data.doctorName || data.doctor_name || null;
+  const hospital = data.hospitalName || data.hospital_name || data.facility_name || null;
+  const docDate = data.documentDate || data.document_date || now.split('T')[0];
+  const uploaded = data.uploadedBy || data.uploaded_by || 'CLIENT';
+
+  db.prepare(`
+    INSERT INTO medical_vault_documents (id, parent_id, title, category, file_url, doctor_name, hospital_name, document_date, notes, uploaded_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    data.parentId,
+    title,
+    category,
+    fileUrl,
+    doctor,
+    hospital,
+    docDate,
+    data.notes || null,
+    uploaded,
+    now
+  );
+  return db.prepare('SELECT * FROM medical_vault_documents WHERE id = ?').get(id);
+}
+
+// ----------------- EMERGENCY SOS EVENTS -----------------
+function getEmergencyEventById(id) {
+  return db.prepare(`
+    SELECT e.*, p.parent_name, p.primary_phone as parent_phone, p.full_address as parent_address, p.client_id, u.full_name as assigned_partner_name
+    FROM emergency_events e
+    JOIN parents_profile p ON e.parent_id = p.id
+    LEFT JOIN users u ON e.assigned_partner_id = u.id
+    WHERE e.id = ?
+  `).get(id);
+}
+
+function getActiveEmergencies() {
+  return db.prepare(`
+    SELECT e.*, p.parent_name, p.primary_phone as parent_phone, p.full_address as parent_address, p.client_id, u.full_name as assigned_partner_name
+    FROM emergency_events e
+    JOIN parents_profile p ON e.parent_id = p.id
+    LEFT JOIN users u ON e.assigned_partner_id = u.id
+    WHERE e.status IN ('ACTIVE', 'DISPATCHED')
+    ORDER BY e.triggered_at DESC
+  `).all();
+}
+
+function createEmergencyEvent({ parentId, triggeredByUserId, latitude, longitude, notes }) {
+  const id = 'sos_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const parent = db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(parentId);
+
+  let validActorId = triggeredByUserId;
+  const userExists = validActorId ? db.prepare('SELECT id FROM users WHERE id = ?').get(validActorId) : null;
+  if (!userExists) {
+    validActorId = parent?.client_id || (db.prepare('SELECT id FROM users LIMIT 1').get()?.id) || 'usr_client_nri';
+  }
+  
+  db.prepare(`
+    INSERT INTO emergency_events (id, parent_id, triggered_by_user_id, status, latitude, longitude, notes, ambulance_dispatched, triggered_at)
+    VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, 1, ?)
+  `).run(
+    id,
+    parentId,
+    validActorId,
+    latitude || parent?.coordinates_lat || 16.8724,
+    longitude || parent?.coordinates_lng || 79.5631,
+    notes || 'Emergency SOS initiated by client/parent',
+    now
+  );
+
+  addAuditLog({
+    eventType: 'EMERGENCY_SOS_INITIATED',
+    actorId: triggeredByUserId || 'client',
+    actorRole: 'CLIENT',
+    severity: 'CRITICAL',
+    details: { sosId: id, parentId, parentName: parent?.parent_name },
+  });
+
+  return getEmergencyEventById(id);
+}
+
+function resolveEmergencyEvent(id, { resolvedBy = 'admin', resolutionNotes = 'Emergency handled and verified.' } = {}) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE emergency_events
+    SET status = 'RESOLVED', resolved_by = ?, resolution_notes = ?, resolved_at = ?
+    WHERE id = ?
+  `).run(resolvedBy, resolutionNotes, now, id);
+
+  addAuditLog({
+    eventType: 'EMERGENCY_SOS_RESOLVED',
+    actorId: resolvedBy,
+    actorRole: 'ADMIN',
+    severity: 'HIGH',
+    details: { sosId: id, resolutionNotes },
+  });
+
+  return getEmergencyEventById(id);
+}
+
+// ----------------- TASK REVIEWS & RATINGS -----------------
+function createTaskReview({ taskId, clientId, partnerId, rating, tags = [], feedbackText, reviewText }) {
+  const id = 'rev_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const text = feedbackText || reviewText || null;
+
+  if (!partnerId) {
+    const t = db.prepare('SELECT assigned_partner_id FROM tasks WHERE id = ?').get(taskId);
+    partnerId = t?.assigned_partner_id;
+  }
+
+  db.prepare(`
+    INSERT OR REPLACE INTO task_reviews (id, task_id, client_id, partner_id, rating, tags_json, feedback_text, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, taskId, clientId, partnerId || 'partner', Number(rating), JSON.stringify(tags), text, now);
+
+  if (partnerId) {
+    try {
+      const stats = db.prepare(`
+        SELECT AVG(rating) as avg_rating, COUNT(*) as cnt 
+        FROM task_reviews 
+        WHERE partner_id = ?
+      `).get(partnerId);
+      if (stats && stats.cnt > 0) {
+        db.prepare(`
+          UPDATE partners_profile 
+          SET rating = ?, total_reviews = ?
+          WHERE user_id = ?
+        `).run(Math.round(stats.avg_rating * 10) / 10, stats.cnt, partnerId);
+      }
+    } catch {}
+  }
+
+  const row = db.prepare('SELECT * FROM task_reviews WHERE id = ?').get(id);
+  return { ...row, review_text: row.feedback_text, tags: JSON.parse(row.tags_json || '[]') };
+}
+
+function getTaskReview(taskId) {
+  const row = db.prepare('SELECT * FROM task_reviews WHERE task_id = ?').get(taskId);
+  if (!row) return null;
+  return { ...row, review_text: row.feedback_text, tags: JSON.parse(row.tags_json || '[]') };
+}
+
+function getPartnerReviews(partnerId) {
+  const rows = db.prepare('SELECT * FROM task_reviews WHERE partner_id = ? ORDER BY created_at DESC').all(partnerId);
+  return rows.map((r) => ({ ...r, review_text: r.feedback_text, tags: JSON.parse(r.tags_json || '[]') }));
+}
+
+// ----------------- FAMILY MEMBERS / SIBLING COLLABORATION -----------------
+function getFamilyMembers(clientId) {
+  return db.prepare('SELECT * FROM family_members WHERE client_id = ? ORDER BY created_at ASC').all(clientId);
+}
+
+function addFamilyMember({ clientId, invitedName, fullName, invitedEmail, email, relationship = 'SIBLING' }) {
+  const id = 'fam_' + Math.random().toString(36).substring(2, 9);
+  const now = new Date().toISOString();
+  const name = invitedName || fullName || 'Family Member';
+  const mail = invitedEmail || email || '';
+  db.prepare(`
+    INSERT INTO family_members (id, client_id, invited_name, invited_email, relationship, status, created_at)
+    VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)
+  `).run(id, clientId, name, mail, relationship, now);
+  return db.prepare('SELECT * FROM family_members WHERE id = ?').get(id);
+}
+
+// ----------------- PARTNER LIVE LOCATION TELEMETRY -----------------
+function updatePartnerLocation(partnerId, latitude, longitude) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE partners_profile 
+    SET last_latitude = ?, last_longitude = ?, last_location_updated_at = ?
+    WHERE user_id = ?
+  `).run(Number(latitude), Number(longitude), now, partnerId);
+  return { partnerId, latitude: Number(latitude), longitude: Number(longitude), updatedAt: now };
+}
+
+function getPartnerLocation(partnerId) {
+  const row = db.prepare(`
+    SELECT last_latitude, last_longitude, last_location_updated_at 
+    FROM partners_profile 
+    WHERE user_id = ?
+  `).get(partnerId);
+  if (!row) return null;
+  return {
+    latitude: row.last_latitude,
+    longitude: row.last_longitude,
+    last_latitude: row.last_latitude,
+    last_longitude: row.last_longitude,
+    updated_at: row.last_location_updated_at,
+    last_location_updated_at: row.last_location_updated_at,
+  };
+}
+
+// ----------------- EMAIL OTP MANAGEMENT -----------------
+function createEmailOtp({ email, role = 'CLIENT', action = 'LOGIN', expiresInMinutes = 10 }) {
+  const cleanEmail = email.trim().toLowerCase();
+  const id = 'otp_' + crypto.randomBytes(6).toString('hex');
+  const otpCode = String(crypto.randomInt(100000, 999999));
+
+  // Invalidate previous active OTPs for this email & action
+  try {
+    db.prepare(`
+      UPDATE email_otps SET used = 1 WHERE email = ? AND action = ? AND used = 0
+    `).run(cleanEmail, action.toUpperCase());
+  } catch {}
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + expiresInMinutes * 60 * 1000).toISOString();
+
+  db.prepare(`
+    INSERT INTO email_otps (id, email, otp_code, role, action, expires_at, used, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+  `).run(id, cleanEmail, otpCode, role, action.toUpperCase(), expiresAt, now.toISOString());
+
+  return { id, otpCode, expiresAt };
+}
+
+function verifyEmailOtp({ email, otpCode, role, action }) {
+  if (!email || !otpCode) {
+    return { valid: false, reason: 'Email and verification code are required.' };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanCode = String(otpCode).trim();
+  const cleanAction = action ? action.toUpperCase() : 'LOGIN';
+
+  const row = db.prepare(`
+    SELECT * FROM email_otps 
+    WHERE email = ? AND otp_code = ? AND action = ? AND used = 0
+    ORDER BY created_at DESC LIMIT 1
+  `).get(cleanEmail, cleanCode, cleanAction);
+
+  if (!row) {
+    return { valid: false, reason: 'Invalid or expired verification code.' };
+  }
+
+  const now = new Date();
+  const expiry = new Date(row.expires_at);
+  if (now > expiry) {
+    db.prepare('UPDATE email_otps SET used = 1 WHERE id = ?').run(row.id);
+    return { valid: false, reason: 'Verification code has expired. Please request a new one.' };
+  }
+
+  // Mark as used
+  db.prepare('UPDATE email_otps SET used = 1 WHERE id = ?').run(row.id);
+  return { valid: true, row };
+}
+
 module.exports = {
   db,
   initDatabase,
@@ -1220,6 +1788,8 @@ module.exports = {
   rejectVerification,
   getParents,
   createParent,
+  updateParent,
+  deleteParent,
   getPartners,
   getPartnerProfile,
   updatePartnerDuty,
@@ -1237,4 +1807,28 @@ module.exports = {
   registerPartnerAccount,
   updateClientProfile,
   syncUserFromCloud,
+  // New features
+  getVitals,
+  addVital,
+  getMedications,
+  addMedication,
+  deleteMedication,
+  updateMedicationStock,
+  getVaultDocuments,
+  addVaultDocument,
+  getEmergencyEventById,
+  getActiveEmergencies,
+  createEmergencyEvent,
+  resolveEmergencyEvent,
+  createTaskReview,
+  getTaskReview,
+  getPartnerReviews,
+  getFamilyMembers,
+  addFamilyMember,
+  updatePartnerLocation,
+  getPartnerLocation,
+  // Email OTP
+  createEmailOtp,
+  verifyEmailOtp,
 };
+

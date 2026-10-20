@@ -134,6 +134,92 @@ CREATE TABLE security_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 13. Health Vitals
+CREATE TABLE parent_vitals (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL REFERENCES parents_profile(id) ON DELETE CASCADE,
+  recorded_by TEXT NOT NULL,
+  blood_pressure_sys INTEGER,
+  blood_pressure_dia INTEGER,
+  blood_sugar NUMERIC(5, 1),
+  blood_sugar_type TEXT CHECK(blood_sugar_type IN ('FASTING', 'POST_PRANDIAL', 'RANDOM', 'NONE')),
+  pulse INTEGER,
+  spo2 INTEGER,
+  weight_kg NUMERIC(5, 1),
+  notes TEXT,
+  recorded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Parent Medications
+CREATE TABLE parent_medications (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL REFERENCES parents_profile(id) ON DELETE CASCADE,
+  medicine_name TEXT NOT NULL,
+  dosage TEXT NOT NULL,
+  frequency TEXT NOT NULL,
+  time_of_day TEXT,
+  stock_remaining INTEGER DEFAULT 30,
+  low_stock_threshold INTEGER DEFAULT 7,
+  instructions TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Medical Vault Documents
+CREATE TABLE medical_vault_documents (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL REFERENCES parents_profile(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('PRESCRIPTION', 'LAB_REPORT', 'DISCHARGE_SUMMARY', 'SCAN', 'OTHER')),
+  file_url TEXT NOT NULL,
+  doctor_name TEXT,
+  hospital_name TEXT,
+  document_date DATE,
+  notes TEXT,
+  uploaded_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Emergency SOS Events
+CREATE TABLE emergency_events (
+  id TEXT PRIMARY KEY,
+  parent_id TEXT NOT NULL REFERENCES parents_profile(id) ON DELETE CASCADE,
+  triggered_by_user_id TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE', 'DISPATCHED', 'RESOLVED')),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  notes TEXT,
+  ambulance_dispatched BOOLEAN DEFAULT TRUE,
+  assigned_partner_id TEXT REFERENCES partners_profile(user_id),
+  resolved_by TEXT,
+  resolution_notes TEXT,
+  triggered_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- 17. Task Reviews & CSAT
+CREATE TABLE task_reviews (
+  id TEXT PRIMARY KEY,
+  task_id TEXT UNIQUE NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES users(id),
+  partner_id TEXT NOT NULL REFERENCES users(id),
+  rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+  tags_json JSONB,
+  feedback_text TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 18. Family Members Collaboration
+CREATE TABLE family_members (
+  id TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL REFERENCES clients_profile(user_id) ON DELETE CASCADE,
+  invited_name TEXT NOT NULL,
+  invited_email TEXT NOT NULL,
+  relationship TEXT NOT NULL DEFAULT 'SIBLING',
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('INVITED', 'ACTIVE')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ========================================================
 -- SEED INITIAL CORE DATA
 -- ========================================================
@@ -157,6 +243,12 @@ ALTER TABLE verification_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE security_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_vitals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parent_medications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE medical_vault_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emergency_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE family_members ENABLE ROW LEVEL SECURITY;
 
 -- Allow full access for anon key and authenticated users
 CREATE POLICY "Allow public read/write on users" ON users FOR ALL USING (true) WITH CHECK (true);
@@ -169,3 +261,10 @@ CREATE POLICY "Allow public read/write on verification_logs" ON verification_log
 CREATE POLICY "Allow public read/write on whatsapp_logs" ON whatsapp_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read/write on audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read/write on security_settings" ON security_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on parent_vitals" ON parent_vitals FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on parent_medications" ON parent_medications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on medical_vault_documents" ON medical_vault_documents FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on emergency_events" ON emergency_events FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on task_reviews" ON task_reviews FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read/write on family_members" ON family_members FOR ALL USING (true) WITH CHECK (true);
+

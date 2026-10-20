@@ -98,8 +98,38 @@ npm run dev
 
 ---
 
+## 🛡️ Role Architecture & Email OTP Authentication
+
+### 1. Strictly 3 Roles & Domain Isolation
+The platform enforces exactly 3 distinct user roles segregated by origin domain and portal:
+- **`CLIENT`** (Family User): Sign-up and login on `familyhubs.in` (port 3001). Lean registration collecting user full name, email, phone, and country of residence (parent residences are managed post-signup directly in the Parents tab).
+- **`PARTNER`** (Ground Field Partner): Sign-up and login on `partner.familyhubs.in` (port 3003, `/partner`). Multilingual interface in English, Telugu, Hindi, Tamil, and Kannada.
+- **`ADMIN`** (Platform Operations Admin): Exclusively restricted to the single official admin account: `admin@familyhubs.in`. Public self-registration is permanently disabled. Access only via `ops.familyhubs.in` (port 3002).
+
+### 2. Multi-Factor OTP Verification (Signup, Password Login & Google OAuth)
+Authentication incorporates a strict 6-digit email OTP security challenge:
+- **Password Sign In**: Enter email & password $\rightarrow$ Validates password $\rightarrow$ Automatically challenges with 6-digit OTP sent to registered email $\rightarrow$ User submits OTP to start session.
+- **Google OAuth Sign In / Sign Up**: Authenticating with Google dispatches a 6-digit OTP challenge to that Google email before access is granted.
+- **Lean Sign Up**: Fill name, email, phone, country $\rightarrow$ Dispatch 6-digit verification code to email $\rightarrow$ Verify code to activate account.
+- **Parents Tab Residence Management**: Parents' residences, phone numbers, WhatsApp details, and medical care notes are added, edited, and deleted directly from the **Parents** tab in the dashboard.
+- **Silent Experience**: All audio chime tones and audio effects have been permanently silenced across the application.
+- **Automated Test Suites**:
+  ```bash
+  # Test 3-role and domain separation
+  npm run test:roles
+
+  # Test Email OTP signup and login lifecycle
+  npm run test:otp
+
+  # Test Parent CRUD and Two-Step Password + OTP Login flow
+  npm run test:crud
+  ```
+
+---
+
 ## 🛠 Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React, Leaflet
-- **Backend**: Node.js, Express, WebSocket (`ws`), better-sqlite3 (WAL mode)
+- **Backend**: Node.js, Express, WebSocket (`ws`), better-sqlite3 (WAL mode), Supabase Auth / Database
 - **Tooling**: Concurrently, TypeScript 5.8
+

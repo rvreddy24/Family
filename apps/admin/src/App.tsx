@@ -37,6 +37,8 @@ import {
   Activity,
   Mail,
   EyeOff,
+  Star,
+  Siren,
 } from 'lucide-react';
 import type { Task, PartnerProfile, VerificationLog, WhatsAppLog } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
@@ -66,6 +68,7 @@ export default function AdminApp() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [partners, setPartners] = useState<PartnerProfile[]>([]);
   const [whatsAppLogs, setWhatsAppLogs] = useState<WhatsAppLog[]>([]);
+  const [activeEmergencies, setActiveEmergencies] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [localityFilter, setLocalityFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -99,12 +102,13 @@ export default function AdminApp() {
   const fetchData = async () => {
     try {
       const apiBase = getApiBaseUrl();
-      const [tasksRes, partnersRes, waRes, secRes, audRes] = await Promise.all([
+      const [tasksRes, partnersRes, waRes, secRes, audRes, emRes] = await Promise.all([
         fetch(`${apiBase}/api/tasks`),
         fetch(`${apiBase}/api/partners`),
         fetch(`${apiBase}/api/whatsapp/logs`),
         fetch(`${apiBase}/api/security/settings`),
         fetch(`${apiBase}/api/security/audit-logs`),
+        fetch(`${apiBase}/api/emergency/active`),
       ]);
 
       if (tasksRes.ok) {
@@ -140,6 +144,11 @@ export default function AdminApp() {
         const audData = await audRes.json();
         setAuditLogs(audData);
       }
+
+      if (emRes && emRes.ok) {
+        const emData = await emRes.json();
+        setActiveEmergencies(emData);
+      }
     } catch (err) {
       console.error('Admin data fetch error:', err);
     }
@@ -170,10 +179,20 @@ export default function AdminApp() {
           try {
             const msg = JSON.parse(event.data);
             if (audioEnabled) {
-              playNotificationChime(msg.type === 'TASK_CREATED' ? 'alert' : 'ping');
+              playNotificationChime(msg.type === 'EMERGENCY_SOS_TRIGGERED' || msg.type === 'TASK_CREATED' ? 'alert' : 'ping');
             }
 
-            if (msg.type === 'TASK_CREATED') {
+            if (msg.type === 'EMERGENCY_SOS_TRIGGERED') {
+              setToastAlert({
+                title: '🚨 CRITICAL EMERGENCY SOS SIGNAL',
+                message: `Emergency reported for ${msg.payload.parent_name || 'Aging Parent'}. Priority 1 response required!`,
+              });
+            } else if (msg.type === 'EMERGENCY_SOS_RESOLVED') {
+              setToastAlert({
+                title: 'Emergency Handled',
+                message: 'Emergency status safely resolved by ops.',
+              });
+            } else if (msg.type === 'TASK_CREATED') {
               setToastAlert({
                 title: 'New Service Request',
                 message: `Task ${msg.payload.tracking_code} submitted for ${msg.payload.parent?.locality || 'Pan-India'}.`,
@@ -562,6 +581,58 @@ export default function AdminApp() {
           <div>
             <div className="text-xs font-bold text-slate-900">{toastAlert.title}</div>
             <div className="text-xs text-slate-500 mt-0.5">{toastAlert.message}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Critical Emergency SOS Incident Banner */}
+      {activeEmergencies.length > 0 && (
+        <div className="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-bold shadow-xl z-50 animate-pulse border-b-2 border-red-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-white text-rose-600 flex items-center justify-center shrink-0 shadow-md">
+              <Siren className="w-5 h-5 animate-spin" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-white text-rose-700 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase">
+                  🚨 LIVE EMERGENCY INCIDENT ({activeEmergencies.length} Active)
+                </span>
+                <span className="text-white text-sm font-black">{activeEmergencies[0].parent_name}</span>
+              </div>
+              <div className="text-rose-100 font-medium text-[11px] mt-0.5">
+                Address: {activeEmergencies[0].parent_address} • Phone: {activeEmergencies[0].parent_phone}
+                {activeEmergencies[0].notes && ` • "${activeEmergencies[0].notes}"`}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={`tel:${activeEmergencies[0].parent_phone}`}
+              className="bg-white/20 hover:bg-white/30 text-white border border-white/40 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              Call Parent
+            </a>
+            <button
+              onClick={async () => {
+                const notes = prompt('Enter resolution summary for this emergency:', 'Ambulance confirmed on scene. Vitals stabilized and family updated.');
+                if (!notes) return;
+                try {
+                  const api = getApiBaseUrl();
+                  await fetch(`${api}/api/emergency/${activeEmergencies[0].id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resolvedBy: adminId || 'admin', resolutionNotes: notes }),
+                  });
+                  fetchData();
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              className="bg-white text-rose-700 hover:bg-rose-50 px-4 py-1.5 rounded-xl text-xs font-extrabold shadow-md transition cursor-pointer"
+            >
+              Mark Emergency Resolved ✓
+            </button>
           </div>
         </div>
       )}
@@ -1064,6 +1135,35 @@ export default function AdminApp() {
                               </div>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* CSAT Client Review */}
+                      {selectedTask.review && (
+                        <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                              <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                              Client CSAT Rating: {selectedTask.review.rating}/5 Stars
+                            </span>
+                            <span className="text-[10px] text-amber-800 bg-white px-2 py-0.5 rounded-md font-bold border border-amber-200">
+                              Verified NRI Feedback
+                            </span>
+                          </div>
+                          {selectedTask.review.tags && selectedTask.review.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {selectedTask.review.tags.map((t: string) => (
+                                <span key={t} className="text-[10px] bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 font-medium">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {selectedTask.review.feedback_text && (
+                            <div className="text-[11px] text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-amber-100">
+                              "{selectedTask.review.feedback_text}"
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

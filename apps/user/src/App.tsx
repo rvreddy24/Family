@@ -39,12 +39,22 @@ import {
   ChevronDown,
   ShieldAlert,
   Fingerprint,
-  KeyRound
+  KeyRound,
+  Siren,
+  Navigation,
+  Users,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
-import type { Task, ParentProfile, VerificationLog } from '@shared/types';
+import type { Task, ParentProfile, VerificationLog, PartnerLocationUpdate } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
 import { supabase } from '@shared/supabase';
 import { AuthView } from './components/AuthView';
+import { HealthView } from './components/HealthView';
+import { EmergencyModal } from './components/EmergencyModal';
+import { TaskReviewModal } from './components/TaskReviewModal';
+import { FamilyShareModal } from './components/FamilyShareModal';
+import { LiveTrackingModal } from './components/LiveTrackingModal';
 
 export default function UserApp() {
   // Persistence for login status (default false to show welcome/login first if first visit)
@@ -65,7 +75,7 @@ export default function UserApp() {
 
   const [clientProfile, setClientProfile] = useState<any>(null);
   const [requestFilter, setRequestFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
-  const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'parents' | 'billing' | 'settings'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'health' | 'parents' | 'billing' | 'settings'>('explore');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [parents, setParents] = useState<ParentProfile[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -73,6 +83,13 @@ export default function UserApp() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
+
+  // Extended Features State
+  const [showEmergencyModal, setShowEmergencyModal] = useState<boolean>(false);
+  const [reviewTargetTask, setReviewTargetTask] = useState<Task | null>(null);
+  const [trackingTargetTask, setTrackingTargetTask] = useState<Task | null>(null);
+  const [showFamilyModal, setShowFamilyModal] = useState<boolean>(false);
+  const [latestPartnerTelemetry, setLatestPartnerTelemetry] = useState<PartnerLocationUpdate | null>(null);
 
   // Security Controls State
   const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
@@ -84,6 +101,8 @@ export default function UserApp() {
     email: string;
     fullName: string;
     authProviderId?: string;
+    isExisting?: boolean;
+    user?: any;
   } | null>(null);
 
   // Search & Filter State (Urban Company UX)
@@ -136,6 +155,16 @@ export default function UserApp() {
   const [newParentLocality, setNewParentLocality] = useState<string>('');
   const [newParentAddress, setNewParentAddress] = useState<string>('');
   const [newParentNotes, setNewParentNotes] = useState<string>('');
+
+  // Edit Parent State
+  const [editingParent, setEditingParent] = useState<ParentProfile | null>(null);
+  const [editParentName, setEditParentName] = useState<string>('');
+  const [editParentPhone, setEditParentPhone] = useState<string>('');
+  const [editParentWhatsapp, setEditParentWhatsapp] = useState<string>('');
+  const [editParentLocality, setEditParentLocality] = useState<string>('');
+  const [editParentAddress, setEditParentAddress] = useState<string>('');
+  const [editParentNotes, setEditParentNotes] = useState<string>('');
+  const [isUpdatingParent, setIsUpdatingParent] = useState<boolean>(false);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -410,30 +439,32 @@ export default function UserApp() {
 
         const data = await res.json();
         if (data.success && data.user) {
-          localStorage.setItem('fh_user_logged_in', 'true');
-          localStorage.setItem('fh_user_id', data.user.id);
-          localStorage.setItem('fh_user_name', data.user.full_name);
-          localStorage.setItem('fh_user_email', data.user.email);
-          setCurrentUserId(data.user.id);
-          setCurrentUserName(data.user.full_name);
-          setCurrentUserEmail(data.user.email);
-          setIsLoggedIn(true);
-          setPendingGoogleUser(null);
-          fetchAllData(data.user.id);
+          // Require OTP verification for Google sign-in
+          setPendingGoogleUser({
+            email: data.user.email,
+            fullName: data.user.full_name,
+            authProviderId: data.user.id,
+            isExisting: true,
+            user: data.user,
+          });
+          setIsLoggedIn(false);
+          setToastMessage(`Google verified (${data.user.email}). Please enter the 6-digit OTP code.`);
+          setTimeout(() => setToastMessage(null), 5000);
 
           // Clean up OAuth tokens/code from address bar without reloading
           if (window.location.search || window.location.hash) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } else if (data.noAccount || res.status === 404) {
-          // If no account with that Google email, redirect to signup to collect mandatory phone & parents details!
+          // If no account with that Google email, redirect to signup
           setPendingGoogleUser({
             email: data.email || email,
             fullName: data.fullName || fullName,
             authProviderId: data.authProviderId || u.id,
+            isExisting: false,
           });
           setIsLoggedIn(false);
-          setToastMessage('Google verified! Please enter your phone & parents details in India.');
+          setToastMessage('Google verified! Please enter your mobile phone number to complete signup.');
           setTimeout(() => setToastMessage(null), 6000);
           if (window.location.search || window.location.hash) {
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -485,7 +516,15 @@ export default function UserApp() {
             const msg = JSON.parse(event.data);
             fetchAllData();
 
-            if (msg.type === 'PARTNER_CHECKED_IN') {
+            if (msg.type === 'PARTNER_LOCATION_UPDATE') {
+              setLatestPartnerTelemetry(msg.payload);
+            } else if (msg.type === 'EMERGENCY_SOS_TRIGGERED') {
+              playNotificationChime('ping');
+              setToastMessage('🚨 Emergency SOS alert active! Operations dispatched response.');
+            } else if (msg.type === 'EMERGENCY_SOS_RESOLVED') {
+              playNotificationChime('success');
+              setToastMessage('✓ Emergency safely handled and resolved by Chief Concierge.');
+            } else if (msg.type === 'PARTNER_CHECKED_IN') {
               playNotificationChime('ping');
               setToastMessage("Great news! The helper has arrived at your parents' house.");
             } else if (msg.type === 'ESCROW_RELEASED') {
@@ -630,6 +669,81 @@ export default function UserApp() {
     }
   };
 
+  const handleOpenEditParent = (parent: ParentProfile) => {
+    setEditingParent(parent);
+    setEditParentName(parent.parent_name);
+    setEditParentPhone(parent.primary_phone);
+    setEditParentWhatsapp(parent.whatsapp_phone || parent.primary_phone);
+    setEditParentLocality(parent.locality || 'Pan-India');
+    setEditParentAddress(parent.full_address || '');
+    setEditParentNotes(parent.medical_notes || '');
+  };
+
+  const handleUpdateParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingParent) return;
+    if (!editParentName.trim() || !editParentPhone.trim() || !editParentAddress.trim()) {
+      setToastMessage('Please fill in parent name, calling phone, and address.');
+      return;
+    }
+    setIsUpdatingParent(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/parents/${editingParent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parentName: editParentName.trim(),
+          primaryPhone: editParentPhone.trim(),
+          whatsappPhone: editParentWhatsapp.trim() || editParentPhone.trim(),
+          locality: editParentLocality.trim() || 'Pan-India',
+          fullAddress: editParentAddress.trim(),
+          medicalNotes: editParentNotes.trim() || null,
+        }),
+      });
+
+      if (res.ok) {
+        setEditingParent(null);
+        fetchAllData();
+        setToastMessage('Parent details updated successfully!');
+        setTimeout(() => setToastMessage(null), 5000);
+      } else {
+        const err = await res.json();
+        setToastMessage(err.error || 'Failed to update parent details.');
+        setTimeout(() => setToastMessage(null), 5000);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage('Error updating parent details.');
+      setTimeout(() => setToastMessage(null), 5000);
+    } finally {
+      setIsUpdatingParent(false);
+    }
+  };
+
+  const handleDeleteParent = async (parentId: string, parentName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${parentName}'s residence?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/parents/${parentId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        fetchAllData();
+        setToastMessage(`${parentName}'s residence removed.`);
+        setTimeout(() => setToastMessage(null), 5000);
+      } else {
+        const err = await res.json();
+        setToastMessage(err.error || 'Failed to delete parent residence.');
+        setTimeout(() => setToastMessage(null), 5000);
+      }
+    } catch (err) {
+      console.error(err);
+      setToastMessage('Error removing parent residence.');
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
+
   const getStepIndex = (status: string) => {
     switch (status) {
       case 'PENDING_OPS_REVIEW': return 0;
@@ -747,6 +861,17 @@ export default function UserApp() {
 
           {/* Profile & Settings Trigger */}
           <div className="flex items-center gap-3">
+            {/* 1-Tap Emergency SOS Trigger */}
+            <button
+              onClick={() => setShowEmergencyModal(true)}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-rose-600/30 transition animate-pulse cursor-pointer shrink-0"
+              title="Activate Emergency Response"
+            >
+              <Siren className="w-4 h-4" />
+              <span className="hidden sm:inline">EMERGENCY SOS</span>
+              <span className="sm:hidden">SOS</span>
+            </button>
+
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-white shadow-xs">
               <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
               <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
@@ -786,7 +911,7 @@ export default function UserApp() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-slate-100 pt-1 overflow-x-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-slate-100 pt-1 overflow-x-auto items-center">
           <button
             onClick={() => setActiveTab('explore')}
             className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'explore'
@@ -810,6 +935,17 @@ export default function UserApp() {
             <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded-full text-[10px]">
               {tasks.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'health'
+                ? 'bg-rose-50 text-rose-700 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+          >
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
+            Health & Vitals
           </button>
 
           <button
@@ -846,6 +982,15 @@ export default function UserApp() {
           >
             <Settings className="w-4 h-4 text-slate-500" />
             Settings
+          </button>
+
+          <button
+            onClick={() => setShowFamilyModal(true)}
+            className="px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-indigo-700 hover:bg-indigo-50 ml-auto whitespace-nowrap border border-indigo-100"
+            title="Shared Family Care"
+          >
+            <Users className="w-4 h-4 text-indigo-600" />
+            <span className="hidden md:inline">Shared Sibling Care</span>
           </button>
         </div>
       </header>
@@ -1192,7 +1337,7 @@ export default function UserApp() {
 
                           <button
                             onClick={() => setShowProofModal(selectedTask.verification_logs![0])}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 rounded-lg"
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 rounded-lg cursor-pointer"
                           >
                             View Photo
                           </button>
@@ -1203,6 +1348,74 @@ export default function UserApp() {
                         </div>
                       )}
                     </div>
+
+                    {/* Live GPS Tracker Trigger for in-progress tasks */}
+                    {(selectedTask.status === 'IN_PROGRESS' || selectedTask.status === 'ACCEPTED' || selectedTask.status === 'DISPATCHED') && (
+                      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/20">
+                            <Navigation className="w-5 h-5 animate-pulse" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">Live Helper GPS Movement</div>
+                            <div className="text-[11px] text-slate-500">Track helper traveling live to your parents' home</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setTrackingTargetTask(selectedTask)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          Open Live Map
+                        </button>
+                      </div>
+                    )}
+
+                    {/* CSAT Rating & Review for Completed Tasks */}
+                    {selectedTask.status === 'COMPLETED' && (
+                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                            <span className="text-xs font-bold text-slate-900">
+                              {selectedTask.review ? 'Verified Service Review' : 'Service Feedback'}
+                            </span>
+                          </div>
+                          {selectedTask.review ? (
+                            <div className="mt-1 space-y-1">
+                              <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                                {'★'.repeat(selectedTask.review.rating)}
+                                <span className="text-slate-600 font-medium ml-1">({selectedTask.review.rating}/5 Stars)</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {selectedTask.review.tags?.map((tag) => (
+                                  <span key={tag} className="text-[10px] font-semibold bg-white border border-amber-200 text-amber-800 px-2 py-0.5 rounded-md">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                              {selectedTask.review.feedback_text && (
+                                <p className="text-[11px] text-slate-600 italic mt-1">"{selectedTask.review.feedback_text}"</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Please rate the helper's punctuality and care quality to release feedback badge.
+                            </p>
+                          )}
+                        </div>
+
+                        {!selectedTask.review && (
+                          <button
+                            onClick={() => setReviewTargetTask(selectedTask)}
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                          >
+                            <Star className="w-3.5 h-3.5 fill-white" />
+                            Rate Service
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-400">
@@ -1214,7 +1427,20 @@ export default function UserApp() {
           </div>
         )}
 
-        {/* ================= TAB 3: MY PARENTS ================= */}
+        {/* ================= TAB 3: HEALTH & CARE MANAGEMENT ================= */}
+        {activeTab === 'health' && (
+          <HealthView
+            parentId={parents[0]?.id || ''}
+            parentName={parents[0]?.parent_name || 'My Parents'}
+            clientId={currentUserId}
+            onRefillCreated={() => {
+              fetchAllData();
+              setActiveTab('trackers');
+            }}
+          />
+        )}
+
+        {/* ================= TAB 4: MY PARENTS ================= */}
         {activeTab === 'parents' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1255,6 +1481,24 @@ export default function UserApp() {
                       <strong>Care Notes:</strong> {parent.medical_notes}
                     </div>
                   )}
+
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => handleOpenEditParent(parent)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteParent(parent.id, parent.parent_name)}
+                      className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      title="Delete Residence"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1900,13 +2144,13 @@ export default function UserApp() {
                 <button
                   type="button"
                   onClick={() => setShowAddParentModal(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold"
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700"
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 cursor-pointer"
                 >
                   Save Parent
                 </button>
@@ -1915,6 +2159,154 @@ export default function UserApp() {
           </div>
         </div>
       )}
+
+      {/* ================= EDIT PARENT MODAL ================= */}
+      {editingParent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Edit Parent Details</h3>
+              <button onClick={() => setEditingParent(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateParent} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Parent Name(s)</label>
+                <input
+                  type="text"
+                  value={editParentName}
+                  onChange={(e) => setEditParentName(e.target.value)}
+                  placeholder="e.g. Lakshmi & Ramana Reddy"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Calling Phone *</label>
+                  <input
+                    type="tel"
+                    value={editParentPhone}
+                    onChange={(e) => setEditParentPhone(e.target.value)}
+                    placeholder="+91 94401 22334"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-bold">WhatsApp *</label>
+                    <button
+                      type="button"
+                      onClick={() => setEditParentWhatsapp(editParentPhone)}
+                      className="text-[10px] text-indigo-600 hover:underline"
+                    >
+                      Same as call
+                    </button>
+                  </div>
+                  <input
+                    type="tel"
+                    value={editParentWhatsapp}
+                    onChange={(e) => setEditParentWhatsapp(e.target.value)}
+                    placeholder="+91 94401 22334"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">City / Town in India *</label>
+                <input
+                  type="text"
+                  value={editParentLocality}
+                  onChange={(e) => setEditParentLocality(e.target.value)}
+                  placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Full Address</label>
+                <textarea
+                  rows={2}
+                  value={editParentAddress}
+                  onChange={(e) => setEditParentAddress(e.target.value)}
+                  placeholder="House number, landmark, lane name..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Care &amp; Medical Notes</label>
+                <textarea
+                  rows={2}
+                  value={editParentNotes}
+                  onChange={(e) => setEditParentNotes(e.target.value)}
+                  placeholder="Any medical conditions, dietary rules, doctor contacts..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingParent(null)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingParent}
+                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 cursor-pointer disabled:opacity-50"
+                >
+                  {isUpdatingParent ? 'Saving...' : 'Update Details'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EXTENDED FEATURE MODALS ================= */}
+      <EmergencyModal
+        isOpen={showEmergencyModal}
+        onClose={() => setShowEmergencyModal(false)}
+        parents={parents}
+        clientId={currentUserId}
+        onEmergencyTriggered={() => fetchAllData()}
+      />
+
+      {reviewTargetTask && (
+        <TaskReviewModal
+          task={reviewTargetTask}
+          isOpen={Boolean(reviewTargetTask)}
+          onClose={() => setReviewTargetTask(null)}
+          onReviewSubmitted={() => fetchAllData()}
+        />
+      )}
+
+      {trackingTargetTask && (
+        <LiveTrackingModal
+          task={trackingTargetTask}
+          isOpen={Boolean(trackingTargetTask)}
+          onClose={() => setTrackingTargetTask(null)}
+          latestTelemetry={latestPartnerTelemetry}
+        />
+      )}
+
+      <FamilyShareModal
+        isOpen={showFamilyModal}
+        onClose={() => setShowFamilyModal(false)}
+        clientId={currentUserId}
+      />
     </div>
   );
 }

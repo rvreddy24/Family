@@ -21,6 +21,8 @@ const {
   rejectVerification,
   getParents,
   createParent,
+  updateParent,
+  deleteParent,
   getPartners,
   getPartnerProfile,
   updatePartnerDuty,
@@ -38,6 +40,28 @@ const {
   registerPartnerAccount,
   updateClientProfile,
   syncUserFromCloud,
+  // New features
+  getVitals,
+  addVital,
+  getMedications,
+  addMedication,
+  deleteMedication,
+  updateMedicationStock,
+  getVaultDocuments,
+  addVaultDocument,
+  getEmergencyEventById,
+  getActiveEmergencies,
+  createEmergencyEvent,
+  resolveEmergencyEvent,
+  createTaskReview,
+  getTaskReview,
+  getPartnerReviews,
+  getFamilyMembers,
+  addFamilyMember,
+  updatePartnerLocation,
+  getPartnerLocation,
+  createEmailOtp,
+  verifyEmailOtp,
 } = require('./db');
 
 const {
@@ -64,8 +88,10 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Security & Production Middlewares
+// Security & Production Middlewares for Domain Deployments
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // Trust reverse proxies (Cloudflare, Render, AWS ALB, Nginx) for HTTPS protocol, IP, and domain detection
+
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -85,20 +111,36 @@ app.use((req, res, next) => {
   next();
 });
 
-const corsOrigin = process.env.CORS_ORIGIN 
-  ? (process.env.CORS_ORIGIN.includes(',') ? process.env.CORS_ORIGIN.split(',') : process.env.CORS_ORIGIN)
-  : true;
-app.use(cors({ origin: corsOrigin, credentials: true }));
+// Production Domain CORS configuration:
+// If CORS_ORIGIN is '*' or not set, dynamically reflect request origin so credentials work on any domain in all browsers
+// If CORS_ORIGIN is a comma-separated list, validate against allowed domains
+let corsOptions = { credentials: true };
+if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.trim() === '*') {
+  corsOptions.origin = (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, mobile apps) or any browser origin
+    callback(null, true);
+  };
+} else {
+  const allowedList = process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
+  corsOptions.origin = (origin, callback) => {
+    if (!origin || allowedList.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  };
+}
+app.use(cors(corsOptions));
 app.use(express.json({ limit: process.env.MAX_PAYLOAD_SIZE || '25mb' }));
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
 
-// WebSocket Gateway on /ws/events
+// WebSocket Gateway on /ws/events and /ws
 const wss = new WebSocketServer({ noServer: true });
 const activeClients = new Set();
 
 server.on('upgrade', (request, socket, head) => {
   const pathname = url.parse(request.url).pathname;
-  if (pathname === '/ws/events') {
+  if (pathname === '/ws/events' || pathname === '/ws' || pathname?.startsWith('/ws')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
@@ -213,9 +255,130 @@ app.get('/api/supabase/status', async (req, res) => {
   });
 });
 
+// -------------------------------------------------------------
+// STRICT 3-ROLE PLATFORM ARCHITECTURE & DOMAIN-BASED SEPARATION
+// 1. ADMIN   - Operations Administrator (Single official account: admin@familyhubs.in)
+// 2. CLIENT  - NRI Family User (Portals: familyhubs.in, port 3001)
+// 3. PARTNER - Ground Field Partner (Portals: partner.familyhubs.in, port 3003, /partner)
+// -------------------------------------------------------------
+
+function detectPortalRole(req) {
+  const host = ((req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0]).toLowerCase();
+  const origin = (req.headers.origin || req.headers.referer || '').toLowerCase();
+  const path = (req.path || '').toLowerCase();
+
+  // 1. Partner Portal / Domain
+  if (
+    host.startsWith('partner.') ||
+    host.startsWith('field.') ||
+    host.startsWith('partner-') ||
+    origin.includes('partner.') ||
+    origin.includes(':3003') ||
+    path.startsWith('/partner')
+  ) {
+    return 'PARTNER';
+  }
+
+  // 2. Operations Admin Portal / Domain
+  if (
+    host.startsWith('ops.') ||
+    host.startsWith('admin.') ||
+    host.startsWith('ops-') ||
+    host.startsWith('admin-') ||
+    origin.includes('ops.') ||
+    origin.includes('admin.') ||
+    origin.includes(':3002') ||
+    path.startsWith('/ops') ||
+    path.startsWith('/admin')
+  ) {
+    return 'ADMIN';
+  }
+
+  // 3. User / Client Portal (Default / Root Domain / Port 3001)
+  return 'CLIENT';
+}
+
+function normalizeUserRole(inputRole, defaultRole = 'CLIENT') {
+  if (!inputRole) return defaultRole;
+  const upper = String(inputRole).trim().toUpperCase();
+  if (upper === 'USER' || upper === 'CLIENT') return 'CLIENT';
+  if (upper === 'PARTNER') return 'PARTNER';
+  if (upper === 'ADMIN') return 'ADMIN';
+  return defaultRole;
+}
+
+// Unified Cloud & Local User Resolver
+async function resolveAndSyncUser(cleanEmailOrId, targetRole = 'CLIENT') {
+  if (!cleanEmailOrId) return null;
+  const clean = String(cleanEmailOrId).trim().toLowerCase();
+
+  let user = getUserByEmail(clean);
+  if (!user) {
+    user = getUserById(cleanEmailOrId);
+  }
+
+  if (!user && supabaseAdmin) {
+    try {
+      // 1. Check public.users in Supabase
+      const { data: cloudUser } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .ilike('email', clean)
+        .maybeSingle();
+
+      if (cloudUser) {
+        user = syncUserFromCloud(cloudUser);
+      } else {
+        // 2. Check Supabase Auth accounts (auth.users)
+        const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+        const matchAuth = authList?.users?.find(
+          (u) => u.email && u.email.toLowerCase() === clean
+        );
+        if (matchAuth) {
+          const roleFromMeta = normalizeUserRole(
+            matchAuth.user_metadata?.role ||
+            (targetRole === 'ADMIN' || matchAuth.email.includes('admin') ? 'ADMIN' : targetRole)
+          );
+          const fullNameFromMeta =
+            matchAuth.user_metadata?.full_name ||
+            (roleFromMeta === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
+          user = syncUserFromCloud({
+            id: matchAuth.id,
+            role: roleFromMeta,
+            email: matchAuth.email,
+            phone: matchAuth.phone || matchAuth.user_metadata?.phone || '',
+            full_name: fullNameFromMeta,
+            auth_provider_id: matchAuth.id,
+            created_at: matchAuth.created_at || new Date().toISOString(),
+          });
+        }
+      }
+    } catch (cloudErr) {
+      console.warn('Supabase auto-sync check notice:', cloudErr.message);
+    }
+  }
+
+  return user;
+}
+
+// System Roles Introspection
+app.get('/api/auth/roles', (req, res) => {
+  res.json({
+    roles: ['CLIENT', 'PARTNER', 'ADMIN'],
+    totalRoles: 3,
+    singleAdminEmail: 'admin@familyhubs.in',
+    domainSeparation: {
+      CLIENT: 'FamilyHubs NRI Client Portal (familyhubs.in / port 3001)',
+      PARTNER: 'Field Partner Portal (partner.familyhubs.in / port 3003 / /partner)',
+      ADMIN: 'Operations Admin Console (ops.familyhubs.in / admin.familyhubs.in / port 3002 / /ops / /admin)',
+    },
+  });
+});
+
 // Auth profiles (/api/auth/profile and /api/auth/me)
 const handleAuthProfile = (req, res) => {
-  const role = req.query.role || 'CLIENT';
+  const portalRole = detectPortalRole(req);
+  const role = req.query.role ? normalizeUserRole(req.query.role, portalRole) : portalRole;
   const userId = req.query.userId || req.headers['x-user-id'];
   if (!userId) {
     return res.status(400).json({ error: 'userId query parameter is required' });
@@ -236,7 +399,7 @@ const handleAuthProfile = (req, res) => {
 app.get('/api/auth/profile', handleAuthProfile);
 app.get('/api/auth/me', handleAuthProfile);
 
-// User Login (Client, Partner, Admin)
+// User Login (Client, Partner, Admin separated by domain and role)
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password, role } = req.body;
@@ -245,56 +408,18 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const portalRole = detectPortalRole(req);
+    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
 
     // 0. Auto-sync from Supabase Cloud if user not yet in local SQLite
-    let user = getUserByEmail(cleanEmail);
-    if (!user) {
-      user = getUserById(email);
-    }
+    let user = await resolveAndSyncUser(cleanEmail, targetRole);
 
-    if (!user && supabaseAdmin) {
-      try {
-        const { data: cloudUser } = await supabaseAdmin
-          .from('users')
-          .select('*')
-          .ilike('email', cleanEmail)
-          .maybeSingle();
-
-        if (cloudUser) {
-          user = syncUserFromCloud(cloudUser);
-        } else {
-          // Check Supabase Auth list for users added via Auth Dashboard
-          const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
-          const matchAuth = authList?.users?.find(
-            (u) => u.email && u.email.toLowerCase() === cleanEmail
-          );
-          if (matchAuth) {
-            const roleFromMeta =
-              matchAuth.user_metadata?.role ||
-              (role === 'ADMIN' || matchAuth.email.includes('admin') ? 'ADMIN' : (role || 'CLIENT'));
-            const fullNameFromMeta =
-              matchAuth.user_metadata?.full_name ||
-              (roleFromMeta === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
-            user = syncUserFromCloud({
-              id: matchAuth.id,
-              role: roleFromMeta,
-              email: matchAuth.email,
-              phone: matchAuth.phone || matchAuth.user_metadata?.phone || '',
-              full_name: fullNameFromMeta,
-              auth_provider_id: matchAuth.id,
-              created_at: matchAuth.created_at || new Date().toISOString(),
-            });
-          }
-        }
-      } catch (cloudErr) {
-        console.warn('Supabase auto-sync check notice:', cloudErr.message);
-      }
-    }
-
-    // 1. Admin Verification
-    if (role === 'ADMIN') {
-      if (!user || user.role !== 'ADMIN') {
-        return res.status(401).json({ error: 'Invalid admin credentials or unauthorized account.' });
+    // 1. Admin Verification (Strict Single Official Admin)
+    if (targetRole === 'ADMIN' || portalRole === 'ADMIN') {
+      if (!user || user.role !== 'ADMIN' || user.email !== 'admin@familyhubs.in') {
+        return res.status(403).json({
+          error: 'Access denied. The Operations Console is strictly restricted to the official Operations Administrator.',
+        });
       }
 
       if (password) {
@@ -323,11 +448,29 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 2. Client & Partner Verification
     if (!user) {
-      return res.status(404).json({ error: 'No registered account found with this email. Please sign up or sign in with Google.' });
+      const portalLabel = targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client';
+      return res.status(404).json({
+        error: `No registered ${portalLabel} account found with this email. Please complete sign-up to continue.`,
+      });
     }
 
-    if (role && user.role !== role) {
-      return res.status(403).json({ error: `Account is registered as ${user.role}, not ${role}. Please use the correct portal.` });
+    // Strict Domain & Role Separation:
+    if (user.role === 'ADMIN') {
+      return res.status(403).json({
+        error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
+      });
+    }
+
+    if (targetRole === 'PARTNER' && user.role !== 'PARTNER') {
+      return res.status(403).json({
+        error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
+      });
+    }
+
+    if (targetRole === 'CLIENT' && user.role !== 'CLIENT') {
+      return res.status(403).json({
+        error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
+      });
     }
 
     let profile = null;
@@ -354,28 +497,50 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Google OAuth Check & Login
+// Google OAuth Check & Login (Domain & Role separated)
 app.post('/api/auth/google', async (req, res) => {
   try {
-    const { id, email, full_name, role = 'CLIENT' } = req.body;
+    const { id, email, full_name, role } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'Email is required for Google authentication.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const portalRole = detectPortalRole(req);
+    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
 
     // 1. Check existing user in local DB
     let user = getUserByEmail(cleanEmail);
     if (!user) {
-      // If no account exists with that Google email, redirect to sign-up to capture mandatory phone & parent details!
+      // If no account exists with that Google email, redirect to sign-up for the current domain role!
       return res.status(404).json({
         success: false,
         noAccount: true,
         error: 'NO_ACCOUNT_FOUND',
-        message: 'No registered FamilyHubs account found with this Google email. Please complete your registration.',
+        message: `No registered FamilyHubs ${targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client'} account found with this Google email. Please complete your registration.`,
         email: cleanEmail,
         fullName: full_name || '',
         authProviderId: id || null,
+        suggestedRole: targetRole,
+      });
+    }
+
+    // Role & Domain Separation
+    if (user.role === 'ADMIN') {
+      return res.status(403).json({
+        error: 'Administrator accounts must log in with secure password at the Operations Console.',
+      });
+    }
+
+    if (targetRole === 'PARTNER' && user.role !== 'PARTNER') {
+      return res.status(403).json({
+        error: 'This Google account is registered as a Family Client. Please log in at the Client Portal (familyhubs.in).',
+      });
+    }
+
+    if (targetRole === 'CLIENT' && user.role !== 'CLIENT') {
+      return res.status(403).json({
+        error: 'This Google account is registered as a Field Partner. Please log in at the Partner Portal (partner.familyhubs.in).',
       });
     }
 
@@ -400,6 +565,402 @@ app.post('/api/auth/google', async (req, res) => {
     });
   } catch (err) {
     console.error('Google auth error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// EMAIL OTP AUTHENTICATION (FOR SIGNUP AND LOGIN)
+// -------------------------------------------------------------
+
+// 1. Send OTP to Email
+app.post('/api/auth/otp/send', async (req, res) => {
+  try {
+    const { email, role, action = 'LOGIN' } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const normalizedAction = String(action).trim().toUpperCase();
+    if (normalizedAction !== 'LOGIN' && normalizedAction !== 'SIGNUP') {
+      return res.status(400).json({ error: "Invalid action specified. Must be 'LOGIN' or 'SIGNUP'." });
+    }
+
+    const portalRole = detectPortalRole(req);
+    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
+
+    // Strict constraint: Admin self-registration is permanently disabled
+    if (normalizedAction === 'SIGNUP' && (targetRole === 'ADMIN' || portalRole === 'ADMIN')) {
+      return res.status(403).json({
+        error: 'Admin self-registration is disabled. The single platform Operations Administrator is provisioned directly by the platform owner.',
+      });
+    }
+
+    // Enforce strict domain & role alignment:
+    if (portalRole === 'CLIENT' && targetRole !== 'CLIENT') {
+      return res.status(403).json({
+        error: 'This domain (familyhubs.in) is dedicated to Family Clients. Field Partners must use partner.familyhubs.in.',
+      });
+    }
+
+    if (portalRole === 'PARTNER' && targetRole !== 'PARTNER') {
+      return res.status(403).json({
+        error: 'This domain (partner.familyhubs.in) is dedicated to Field Partners. Family Clients must use familyhubs.in.',
+      });
+    }
+
+    // On LOGIN: ensure account exists and verify portal domain match
+    let existingUser = await resolveAndSyncUser(cleanEmail, targetRole);
+
+    if (normalizedAction === 'LOGIN') {
+      if (!existingUser) {
+        const portalLabel = targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client';
+        return res.status(404).json({
+          error: `No registered ${portalLabel} account found with this email. Please complete sign-up to continue.`,
+          noAccount: true,
+          email: cleanEmail,
+        });
+      }
+
+      // Check Domain & Role Separation
+      if (existingUser.role === 'ADMIN' && (targetRole !== 'ADMIN' || portalRole !== 'ADMIN')) {
+        return res.status(403).json({
+          error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
+        });
+      }
+
+      if ((targetRole === 'PARTNER' || portalRole === 'PARTNER') && existingUser.role !== 'PARTNER') {
+        return res.status(403).json({
+          error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
+        });
+      }
+
+      if ((targetRole === 'CLIENT' || portalRole === 'CLIENT') && existingUser.role !== 'CLIENT') {
+        return res.status(403).json({
+          error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
+        });
+      }
+    } else if (normalizedAction === 'SIGNUP') {
+      if (existingUser) {
+        return res.status(409).json({
+          error: 'An account with this email address already exists. Please switch to Sign In.',
+          alreadyExists: true,
+          email: cleanEmail,
+        });
+      }
+    }
+
+    // Generate 6-digit OTP code (10-minute expiration)
+    const { otpCode, expiresAt } = createEmailOtp({
+      email: cleanEmail,
+      role: targetRole,
+      action: normalizedAction,
+      expiresInMinutes: 10,
+    });
+
+    // If Supabase is configured, attempt sending live OTP via Supabase Auth
+    if (supabaseAdmin) {
+      try {
+        await supabaseAdmin.auth.signInWithOtp({
+          email: cleanEmail,
+          options: {
+            shouldCreateUser: normalizedAction === 'SIGNUP',
+            data: { role: targetRole },
+          },
+        });
+      } catch (sbErr) {
+        // Continue gracefully if Supabase email provider is in local demo or rate limited
+      }
+    }
+
+    console.log('===============================================================');
+    console.log(`📧 [EMAIL OTP DISPATCH] To: ${cleanEmail}`);
+    console.log(`🔑 Verification Code: [ ${otpCode} ]`);
+    console.log(`🏷️ Role: ${targetRole} | Action: ${normalizedAction} | Expires: ${expiresAt}`);
+    console.log('===============================================================');
+
+    addAuditLog({
+      eventType: 'EMAIL_OTP_DISPATCHED',
+      actorId: cleanEmail,
+      actorRole: targetRole,
+      severity: 'LOW',
+      details: { email: cleanEmail, role: targetRole, action: normalizedAction },
+    });
+
+    return res.json({
+      success: true,
+      message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Valid for 10 minutes.`,
+      email: cleanEmail,
+      action: normalizedAction,
+      role: targetRole,
+      expiresAt,
+      debugOtp: process.env.NODE_ENV !== 'production' || process.env.TEST_API_URL ? otpCode : undefined,
+    });
+  } catch (err) {
+    console.error('OTP Send Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Verify OTP (for Login or Signup completion)
+app.post('/api/auth/otp/verify', async (req, res) => {
+  try {
+    const {
+      email,
+      otp,
+      role,
+      action = 'LOGIN',
+      fullName,
+      phone,
+      password,
+      countryResidence,
+      currency,
+      subscriptionTier,
+      parentName,
+      parentPhone,
+      parentWhatsappPhone,
+      parentLocality,
+      parentAddress,
+      parentNotes,
+      serviceCategory,
+      operatingRegion,
+    } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+    const portalRole = detectPortalRole(req);
+    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
+    const normalizedAction = String(action).trim().toUpperCase();
+
+    // Verify OTP code in SQLite (or fallback to Supabase if live token)
+    let otpVerification = verifyEmailOtp({
+      email: cleanEmail,
+      otpCode: cleanOtp,
+      role: targetRole,
+      action: normalizedAction,
+    });
+
+    if (!otpVerification.valid && supabaseAdmin) {
+      try {
+        const { error: sbVerifyErr } = await supabaseAdmin.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanOtp,
+          type: 'email',
+        });
+        if (!sbVerifyErr) {
+          otpVerification = { valid: true };
+        }
+      } catch (sbErr) {
+        // Fallback check error
+      }
+    }
+
+    if (!otpVerification.valid) {
+      return res.status(400).json({ error: otpVerification.reason || 'Invalid or expired 6-digit verification code.' });
+    }
+
+    // --- CASE A: LOGIN VERIFICATION ---
+    if (normalizedAction === 'LOGIN') {
+      let user = await resolveAndSyncUser(cleanEmail, targetRole);
+
+      if (!user) {
+        return res.status(404).json({ error: 'No user account found. Please register first.' });
+      }
+
+      // Check Domain & Role Separation
+      if (user.role === 'ADMIN' && (targetRole !== 'ADMIN' || portalRole !== 'ADMIN')) {
+        return res.status(403).json({
+          error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
+        });
+      }
+
+      if ((targetRole === 'PARTNER' || portalRole === 'PARTNER') && user.role !== 'PARTNER') {
+        return res.status(403).json({
+          error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
+        });
+      }
+
+      if ((targetRole === 'CLIENT' || portalRole === 'CLIENT') && user.role !== 'CLIENT') {
+        return res.status(403).json({
+          error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
+        });
+      }
+
+      let profile = null;
+      if (user.role === 'CLIENT') {
+        profile = getClientProfile(user.id);
+      } else if (user.role === 'PARTNER') {
+        profile = getPartnerProfile(user.id);
+      }
+
+      addAuditLog({
+        eventType: 'LOGIN_OTP_VERIFIED',
+        actorId: user.id,
+        actorRole: user.role,
+        severity: 'LOW',
+        details: { email: cleanEmail, method: 'EMAIL_OTP' },
+      });
+
+      return res.json({
+        success: true,
+        message: 'Email OTP verified successfully. Logged in.',
+        user: {
+          id: user.id,
+          role: user.role,
+          email: user.email,
+          phone: user.phone,
+          full_name: user.full_name,
+          profile,
+        },
+      });
+    }
+
+    // --- CASE B: SIGNUP VERIFICATION ---
+    if (normalizedAction === 'SIGNUP') {
+      if (targetRole === 'ADMIN' || portalRole === 'ADMIN') {
+        return res.status(403).json({
+          error: 'Admin self-registration is permanently disabled.',
+        });
+      }
+
+      if (!fullName) {
+        return res.status(400).json({ error: 'Full name is required to complete registration.' });
+      }
+
+      const cleanPhone = phone ? phone.trim() : '';
+
+      if (targetRole === 'CLIENT') {
+        if (!cleanPhone) {
+          return res.status(400).json({ error: 'Your mobile / WhatsApp phone number is required.' });
+        }
+        const clientProfile = registerClientAccount({
+          email: cleanEmail,
+          fullName: fullName.trim(),
+          phone: cleanPhone,
+          countryResidence: countryResidence || 'United States',
+          currency: currency || 'USD',
+          subscriptionTier: subscriptionTier || 'GOLD',
+          parentName: parentName ? parentName.trim() : null,
+          parentPhone: parentPhone ? parentPhone.trim() : null,
+          parentWhatsappPhone: parentWhatsappPhone ? parentWhatsappPhone.trim() : (parentPhone ? parentPhone.trim() : null),
+          locality: parentLocality ? parentLocality.trim() : 'Pan-India',
+          fullAddress: parentAddress ? parentAddress.trim() : 'India',
+          medicalNotes: parentNotes ? parentNotes.trim() : null,
+          authProviderId: null,
+        });
+
+        if (supabaseAdmin && clientProfile) {
+          try {
+            await supabaseAdmin.from('users').upsert([
+              {
+                id: clientProfile.user_id,
+                role: 'CLIENT',
+                email: cleanEmail,
+                phone: cleanPhone,
+                full_name: fullName.trim(),
+              },
+            ]);
+            await supabaseAdmin.from('clients_profile').upsert([
+              {
+                user_id: clientProfile.user_id,
+                country_residence: countryResidence || 'United States',
+                currency: currency || 'USD',
+                subscription_tier: subscriptionTier || 'GOLD',
+              },
+            ]);
+            const parents = getParents(clientProfile.user_id);
+            if (parents && parents.length > 0) {
+              await supabaseAdmin.from('parents_profile').upsert([parents[0]]);
+            }
+          } catch {}
+        }
+
+        addAuditLog({
+          eventType: 'SIGNUP_OTP_VERIFIED',
+          actorId: clientProfile.user_id,
+          actorRole: 'CLIENT',
+          severity: 'LOW',
+          details: { email: cleanEmail, method: 'EMAIL_OTP' },
+        });
+
+        return res.status(201).json({
+          success: true,
+          message: 'Account registered and email verified successfully via OTP.',
+          user: {
+            id: clientProfile.user_id,
+            role: 'CLIENT',
+            email: cleanEmail,
+            phone: cleanPhone,
+            full_name: fullName.trim(),
+            profile: clientProfile,
+          },
+        });
+      }
+
+      if (targetRole === 'PARTNER') {
+        const partnerProfile = registerPartnerAccount({
+          email: cleanEmail,
+          fullName: fullName.trim(),
+          phone: cleanPhone,
+          serviceCategory: serviceCategory || 'MEDICAL_TRANSPORT',
+          operatingRegion: operatingRegion || 'Pan-India Verified Network',
+        });
+
+        if (supabaseAdmin && partnerProfile) {
+          try {
+            await supabaseAdmin.from('users').upsert([
+              {
+                id: partnerProfile.user_id,
+                role: 'PARTNER',
+                email: cleanEmail,
+                phone: cleanPhone,
+                full_name: fullName.trim(),
+              },
+            ]);
+            await supabaseAdmin.from('partners_profile').upsert([
+              {
+                user_id: partnerProfile.user_id,
+                service_category: serviceCategory || 'MEDICAL_TRANSPORT',
+                operating_region: operatingRegion || 'Pan-India Verified Network',
+                kyc_verified: true,
+                is_active: true,
+                wallet_balance: 0.0,
+              },
+            ]);
+          } catch {}
+        }
+
+        addAuditLog({
+          eventType: 'SIGNUP_OTP_VERIFIED',
+          actorId: partnerProfile.user_id,
+          actorRole: 'PARTNER',
+          severity: 'LOW',
+          details: { email: cleanEmail, method: 'EMAIL_OTP' },
+        });
+
+        return res.status(201).json({
+          success: true,
+          message: 'Field partner registered and email verified successfully via OTP.',
+          user: {
+            id: partnerProfile.user_id,
+            role: 'PARTNER',
+            email: cleanEmail,
+            phone: cleanPhone,
+            full_name: fullName.trim(),
+            profile: partnerProfile,
+          },
+        });
+      }
+    }
+
+    return res.status(400).json({ error: 'Invalid verification request.' });
+  } catch (err) {
+    console.error('OTP Verify Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -454,8 +1015,12 @@ app.put('/api/client/profile', async (req, res) => {
 // User Registration (Client & Partner ONLY - Admin sign-up is disabled by design)
 app.post('/api/auth/register', async (req, res) => {
   try {
+    const portalRole = detectPortalRole(req);
+    const rawRole = req.body.role;
+    // Derive role from input or portal domain (partner domain defaults to PARTNER, user domain defaults to CLIENT)
+    const role = rawRole ? normalizeUserRole(rawRole, portalRole) : (portalRole === 'PARTNER' ? 'PARTNER' : 'CLIENT');
+
     const {
-      role,
       email,
       password,
       fullName,
@@ -473,10 +1038,16 @@ app.post('/api/auth/register', async (req, res) => {
       operatingRegion,
     } = req.body;
 
-    // Strict constraint: Admin self-registration is disabled
-    if (role === 'ADMIN') {
+    // Strict constraint: Admin self-registration is permanently disabled
+    if (role === 'ADMIN' || (rawRole && String(rawRole).trim().toUpperCase() === 'ADMIN')) {
       return res.status(403).json({
-        error: 'Admin self-registration is disabled. Admin accounts are managed directly by the platform owner.',
+        error: 'Admin self-registration is disabled. The single platform Operations Administrator is provisioned directly by the platform owner.',
+      });
+    }
+
+    if (portalRole === 'ADMIN') {
+      return res.status(403).json({
+        error: 'Public user registration is disabled on the Operations Admin console.',
       });
     }
 
@@ -490,11 +1061,6 @@ app.post('/api/auth/register', async (req, res) => {
     if (role === 'CLIENT') {
       if (!cleanPhone) {
         return res.status(400).json({ error: 'Your mobile / WhatsApp phone number is required.' });
-      }
-      if (!parentName || !parentPhone || !parentLocality || !parentAddress) {
-        return res.status(400).json({
-          error: 'Parents details in India are mandatory: Parents Full Name, Calling Phone, WhatsApp Number, City/Locality, and Street Address.',
-        });
       }
     }
 
@@ -758,7 +1324,7 @@ app.post('/api/tasks/:id/verify', (req, res) => {
 app.post('/api/tasks/:id/escrow/approve', (req, res) => {
   try {
     const adminId = req.body.adminId || 'admin';
-    const escrowPin = req.body.escrowPin || '';
+    const escrowPin = req.body.escrowPin || req.body.adminPin || req.body.pin || '';
 
     const updatedTask = approveEscrow(req.params.id, adminId, escrowPin);
 
@@ -804,6 +1370,30 @@ app.post('/api/parents', (req, res) => {
   try {
     const newParent = createParent(req.body);
     res.status(201).json(newParent);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/parents/:id', (req, res) => {
+  try {
+    const updated = updateParent(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Parent residence not found.' });
+    }
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/parents/:id', (req, res) => {
+  try {
+    const success = deleteParent(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Parent residence not found.' });
+    }
+    res.json({ success: true, message: 'Parent residence removed successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -893,13 +1483,24 @@ app.post('/api/security/settings', (req, res) => {
 });
 
 // Emergency Escrow Freeze Toggle
-app.post(['/api/security/panic-freeze', '/api/security/settings/emergency-freeze'], (req, res) => {
+app.post(['/api/security/freeze', '/api/security/panic-freeze', '/api/security/settings/emergency-freeze'], (req, res) => {
   try {
     const settings = getSecuritySettings();
-    const nextState = settings.emergency_escrow_freeze === '1' ? '0' : '1';
+    let nextState;
+    if (req.body && req.body.enabled !== undefined) {
+      nextState = req.body.enabled ? '1' : '0';
+    } else {
+      nextState = settings.emergency_escrow_freeze === '1' ? '0' : '1';
+    }
     const updated = updateSecuritySetting('emergency_escrow_freeze', nextState, req.body.actorId || 'admin');
     broadcastEvent('EMERGENCY_FREEZE_TOGGLED', { active: nextState === '1' });
-    res.json({ success: true, active: nextState === '1', emergencyFreezeActive: nextState === '1', settings: updated });
+    res.json({
+      success: true,
+      active: nextState === '1',
+      emergency_freeze: nextState === '1',
+      emergencyFreezeActive: nextState === '1',
+      settings: updated,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -956,6 +1557,220 @@ app.post('/api/upload', async (req, res) => {
   }
 });
 
+// ----------------- HEALTH VITALS ROUTES -----------------
+app.get('/api/parents/:id/vitals', (req, res) => {
+  try {
+    const vitals = getVitals(req.params.id);
+    res.json(vitals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/parents/:id/vitals', (req, res) => {
+  try {
+    const vital = addVital({ parentId: req.params.id, ...req.body });
+    broadcastEvent('VITALS_RECORDED', vital);
+    res.status(201).json(vital);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- MEDICATIONS SCHEDULE ROUTES -----------------
+app.get('/api/parents/:id/medications', (req, res) => {
+  try {
+    const meds = getMedications(req.params.id);
+    res.json(meds);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/parents/:id/medications', (req, res) => {
+  try {
+    const med = addMedication({ parentId: req.params.id, ...req.body });
+    broadcastEvent('MEDICATION_UPDATED', med);
+    res.status(201).json(med);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/parents/:id/medications/:medId', (req, res) => {
+  try {
+    deleteMedication(req.params.medId);
+    broadcastEvent('MEDICATION_UPDATED', { id: req.params.medId, deleted: true });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 1-Click Medication Concierge Refill Task Dispatch
+app.post('/api/parents/:id/medications/:medId/refill', (req, res) => {
+  try {
+    const parentId = req.params.id;
+    const medId = req.params.medId;
+    const parents = getParents(req.body.clientId || '');
+    const parent = parents.find((p) => p.id === parentId) || { id: parentId, parent_name: 'Parent' };
+    const meds = getMedications(parentId);
+    const med = meds.find((m) => m.id === medId) || { medicine_name: 'Essential Prescription', dosage: 'Refill' };
+
+    const task = createTask({
+      clientId: req.body.clientId || parent.client_id || 'c11e4701-0000-4000-8000-000000000001',
+      parentId,
+      category: 'ERRANDS',
+      title: `Pharmacy Delivery: Refill ${med.medicine_name} (${med.dosage})`,
+      instructions: `Pick up 30-day supply refill of ${med.medicine_name} (${med.dosage}) from authorized local pharmacy and deliver with formal receipt to ${parent.parent_name}.`,
+      scheduledAt: new Date().toISOString(),
+      escrowAmount: 25.0,
+    });
+
+    broadcastEvent('TASK_CREATED', task);
+    res.status(201).json({ success: true, task });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- MEDICAL VAULT DOCUMENTS ROUTES -----------------
+app.get('/api/parents/:id/documents', (req, res) => {
+  try {
+    const docs = getVaultDocuments(req.params.id);
+    res.json(docs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/parents/:id/documents', (req, res) => {
+  try {
+    const doc = addVaultDocument({ parentId: req.params.id, ...req.body });
+    res.status(201).json(doc);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- EMERGENCY SOS ROUTES -----------------
+app.post('/api/emergency/sos', (req, res) => {
+  try {
+    const { parentId, triggeredByUserId, clientId, latitude, longitude, coordinatesLat, coordinatesLng, notes } = req.body;
+    if (!parentId) {
+      return res.status(400).json({ error: 'parentId is required for Emergency SOS' });
+    }
+    const sosEvent = createEmergencyEvent({
+      parentId,
+      triggeredByUserId: triggeredByUserId || clientId || 'system',
+      latitude: latitude !== undefined ? latitude : coordinatesLat,
+      longitude: longitude !== undefined ? longitude : coordinatesLng,
+      notes,
+    });
+    broadcastEvent('EMERGENCY_SOS_TRIGGERED', sosEvent);
+    res.status(201).json(sosEvent);
+  } catch (err) {
+    console.error('SOS Trigger Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/emergency/active', (req, res) => {
+  try {
+    const emergencies = getActiveEmergencies();
+    res.json(emergencies);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/emergency/:id/resolve', (req, res) => {
+  try {
+    const resolved = resolveEmergencyEvent(req.params.id, req.body);
+    broadcastEvent('EMERGENCY_SOS_RESOLVED', resolved);
+    res.json(resolved);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- TASK REVIEWS & CSAT ROUTES -----------------
+app.post('/api/tasks/:id/review', (req, res) => {
+  try {
+    const review = createTaskReview({ taskId: req.params.id, ...req.body });
+    broadcastEvent('TASK_REVIEW_SUBMITTED', review);
+    res.status(201).json(review);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tasks/:id/review', (req, res) => {
+  try {
+    const review = getTaskReview(req.params.id);
+    res.json(review || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/partners/:id/reviews', (req, res) => {
+  try {
+    const reviews = getPartnerReviews(req.params.id);
+    res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- FAMILY MEMBERS / SIBLING COLLABORATION -----------------
+app.get('/api/clients/:id/family', (req, res) => {
+  try {
+    const members = getFamilyMembers(req.params.id);
+    res.json(members);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/clients/:id/family', (req, res) => {
+  try {
+    const member = addFamilyMember({ clientId: req.params.id, ...req.body });
+    res.status(201).json(member);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------- PARTNER LIVE GPS TELEMETRY -----------------
+app.post('/api/partners/:id/location', (req, res) => {
+  try {
+    const { latitude, longitude, speed, heading, taskId } = req.body;
+    const location = updatePartnerLocation(req.params.id, latitude, longitude);
+    broadcastEvent('PARTNER_LOCATION_UPDATE', {
+      partner_id: req.params.id,
+      task_id: taskId,
+      latitude,
+      longitude,
+      speed,
+      heading,
+      timestamp: new Date().toISOString(),
+    });
+    res.json({ success: true, location });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/partners/:id/location', (req, res) => {
+  try {
+    const loc = getPartnerLocation(req.params.id);
+    res.json(loc || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve Isolated Web App Portals via Host Headers on Port 4000
 const userDist = path.join(__dirname, '../apps/user/dist');
 const adminDist = path.join(__dirname, '../apps/admin/dist');
@@ -978,7 +1793,7 @@ app.use('/admin', express.static(adminDist, staticHtmlNoCache));
 app.use('/assets', express.static(path.join(userDist, 'assets')));
 app.use('/assets', express.static(path.join(partnerDist, 'assets')));
 app.use('/assets', express.static(path.join(adminDist, 'assets')));
-app.use('/', express.static(userDist, staticHtmlNoCache));
+app.use('/', express.static(userDist, { ...staticHtmlNoCache, index: false }));
 
 app.use((req, res, next) => {
   if (
@@ -994,7 +1809,9 @@ app.use((req, res, next) => {
     return res.status(404).send('Asset not found');
   }
 
-  const host = (req.headers.host || '').toLowerCase();
+  const rawHost = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  const host = rawHost.split(':')[0]; // strip port (e.g., partner.familyhubs.in:443 -> partner.familyhubs.in)
+
   const sendHtmlNoCache = (htmlPath) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -1002,18 +1819,24 @@ app.use((req, res, next) => {
     return res.sendFile(htmlPath);
   };
 
-  // 1. Partner Portal (via partner.familyhubs.in or /partner)
-  if (host.startsWith('partner.') || host.includes('partner') || req.path.startsWith('/partner')) {
+  // 1. Partner Portal (via partner.*, field.*, or /partner path)
+  if (
+    host.startsWith('partner.') || 
+    host.startsWith('field.') || 
+    host.startsWith('partner-') || 
+    req.path.startsWith('/partner')
+  ) {
     if (fs.existsSync(path.join(partnerDist, 'index.html'))) {
       return sendHtmlNoCache(path.join(partnerDist, 'index.html'));
     }
   }
 
-  // 2. Operations Admin Portal (via ops.familyhubs.in, admin.familyhubs.in, or /ops, /admin)
+  // 2. Operations Admin Portal (via ops.*, admin.*, or /ops, /admin paths)
   if (
     host.startsWith('ops.') ||
     host.startsWith('admin.') ||
-    host.includes('admin') ||
+    host.startsWith('ops-') ||
+    host.startsWith('admin-') ||
     req.path.startsWith('/ops') ||
     req.path.startsWith('/admin')
   ) {
@@ -1022,7 +1845,7 @@ app.use((req, res, next) => {
     }
   }
 
-  // 3. NRI Client Portal (Root domain / default)
+  // 3. NRI Client Portal (Root domain / default fallback for SPA routes)
   if (fs.existsSync(path.join(userDist, 'index.html'))) {
     return sendHtmlNoCache(path.join(userDist, 'index.html'));
   }

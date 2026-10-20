@@ -45,62 +45,77 @@ export function formatDate(dateStr: string): string {
   }
 }
 
-// Zero-dependency Web Audio synthesizer chime generator
-export function playNotificationChime(type: 'alert' | 'success' | 'ping' = 'ping') {
-  try {
-    const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'alert') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.35);
-    } else if (type === 'success') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.45);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.45);
-    } else {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
-    }
-  } catch {
-    // AudioContext might be blocked until user gesture, fail silently
-  }
+// Audio sounds disabled per user request
+export function playNotificationChime(_type: 'alert' | 'success' | 'ping' = 'ping') {
+  // Silent - all audio feedback removed
 }
 
-// Dynamic API Base URL resolution: works seamlessly on localhost, LAN devices (e.g. mobile), and reverse proxies
+// Dynamic API Base URL resolution: works seamlessly across custom domains, subdomains, reverse proxies, and local environments
 export function getApiBaseUrl(): string {
   try {
+    // 1. Explicit build-time environment variable (Vite)
     const envUrl = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL);
-    if (envUrl) return envUrl;
+    if (envUrl && envUrl.trim() !== '') {
+      return envUrl.trim().replace(/\/+$/, '');
+    }
 
     if (typeof window !== 'undefined') {
-      const { protocol, hostname, port } = window.location;
-      // If served directly through port 4000 (unified backend) or standard reverse proxy (port 80/443)
-      if (port === '4000' || port === '80' || port === '443' || !port) {
-        return `${protocol}//${window.location.host}`;
+      // 2. Runtime window configurations (allows zero-rebuild config on arbitrary domains or CDNs)
+      const win = window as unknown as {
+        __API_BASE_URL__?: string;
+        __FAMILYHUBS_CONFIG__?: { apiUrl?: string; wsUrl?: string };
+        __ENV__?: { VITE_API_URL?: string };
+      };
+      const runtimeUrl = win.__API_BASE_URL__ || win.__FAMILYHUBS_CONFIG__?.apiUrl || win.__ENV__?.VITE_API_URL;
+      if (runtimeUrl && runtimeUrl.trim() !== '') {
+        return runtimeUrl.trim().replace(/\/+$/, '');
       }
-      // Running through Vite dev servers (port 3001, 3002, 3003) -> target backend on port 4000
-      return `${protocol}//${hostname}:4000`;
+
+      // 3. HTML meta tag support: <meta name="api-base-url" content="https://api.yourdomain.com">
+      try {
+        const metaTag = document.querySelector('meta[name="api-base-url"]') as HTMLMetaElement | null;
+        if (metaTag?.content && metaTag.content.trim() !== '') {
+          return metaTag.content.trim().replace(/\/+$/, '');
+        }
+      } catch {
+        // DOM query fallback
+      }
+
+      // 4. Query param & sessionStorage override for staging / QA testing across domains
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const queryApi = params.get('apiUrl') || params.get('api_base');
+        if (queryApi && queryApi.trim() !== '') {
+          const cleanQuery = queryApi.trim().replace(/\/+$/, '');
+          sessionStorage.setItem('FAMILYHUBS_API_OVERRIDE', cleanQuery);
+          return cleanQuery;
+        }
+        const sessionApi = sessionStorage.getItem('FAMILYHUBS_API_OVERRIDE');
+        if (sessionApi && sessionApi.trim() !== '') {
+          return sessionApi.trim().replace(/\/+$/, '');
+        }
+      } catch {
+        // sessionStorage fallback
+      }
+
+      const { protocol, hostname, port, host } = window.location;
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname === '::1';
+
+      // 5. On any public domain / cloud host / custom domain / LAN IP (NOT localhost dev servers)
+      if (!isLocalhost) {
+        return `${protocol}//${host}`;
+      }
+
+      // 6. On localhost development:
+      if (port === '4000') {
+        return `${protocol}//${host}`;
+      }
+      // Running through Vite dev servers on port 3001, 3002, 3003 -> target backend on port 4000
+      if (port === '3001' || port === '3002' || port === '3003') {
+        return `${protocol}//${hostname}:4000`;
+      }
+
+      return `${protocol}//${host}`;
     }
   } catch {
     // Fallback
@@ -108,20 +123,36 @@ export function getApiBaseUrl(): string {
   return 'http://localhost:4000';
 }
 
-// Dynamic WebSocket URL resolution supporting wss:// in production and LAN IP tracking
+// Dynamic WebSocket URL resolution: automatically derives wss:// in production domains and supports custom endpoints
 export function getWebSocketUrl(path: string = '/ws/events', params: Record<string, string> = {}): string {
   let wsUrl = '';
   try {
+    // 1. Explicit build-time WebSocket URL
     const envWs = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: { VITE_WS_URL?: string } }).env?.VITE_WS_URL);
-    if (envWs) {
-      wsUrl = envWs;
+    if (envWs && envWs.trim() !== '') {
+      wsUrl = envWs.trim();
     } else if (typeof window !== 'undefined') {
-      const { protocol, hostname, port } = window.location;
-      const wsProto = protocol === 'https:' ? 'wss:' : 'ws:';
-      if (port === '4000' || port === '80' || port === '443' || !port) {
-        wsUrl = `${wsProto}//${window.location.host}${path}`;
+      // 2. Runtime window WebSocket configuration
+      const win = window as unknown as {
+        __WS_URL__?: string;
+        __FAMILYHUBS_CONFIG__?: { wsUrl?: string };
+        __ENV__?: { VITE_WS_URL?: string };
+      };
+      const runtimeWs = win.__WS_URL__ || win.__FAMILYHUBS_CONFIG__?.wsUrl || win.__ENV__?.VITE_WS_URL;
+      if (runtimeWs && runtimeWs.trim() !== '') {
+        wsUrl = runtimeWs.trim();
       } else {
-        wsUrl = `${wsProto}//${hostname}:4000${path}`;
+        // 3. Derive dynamically from resolved getApiBaseUrl()
+        const apiBase = getApiBaseUrl();
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        try {
+          const parsedApi = new URL(apiBase, window.location.href);
+          const wsProto = parsedApi.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = `${wsProto}//${parsedApi.host}${cleanPath}`;
+        } catch {
+          const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = `${wsProto}//${window.location.host}${cleanPath}`;
+        }
       }
     }
   } catch {

@@ -24,9 +24,10 @@ server/*.db-wal
 *.sqlite
 *.sqlite3
 
-# Ephemeral test uploads
-server/uploads/test_proof_*
-server/uploads/proof_cs*
+# Ephemeral test uploads & scratch files
+server/uploads/*
+!server/uploads/.gitkeep
+scratch/
 
 # Environment variables
 .env
