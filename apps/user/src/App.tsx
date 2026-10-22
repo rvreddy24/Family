@@ -990,30 +990,23 @@ export default function UserApp() {
               </span>
             </div>
 
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-
             <div
               onClick={() => setActiveTab('settings')}
-              className="flex items-center gap-3 cursor-pointer pl-3 border-l border-slate-200"
+              className="flex items-center gap-2.5 cursor-pointer pl-2.5 border-l border-slate-200 hover:opacity-85 transition"
+              title="Account Settings"
             >
-              <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200">
+              <div className="w-8.5 h-8.5 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200 shadow-xs">
                 {currentUserName.substring(0, 2).toUpperCase()}
               </div>
-              <div className="hidden sm:block text-right">
-                <div className="text-xs font-bold text-slate-900">{currentUserName}</div>
-                <div className="text-[11px] text-slate-500">{currentUserEmail}</div>
+              <div className="hidden md:block text-right">
+                <div className="text-xs font-bold text-slate-900 leading-tight">{currentUserName}</div>
+                <div className="text-[10px] text-slate-500">{currentUserEmail}</div>
               </div>
             </div>
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
@@ -1097,11 +1090,11 @@ export default function UserApp() {
 
           <button
             onClick={() => setShowFamilyModal(true)}
-            className="px-3 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-indigo-700 hover:bg-indigo-50 ml-auto whitespace-nowrap border border-indigo-100"
+            className="px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 text-indigo-700 hover:bg-indigo-50 whitespace-nowrap border border-indigo-100 cursor-pointer"
             title="Shared Family Care"
           >
             <Users className="w-4 h-4 text-indigo-600" />
-            <span className="hidden md:inline">Shared Sibling Care</span>
+            <span>Shared Sibling Care</span>
           </button>
         </div>
       </header>
@@ -1115,7 +1108,7 @@ export default function UserApp() {
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-lg">
               <div className="space-y-4 max-w-xl">
                 <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-3 py-1 rounded-full font-semibold">
-                  Pan-India Eldercare Concierge • Nationwide Care Across India
+                  Dedicated Senior Care Concierge • 100% Escrow Protected
                 </span>
                 <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
                   What care do your parents need today?
@@ -1131,16 +1124,14 @@ export default function UserApp() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search for 'Doctor visit', 'Inverter check', 'RO plumbing', 'Pooja items'..."
+                    placeholder="Search doctor visit, AC service, plumbing, groceries, tech care..."
                     className="w-full bg-white/10 border border-white/20 text-white placeholder-slate-400 rounded-2xl pl-11 pr-4 py-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 backdrop-blur-md"
                   />
                 </div>
               </div>
 
-              {/* Escrow Vault Glance & Brand Emblem */}
-              <div className="flex items-center gap-6 shrink-0">
-                <img src="/logo_icon.png" alt="FamilyHubs" className="w-20 h-20 object-contain hidden lg:block drop-shadow-lg" />
-                <div className="flex items-center gap-4 bg-white/10 p-5 rounded-2xl backdrop-blur-md border border-white/10 shrink-0">
+              {/* Escrow Vault Glance Card */}
+              <div className="flex items-center gap-4 bg-white/10 p-5 rounded-2xl backdrop-blur-md border border-white/10 shrink-0 shadow-inner">
                 <div>
                   <div className="text-[11px] text-slate-300 font-medium">Secured in Escrow</div>
                   <div className="text-2xl font-bold font-mono text-emerald-400">
@@ -1153,7 +1144,6 @@ export default function UserApp() {
                 </div>
               </div>
             </div>
-          </div>
 
             {/* Quick Category Filter Pills */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2">

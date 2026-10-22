@@ -1513,10 +1513,10 @@ export default function AdminApp() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
                 <div className="text-[11px] font-bold text-slate-400 uppercase">Authorized Escrow Release PIN</div>
-                <div className="text-2xl font-mono font-bold text-slate-900">
-                  {securitySettings.escrow_release_pin || '849201'}
+                <div className="text-xl font-mono font-bold text-slate-900 tracking-wider">
+                  •••••• <span className="text-[11px] font-sans font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full ml-1">Configured</span>
                 </div>
-                <div className="text-[11px] text-slate-500">Required before any escrow funds are disbursed.</div>
+                <div className="text-[11px] text-slate-500">Encrypted 6-digit PIN required before releasing escrow funds.</div>
               </div>
 
               <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
