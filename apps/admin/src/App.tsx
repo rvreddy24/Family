@@ -394,7 +394,7 @@ export default function AdminApp() {
   };
 
   const filteredTasks = tasks.filter((t) => {
-    if (localityFilter !== 'ALL' && !t.parent?.locality.toLowerCase().includes(localityFilter.toLowerCase())) {
+    if (localityFilter !== 'ALL' && !t.parent?.locality?.toLowerCase().includes(localityFilter.toLowerCase())) {
       return false;
     }
     if (statusFilter === 'PENDING') return t.status === 'PENDING_OPS_REVIEW';

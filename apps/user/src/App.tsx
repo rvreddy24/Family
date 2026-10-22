@@ -56,6 +56,32 @@ import { TaskReviewModal } from './components/TaskReviewModal';
 import { FamilyShareModal } from './components/FamilyShareModal';
 import { LiveTrackingModal } from './components/LiveTrackingModal';
 
+export const POPULAR_INDIAN_CITIES: Record<string, { lat: number; lng: number }> = {
+  'Hyderabad': { lat: 17.3850, lng: 78.4867 },
+  'Bengaluru': { lat: 12.9716, lng: 77.5946 },
+  'Mumbai': { lat: 19.0760, lng: 72.8777 },
+  'Delhi NCR': { lat: 28.6139, lng: 77.2090 },
+  'Chennai': { lat: 13.0827, lng: 80.2707 },
+  'Pune': { lat: 18.5204, lng: 73.8567 },
+  'Kolkata': { lat: 22.5726, lng: 88.3639 },
+  'Ahmedabad': { lat: 23.0225, lng: 72.5714 },
+  'Kochi': { lat: 9.9312, lng: 76.2673 },
+  'Coimbatore': { lat: 11.0168, lng: 76.9558 },
+  'Jaipur': { lat: 26.9124, lng: 75.7873 },
+  'Lucknow': { lat: 26.8467, lng: 80.9462 },
+};
+
+export function resolveCityCoordinates(cityOrAddress: string): { lat: number; lng: number } {
+  if (!cityOrAddress) return POPULAR_INDIAN_CITIES['Hyderabad'];
+  const lower = cityOrAddress.toLowerCase();
+  for (const [cityName, coords] of Object.entries(POPULAR_INDIAN_CITIES)) {
+    if (lower.includes(cityName.toLowerCase()) || lower.includes(cityName.split(' ')[0].toLowerCase())) {
+      return coords;
+    }
+  }
+  return POPULAR_INDIAN_CITIES['Hyderabad'];
+}
+
 export default function UserApp() {
   // Persistence for login status (default false to show welcome/login first if first visit)
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
@@ -146,6 +172,13 @@ export default function UserApp() {
   const [reqTitle, setReqTitle] = useState<string>('');
   const [reqInstructions, setReqInstructions] = useState<string>('');
   const [reqEscrowAmount, setReqEscrowAmount] = useState<number>(45);
+
+  // Urban Company UX: Active City Selector & Custom Senior Booking Options
+  const [selectedCity, setSelectedCity] = useState<string>('Hyderabad');
+  const [bookingTimeSlot, setBookingTimeSlot] = useState<string>('Morning (9:00 AM – 12:00 PM)');
+  const [bookingLanguage, setBookingLanguage] = useState<string>('Telugu');
+  const [bookingSeniorNeeds, setBookingSeniorNeeds] = useState<string[]>(['Doorstep OTP Handshake', 'WhatsApp Photo Update']);
+  const [doorstepOtp, setDoorstepOtp] = useState<string>('4829');
 
   // New Parent Modal (Pan-India)
   const [showAddParentModal, setShowAddParentModal] = useState<boolean>(false);
@@ -241,6 +274,42 @@ export default function UserApp() {
       desc: 'Immediate emergency transport escort with trained caretaker staying by your parents side.',
       features: ['Under 20-minute rapid response dispatch', 'Vehicle escort to nearest tertiary care hospital', 'Continuous WhatsApp call coordination with NRI'],
       badge: 'Priority 24/7',
+    },
+    {
+      id: 'srv_tech_1',
+      title: 'Senior Smartphone, WhatsApp & Tech Care',
+      category: 'ERRANDS',
+      rating: '4.97',
+      reviews: '178 reviews',
+      price: 25,
+      banner: getImageUrl('/uploads/service_errands.svg'),
+      desc: 'Patient, in-person smartphone setup: configure NRI family video calls, large fonts, emergency contacts, utility bill auto-pay, and scam safety.',
+      features: ['Video calling & WhatsApp shortcuts configured', 'Online utility bills & pension certificate setup', 'Spam call blocker & scam protection guidance'],
+      badge: 'Senior Favorite',
+    },
+    {
+      id: 'srv_ac_1',
+      title: 'Split AC Power Clean & Filter Servicing',
+      category: 'HOME_MAINTENANCE',
+      rating: '4.92',
+      reviews: '154 reviews',
+      price: 35,
+      banner: getImageUrl('/uploads/service_repair.svg'),
+      desc: 'Complete anti-bacterial deep cleaning of indoor & outdoor AC units to protect aging parents from heat exhaustion and dust allergies.',
+      features: ['High-pressure jet coil wash with anti-fungal foam', 'Drain tray & pipe vacuum clog clearance', 'Cooling temperature & refrigerant gas check'],
+      badge: 'Summer Essential',
+    },
+    {
+      id: 'srv_physio_1',
+      title: 'Geriatric Physiotherapy & Fall Prevention Session',
+      category: 'MEDICAL_TRANSPORT',
+      rating: '4.99',
+      reviews: '92 reviews',
+      price: 45,
+      banner: getImageUrl('/uploads/service_medical.svg'),
+      desc: 'Qualified home physiotherapist specializing in elderly mobility, arthritis pain relief, and balance restoration.',
+      features: ['Joint mobility & posture assessment', 'Customized low-impact exercise regimen', 'Home fall-hazard audit (bathrooms & stairs)'],
+      badge: 'Certified Physio',
     },
   ];
 
@@ -584,9 +653,11 @@ export default function UserApp() {
   };
 
   const openBookModal = (srv: typeof servicesCatalog[0]) => {
+    const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    setDoorstepOtp(randomOtp);
     setSelectedService(srv);
     setReqTitle(srv.title);
-    setReqInstructions(`Please arrange ${srv.title}. Ensure the on-ground helper calls before arriving.`);
+    setReqInstructions(`Please coordinate ${srv.title} with verified photo check-in. Ring doorbell twice and speak gently.`);
     setReqEscrowAmount(srv.price);
     setShowBookModal(true);
   };
@@ -597,6 +668,14 @@ export default function UserApp() {
 
     setIsSubmitting(true);
     try {
+      const fullInstructions = [
+        reqInstructions.trim(),
+        `Preferred Window: ${bookingTimeSlot}`,
+        `Partner Language: ${bookingLanguage}`,
+        bookingSeniorNeeds.length > 0 ? `Senior Care Support: ${bookingSeniorNeeds.join(', ')}` : '',
+        `Doorstep Verification PIN: ${doorstepOtp}`,
+      ].filter(Boolean).join('\n• ');
+
       const res = await fetch(`${getApiBaseUrl()}/api/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -605,7 +684,7 @@ export default function UserApp() {
           parentId: reqParentId,
           category: selectedService?.category || 'MEDICAL_TRANSPORT',
           title: reqTitle,
-          instructions: reqInstructions,
+          instructions: fullInstructions,
           scheduledAt: new Date().toISOString(),
           escrowAmount: reqEscrowAmount,
         }),
@@ -617,12 +696,18 @@ export default function UserApp() {
         setActiveTab('trackers');
         setSelectedTask(createdTask);
         playNotificationChime('success');
-        setToastMessage(`Service booked! $${reqEscrowAmount}.00 is secured in escrow.`);
+        setToastMessage(`Service confirmed! $${reqEscrowAmount}.00 is locked safely in Escrow.`);
         setTimeout(() => setToastMessage(null), 5000);
         fetchAllData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setToastMessage(err.error || 'Failed to submit service request. Please retry.');
+        setTimeout(() => setToastMessage(null), 5000);
       }
     } catch (err) {
       console.error(err);
+      setToastMessage('Network error submitting request. Please try again.');
+      setTimeout(() => setToastMessage(null), 5000);
     } finally {
       setIsSubmitting(false);
     }
@@ -636,6 +721,7 @@ export default function UserApp() {
       return;
     }
     try {
+      const targetCoords = resolveCityCoordinates(newParentLocality + ' ' + newParentAddress);
       const res = await fetch(`${getApiBaseUrl()}/api/parents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -644,10 +730,10 @@ export default function UserApp() {
           parentName: newParentName.trim(),
           primaryPhone: newParentPhone.trim(),
           whatsappPhone: newParentWhatsapp.trim() || newParentPhone.trim(),
-          locality: newParentLocality.trim() || 'Pan-India',
+          locality: newParentLocality.trim() || 'Hyderabad',
           fullAddress: newParentAddress.trim(),
-          coordinatesLat: 20.5937,
-          coordinatesLng: 78.9629,
+          coordinatesLat: targetCoords.lat,
+          coordinatesLng: targetCoords.lng,
           medicalNotes: newParentNotes.trim() || null,
         }),
       });
@@ -689,6 +775,7 @@ export default function UserApp() {
     }
     setIsUpdatingParent(true);
     try {
+      const targetCoords = resolveCityCoordinates(editParentLocality + ' ' + editParentAddress);
       const res = await fetch(`${getApiBaseUrl()}/api/parents/${editingParent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -696,8 +783,10 @@ export default function UserApp() {
           parentName: editParentName.trim(),
           primaryPhone: editParentPhone.trim(),
           whatsappPhone: editParentWhatsapp.trim() || editParentPhone.trim(),
-          locality: editParentLocality.trim() || 'Pan-India',
+          locality: editParentLocality.trim() || 'Hyderabad',
           fullAddress: editParentAddress.trim(),
+          coordinatesLat: targetCoords.lat,
+          coordinatesLng: targetCoords.lng,
           medicalNotes: editParentNotes.trim() || null,
         }),
       });
@@ -852,11 +941,31 @@ export default function UserApp() {
               </div>
             </div>
 
+            {/* Urban Company Style City Selector */}
+            <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/80 px-3 py-1.5 rounded-xl text-xs transition">
+              <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <select
+                value={selectedCity}
+                onChange={(e) => {
+                  setSelectedCity(e.target.value);
+                  setToastMessage(`Showing verified services in ${e.target.value}`);
+                  setTimeout(() => setToastMessage(null), 3000);
+                }}
+                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer"
+              >
+                {Object.keys(POPULAR_INDIAN_CITIES).map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Pan-India Eldercare Network Badge */}
-            <div className="hidden md:flex items-center gap-2 bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs">
+            <div className="hidden lg:flex items-center gap-2 bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs">
               <Globe className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span className="font-semibold text-indigo-950">Pan-India Eldercare Network</span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">All India</span>
+              <span className="font-semibold text-indigo-950">100% Escrow Protection</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">Senior Safe</span>
             </div>
           </div>
 
@@ -1957,12 +2066,107 @@ export default function UserApp() {
               <div>
                 <label className="block text-slate-700 font-bold mb-1">Specific Instructions for Local Helper</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={reqInstructions}
                   onChange={(e) => setReqInstructions(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800"
                   required
                 />
+              </div>
+
+              {/* Urban Company Style: Preferred Time Slot */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">Preferred Time Window</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'Morning (9:00 AM – 12:00 PM)', label: 'Morning', time: '9 AM – 12 PM' },
+                    { id: 'Afternoon (1:00 PM – 4:00 PM)', label: 'Afternoon', time: '1 PM – 4 PM' },
+                    { id: 'Evening (5:00 PM – 8:00 PM)', label: 'Evening', time: '5 PM – 8 PM' },
+                  ].map((slot) => (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => setBookingTimeSlot(slot.id)}
+                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                        bookingTimeSlot === slot.id
+                          ? 'border-indigo-600 bg-indigo-50/80 text-indigo-900 font-bold shadow-xs'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold">{slot.label}</div>
+                      <div className="text-[9px] text-slate-500">{slot.time}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Urban Company Style: Partner Preferred Regional Language */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Partner Language</label>
+                  <select
+                    value={bookingLanguage}
+                    onChange={(e) => setBookingLanguage(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                  >
+                    <option value="Telugu">Telugu (తెలుగు)</option>
+                    <option value="Hindi">Hindi (हिन्दी)</option>
+                    <option value="Tamil">Tamil (தமிழ்)</option>
+                    <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
+                    <option value="Marathi">Marathi (मराठी)</option>
+                    <option value="Bengali">Bengali (বাংলা)</option>
+                    <option value="English">English</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Doorstep Handshake PIN</label>
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-emerald-900 font-mono font-bold text-sm">
+                    <KeyRound className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{doorstepOtp}</span>
+                    <span className="text-[10px] text-emerald-700 font-sans font-normal ml-auto">Share with parents</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Senior Care Assistance Checklist */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">Senior Comfort & Assistance Options</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    'Wheelchair / Mobility Support',
+                    'Ring Bell Twice & Speak Loudly',
+                    'WhatsApp Video Update on Arrival',
+                    'Female Partner Attendant Preferred',
+                  ].map((item) => {
+                    const isChecked = bookingSeniorNeeds.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) {
+                            setBookingSeniorNeeds(bookingSeniorNeeds.filter((i) => i !== item));
+                          } else {
+                            setBookingSeniorNeeds([...bookingSeniorNeeds, item]);
+                          }
+                        }}
+                        className={`p-2 rounded-xl border text-left flex items-center gap-2 text-[11px] transition cursor-pointer ${
+                          isChecked
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-semibold'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
+                          isChecked ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300'
+                        }`}>
+                          {isChecked ? '✓' : ''}
+                        </span>
+                        <span className="truncate">{item}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Escrow summary */}

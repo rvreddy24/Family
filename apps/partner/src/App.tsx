@@ -93,6 +93,11 @@ export default function PartnerApp() {
   const [deviceLat, setDeviceLat] = useState<number>(16.8724);
   const [deviceLng, setDeviceLng] = useState<number>(79.5631);
   const [distanceToParentMeters, setDistanceToParentMeters] = useState<number>(18);
+  const coordsRef = useRef({ lat: 16.8724, lng: 79.5631 });
+
+  useEffect(() => {
+    coordsRef.current = { lat: deviceLat, lng: deviceLng };
+  }, [deviceLat, deviceLng]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -588,7 +593,7 @@ export default function PartnerApp() {
     }
 
     const interval = setInterval(() => {
-      sendLocation(deviceLat, deviceLng);
+      sendLocation(coordsRef.current.lat, coordsRef.current.lng);
     }, 8000);
 
     return () => {
@@ -597,7 +602,16 @@ export default function PartnerApp() {
       }
       clearInterval(interval);
     };
-  }, [isLoggedIn, partnerId, isBroadcastingGps, activeTask?.id, deviceLat, deviceLng]);
+  }, [isLoggedIn, partnerId, isBroadcastingGps, activeTask?.id]);
+
+  // Clean up camera on unmount or stream change
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   const handleSubmitPartnerVitals = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -33,6 +33,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   const [customNotes, setCustomNotes] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const [activeSos, setActiveSos] = useState<any | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -41,6 +42,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   const handleTriggerEmergency = async () => {
     if (!currentParent) return;
     setIsActivating(true);
+    setErrorMsg(null);
     try {
       const api = getApiBaseUrl();
       const res = await fetch(`${api}/api/emergency/sos`, {
@@ -58,14 +60,25 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         setActiveSos(data);
+        setErrorMsg(null);
         playNotificationChime('ping');
         if (onEmergencyTriggered) onEmergencyTriggered();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setErrorMsg(errData.error || 'Emergency dispatch rejected. Please contact local ambulance 108 / 112 directly.');
       }
     } catch (err) {
       console.error('Failed to trigger emergency SOS:', err);
+      setErrorMsg('Network error: Unable to connect to operations desk. Dial 108 / 112 immediately.');
     } finally {
       setIsActivating(false);
     }
+  };
+
+  const handleClose = () => {
+    setActiveSos(null);
+    setErrorMsg(null);
+    onClose();
   };
 
   return (
@@ -89,12 +102,19 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-semibold">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
         {activeSos ? (
           /* ACTIVE SOS STATE */
