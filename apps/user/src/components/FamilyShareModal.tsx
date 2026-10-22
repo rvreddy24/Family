@@ -85,7 +85,7 @@ export const FamilyShareModal: React.FC<FamilyShareModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
@@ -150,7 +150,7 @@ export const FamilyShareModal: React.FC<FamilyShareModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <div>
               <label className="text-[11px] font-semibold text-slate-600 block mb-1">Relationship</label>
               <select
@@ -168,7 +168,7 @@ export const FamilyShareModal: React.FC<FamilyShareModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs transition"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs transition cursor-pointer"
               >
                 {isSubmitting ? 'Sending...' : 'Send Access Invite'}
               </button>
@@ -184,17 +184,17 @@ export const FamilyShareModal: React.FC<FamilyShareModalProps> = ({
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[11px] flex items-center justify-center">
+                <div key={m.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50 text-xs gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[11px] flex items-center justify-center shrink-0">
                       {m.invited_name.substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="font-bold text-slate-900">{m.invited_name}</div>
-                      <div className="text-[11px] text-slate-500">{m.invited_email} • {m.relationship}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 truncate">{m.invited_name}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{m.invited_email} • {m.relationship}</div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 shrink-0">
                     Active Caregiver
                   </span>
                 </div>

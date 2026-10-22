@@ -83,7 +83,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-rose-500 animate-in zoom-in-95">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border-2 border-rose-500 animate-in zoom-in-95">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-rose-100 pb-4 mb-5">
           <div className="flex items-center gap-3">
@@ -158,8 +158,8 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             </div>
 
             <button
-              onClick={onClose}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition"
+              onClick={handleClose}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition cursor-pointer"
             >
               Close & Monitor from Trackers
             </button>

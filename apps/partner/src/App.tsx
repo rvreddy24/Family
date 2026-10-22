@@ -172,7 +172,7 @@ export default function PartnerApp() {
       confirmUpload: 'ధృవీకరించి అప్‌లోడ్ చేయండి',
       retake: 'మళ్ళీ తీయండి',
       languageSelect: 'భాష',
-      dutyNotice: 'మీరు ప్రస్తుతం డ్యూటీలో ఉన్నారు. మిర్యాలగూడలో కొత్త పనులు అందుకోవడానికి సిద్ధంగా ఉన్నారు.',
+      dutyNotice: 'మీరు ప్రస్తుతం డ్యూటీలో ఉన్నారు. మీ సర్వీస్ ఏరియాలో కొత్త పనులు అందుకోవడానికి సిద్ధంగా ఉన్నారు.',
       signInBtn: 'భాగస్వామి పోర్టల్‌లోకి ప్రవేశించండి',
       signOutBtn: 'పోర్టల్ నుండి లాగౌట్ చేయండి',
       helperProfile: 'సహాయకుని ప్రొఫైల్',
@@ -184,7 +184,7 @@ export default function PartnerApp() {
       jobDetails: 'పని వివరాలు & చిరునామా',
       instructions: 'విదేశాల నుండి కుటుంబ సభ్యుల సూచనలు',
       markComplete: 'పని పూర్తయినట్లు నమోదు చేయండి',
-      noAssignedJobs: 'ప్రస్తుతం కేటాయించిన పనులు ఏవీ లేవు. మీరు ఆన్‌లైన్‌లో ఉన్నారు, మిర్యాలగూడలో కొత్త పనుల కోసం సిద్ధంగా ఉన్నారు.',
+      noAssignedJobs: 'ప్రస్తుతం కేటాయించిన పనులు ఏవీ లేవు. మీరు ఆన్‌లైన్‌లో ఉన్నారు, మీ సర్వీస్ ఏరియాలో కొత్త పనుల కోసం సిద్ధంగా ఉన్నారు.',
       privacyMaskNotice: 'తల్లిదండ్రుల గోప్యతా రక్షణ కోసం ఫోన్ నంబర్ దాచబడింది (FamilyHubs సెక్యూర్ రిలే)',
       emptyWallet: 'ఇంకా పూర్తి చేసిన పనులు లేవు. పని పూర్తయి ధృవీకరించబడిన వెంటనే చెల్లింపు మీ వాలెట్‌కు చేరుతుంది.',
       kycTitle: 'కేవైసీ & భద్రతా ధృవీకరణ',
@@ -214,7 +214,7 @@ export default function PartnerApp() {
       confirmUpload: 'पुष्टि करें और अपलोड करें',
       retake: 'फिर से लें',
       languageSelect: 'भाषा',
-      dutyNotice: 'आप अभी ड्यूटी पर हैं और मिर्यालगुडा में कार्य प्राप्त करने के पात्र हैं।',
+      dutyNotice: 'आप अभी ड्यूटी पर हैं और अपने सेवा क्षेत्र में कार्य प्राप्त करने के पात्र हैं।',
       signInBtn: 'पार्टनर पोर्टल में प्रवेश करें',
       signOutBtn: 'पार्टनर पोर्टल से लॉग आउट करें',
       helperProfile: 'हेल्पर प्रोफाइल',
@@ -226,7 +226,7 @@ export default function PartnerApp() {
       jobDetails: 'कार्य विवरण और पता',
       instructions: 'विदेश में परिवार के निर्देश',
       markComplete: 'कार्य पूर्ण दर्ज करें',
-      noAssignedJobs: 'वर्तमान में कोई कार्य नहीं सौंपा गया है। आप ऑनलाइन हैं और मिर्यालगुडा में नए कार्यों के लिए तैयार हैं।',
+      noAssignedJobs: 'वर्तमान में कोई कार्य नहीं सौंपा गया है। आप ऑनलाइन हैं और अपने सेवा क्षेत्र में नए कार्यों के लिए तैयार हैं।',
       privacyMaskNotice: 'अभिभावक की सुरक्षा हेतु फोन नंबर सुरक्षित रूप से छिपाया गया है',
       emptyWallet: 'अभी कोई पूर्ण कार्य नहीं है। कार्य पूरा और सत्यापित होने पर तुरंत भुगतान जमा होता है।',
       kycTitle: 'केवाईसी और सुरक्षा सत्यापन',
@@ -1375,12 +1375,12 @@ export default function PartnerApp() {
 
       {/* ================= FORENSIC CAMERA MODAL ================= */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/90 flex flex-col p-6 justify-between animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-slate-900/95 flex flex-col p-4 sm:p-6 justify-between animate-in fade-in h-screen h-dvh pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between text-white max-w-2xl mx-auto w-full pb-2">
             <div className="text-xs font-bold text-emerald-400">
               {cameraStage === 'ARRIVAL_CHECKIN' ? 'ARRIVAL PHOTO' : 'COMPLETION PHOTO'}
             </div>
-            <button onClick={stopCamera} className="p-2 text-slate-400 hover:text-white">
+            <button onClick={stopCamera} className="p-2 text-slate-400 hover:text-white cursor-pointer">
               ✕
             </button>
           </div>
@@ -1389,11 +1389,12 @@ export default function PartnerApp() {
             {!capturedPhoto ? (
               <>
                 <video ref={videoRef} playsInline autoPlay muted className="w-full h-full object-cover" />
-                <div className="absolute bottom-4 left-4 right-4 bg-black/80 p-3 rounded-xl text-white text-xs font-mono space-y-0.5">
-                  <div className="text-emerald-400 font-bold">
-                    GPS: {deviceLat.toFixed(5)}°N, {deviceLng.toFixed(5)}°E
+                <div className="absolute top-3 left-3 right-3 bg-black/75 backdrop-blur-xs p-2.5 rounded-xl text-white text-xs font-mono space-y-0.5 border border-white/10 shadow-lg">
+                  <div className="text-emerald-400 font-bold text-[11px] flex items-center justify-between">
+                    <span>GPS: {deviceLat.toFixed(5)}°N, {deviceLng.toFixed(5)}°E</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-sans">Live Lock</span>
                   </div>
-                  <div>Distance: {Math.round(distanceToParentMeters)}m (At Residence)</div>
+                  <div className="text-[10px] text-slate-300">Distance: {Math.round(distanceToParentMeters)}m (At Residence)</div>
                 </div>
               </>
             ) : (
@@ -1408,7 +1409,7 @@ export default function PartnerApp() {
               <button
                 onClick={capturePhotoAndWatermark}
                 disabled={isCapturing}
-                className="w-full py-4 bg-emerald-500 text-slate-950 font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg"
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer"
               >
                 <Camera className="w-5 h-5" />
                 {t.snapPhoto}
@@ -1417,14 +1418,14 @@ export default function PartnerApp() {
               <>
                 <button
                   onClick={() => setCapturedPhoto(null)}
-                  className="flex-1 py-4 bg-slate-800 text-white font-bold rounded-2xl text-xs"
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs cursor-pointer"
                 >
                   {t.retake}
                 </button>
                 <button
                   onClick={handleUploadAndSubmitProof}
                   disabled={isUploading}
-                  className="flex-1 py-4 bg-emerald-500 text-slate-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2"
+                  className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isUploading ? 'Uploading...' : t.confirmUpload}
                 </button>
@@ -1437,7 +1438,7 @@ export default function PartnerApp() {
       {/* ================= PARTNER RECORD VITALS MODAL ================= */}
       {showPartnerVitalModal && activeTask && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">

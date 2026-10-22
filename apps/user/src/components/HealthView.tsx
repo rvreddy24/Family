@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 import type { ParentVital, ParentMedication, MedicalVaultDocument } from '@shared/types';
-import { formatDate, getApiBaseUrl, playNotificationChime } from '@shared/utils';
+import { formatDate, getApiBaseUrl, playNotificationChime, getImageUrl } from '@shared/utils';
 
 interface HealthViewProps {
   parentId: string;
@@ -313,59 +313,73 @@ export const HealthView: React.FC<HealthViewProps> = ({
         </div>
 
         {/* Latest Vitals Metric Ribbon */}
-        {latestVital && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10 text-slate-100">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
-              <div className="text-[11px] text-slate-300 font-medium">Blood Pressure</div>
-              <div className="text-lg font-bold mt-1 text-white">
-                {latestVital.blood_pressure_sys && latestVital.blood_pressure_dia
-                  ? `${latestVital.blood_pressure_sys}/${latestVital.blood_pressure_dia}`
-                  : '120/80'}{' '}
-                <span className="text-[11px] font-normal text-slate-400">mmHg</span>
-              </div>
-              <span className="inline-block mt-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md">
-                Optimal
-              </span>
-            </div>
+        {latestVital && (() => {
+          const bpSysVal = latestVital.blood_pressure_sys;
+          const bpStatus = !bpSysVal ? 'Normal' : bpSysVal <= 120 ? 'Optimal' : bpSysVal <= 139 ? 'Normal' : 'Elevated';
+          const bpBadgeClass = bpStatus === 'Elevated' ? 'text-amber-400 bg-amber-950/60' : 'text-emerald-400 bg-emerald-950/60';
 
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
-              <div className="text-[11px] text-slate-300 font-medium">Blood Sugar ({latestVital.blood_sugar_type || 'FASTING'})</div>
-              <div className="text-lg font-bold mt-1 text-white">
-                {latestVital.blood_sugar || 110}{' '}
-                <span className="text-[11px] font-normal text-slate-400">mg/dL</span>
-              </div>
-              <span className="inline-block mt-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md">
-                Controlled
-              </span>
-            </div>
+          const sugarVal = latestVital.blood_sugar;
+          const sugarStatus = !sugarVal ? 'Normal' : sugarVal <= 125 ? 'Normal' : 'High';
+          const sugarBadgeClass = sugarStatus === 'High' ? 'text-rose-400 bg-rose-950/60' : 'text-emerald-400 bg-emerald-950/60';
 
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
-              <div className="text-[11px] text-slate-300 font-medium">Oxygen & Pulse</div>
-              <div className="text-lg font-bold mt-1 text-white">
-                {latestVital.spo2 || 98}%{' '}
-                <span className="text-[11px] font-normal text-slate-400">/ {latestVital.pulse || 72} bpm</span>
-              </div>
-              <span className="inline-block mt-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-md">
-                Normal
-              </span>
-            </div>
+          const spo2Val = latestVital.spo2;
+          const spo2Status = !spo2Val ? 'Normal' : spo2Val >= 95 ? 'Normal' : 'Low SpO2';
+          const spo2BadgeClass = spo2Status === 'Low SpO2' ? 'text-rose-400 bg-rose-950/60' : 'text-emerald-400 bg-emerald-950/60';
 
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
-              <div className="text-[11px] text-slate-300 font-medium">Body Weight</div>
-              <div className="text-lg font-bold mt-1 text-white">
-                {latestVital.weight_kg || 68}{' '}
-                <span className="text-[11px] font-normal text-slate-400">kg</span>
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10 text-slate-100">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <div className="text-[11px] text-slate-300 font-medium">Blood Pressure</div>
+                <div className="text-lg font-bold mt-1 text-white">
+                  {latestVital.blood_pressure_sys && latestVital.blood_pressure_dia
+                    ? `${latestVital.blood_pressure_sys}/${latestVital.blood_pressure_dia}`
+                    : '120/80'}{' '}
+                  <span className="text-[11px] font-normal text-slate-400">mmHg</span>
+                </div>
+                <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${bpBadgeClass}`}>
+                  {bpStatus}
+                </span>
               </div>
-              <span className="inline-block mt-1 text-[10px] font-semibold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-md">
-                Last: {formatDate(latestVital.recorded_at)}
-              </span>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <div className="text-[11px] text-slate-300 font-medium">Blood Sugar ({latestVital.blood_sugar_type || 'FASTING'})</div>
+                <div className="text-lg font-bold mt-1 text-white">
+                  {latestVital.blood_sugar || 110}{' '}
+                  <span className="text-[11px] font-normal text-slate-400">mg/dL</span>
+                </div>
+                <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${sugarBadgeClass}`}>
+                  {sugarStatus}
+                </span>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <div className="text-[11px] text-slate-300 font-medium">Oxygen & Pulse</div>
+                <div className="text-lg font-bold mt-1 text-white">
+                  {latestVital.spo2 || 98}%{' '}
+                  <span className="text-[11px] font-normal text-slate-400">/ {latestVital.pulse || 72} bpm</span>
+                </div>
+                <span className={`inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${spo2BadgeClass}`}>
+                  {spo2Status}
+                </span>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5">
+                <div className="text-[11px] text-slate-300 font-medium">Body Weight</div>
+                <div className="text-lg font-bold mt-1 text-white">
+                  {latestVital.weight_kg || 68}{' '}
+                  <span className="text-[11px] font-normal text-slate-400">kg</span>
+                </div>
+                <span className="inline-block mt-1 text-[10px] font-semibold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded-md">
+                  Last: {formatDate(latestVital.recorded_at)}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Sub Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setSubTab('vitals')}
           className={`px-4 py-2 text-xs font-bold rounded-xl transition flex items-center gap-2 ${
@@ -429,7 +443,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                       <Activity className="w-5 h-5" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center flex-wrap gap-2">
                         <span className="font-bold text-slate-900 text-sm">
                           BP: {v.blood_pressure_sys && v.blood_pressure_dia ? `${v.blood_pressure_sys}/${v.blood_pressure_dia} mmHg` : 'N/A'}
                         </span>
@@ -445,7 +459,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                         )}
                       </div>
                       <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
-                        <span>Recorded by {v.recorded_by}</span>
+                        <span>Recorded by {v.recorded_by === 'CLIENT' ? 'Family Member' : 'Field Nurse'}</span>
                         <span>•</span>
                         <span>{formatDate(v.recorded_at)}</span>
                       </div>
@@ -458,8 +472,8 @@ export const HealthView: React.FC<HealthViewProps> = ({
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-full">
-                      Verified Clinical Log
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+                      ✓ Verified Clinical Log
                     </span>
                   </div>
                 </div>
@@ -625,7 +639,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                         <h4 className="font-bold text-slate-900 text-sm mt-1.5">{d.title}</h4>
                       </div>
                       <a
-                        href={d.file_url}
+                        href={getImageUrl(d.file_url)}
                         target="_blank"
                         rel="noreferrer"
                         className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 p-2 rounded-xl transition"
@@ -656,7 +670,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
       {/* MODAL: LOG VITALS */}
       {showVitalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
@@ -793,7 +807,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
       {/* MODAL: ADD MEDICATION */}
       {showMedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
@@ -917,7 +931,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
       {/* MODAL: UPLOAD VAULT DOCUMENT */}
       {showDocModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">

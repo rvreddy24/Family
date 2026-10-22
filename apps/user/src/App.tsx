@@ -121,7 +121,7 @@ export default function UserApp() {
   // Security Controls State
   const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
   const [twoFactorActive, setTwoFactorActive] = useState<boolean>(true);
-  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(true);
+  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(() => localStorage.getItem('fh_biometric_enabled') !== '0');
 
   // Google OAuth Onboarding State
   const [pendingGoogleUser, setPendingGoogleUser] = useState<{
@@ -143,8 +143,8 @@ export default function UserApp() {
   const [settingsCountry, setSettingsCountry] = useState<string>('United States');
   const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
   const [userCurrency, setUserCurrency] = useState<string>('USD');
-  const [emailAlerts, setEmailAlerts] = useState<boolean>(true);
-  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(true);
+  const [emailAlerts, setEmailAlerts] = useState<boolean>(() => localStorage.getItem('fh_email_alerts') !== '0');
+  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(() => localStorage.getItem('fh_whatsapp_alerts') !== '0');
 
   // Settings State - Parents' Care Details (Mandatory Pan-India)
   const [settingsParentName, setSettingsParentName] = useState<string>('');
@@ -459,6 +459,9 @@ export default function UserApp() {
       setCurrentUserEmail(settingsEmail.trim());
       localStorage.setItem('fh_user_name', settingsFullName.trim());
       localStorage.setItem('fh_user_email', settingsEmail.trim());
+      localStorage.setItem('fh_biometric_enabled', biometricEnabled ? '1' : '0');
+      localStorage.setItem('fh_email_alerts', emailAlerts ? '1' : '0');
+      localStorage.setItem('fh_whatsapp_alerts', whatsappAlerts ? '1' : '0');
       if (data.profile) setClientProfile(data.profile);
       if (data.parents) setParents(data.parents);
 
@@ -919,7 +922,7 @@ export default function UserApp() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-5 py-3.5 rounded-2xl shadow-xl animate-in slide-in-from-top-3">
+        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:right-6 sm:max-w-md max-w-full z-[70] flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-5 py-3.5 rounded-2xl shadow-2xl animate-in slide-in-from-top-3">
           <Sparkles className="w-5 h-5 text-indigo-600 shrink-0" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
@@ -928,7 +931,7 @@ export default function UserApp() {
       {/* Urban Company Style Top Header */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <div
               onClick={() => setActiveTab('explore')}
               className="flex items-center gap-3 cursor-pointer"
@@ -936,14 +939,14 @@ export default function UserApp() {
               <img src="/logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
               <div>
                 <span className="text-lg font-bold text-slate-900 tracking-tight">FamilyHubs</span>
-                <span className="text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full ml-2">
+                <span className="hidden md:inline-block text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full ml-2">
                   Parent Care
                 </span>
               </div>
             </div>
 
             {/* Urban Company Style City Selector */}
-            <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/80 px-3 py-1.5 rounded-xl text-xs transition">
+            <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/80 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs transition">
               <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
               <select
                 value={selectedCity}
@@ -952,7 +955,7 @@ export default function UserApp() {
                   setToastMessage(`Showing verified services in ${e.target.value}`);
                   setTimeout(() => setToastMessage(null), 3000);
                 }}
-                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer"
+                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer max-w-[105px] sm:max-w-none"
               >
                 {Object.keys(POPULAR_INDIAN_CITIES).map((city) => (
                   <option key={city} value={city}>
@@ -1015,7 +1018,7 @@ export default function UserApp() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-slate-100 pt-1 overflow-x-auto items-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 border-t border-slate-100 py-1.5 overflow-x-auto pr-4 sm:pr-0 scroll-smooth">
           <button
             onClick={() => setActiveTab('explore')}
             className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'explore'
@@ -1090,7 +1093,7 @@ export default function UserApp() {
 
           <button
             onClick={() => setShowFamilyModal(true)}
-            className="px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 text-indigo-700 hover:bg-indigo-50 whitespace-nowrap border border-indigo-100 cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/80 whitespace-nowrap cursor-pointer ml-auto"
             title="Shared Family Care"
           >
             <Users className="w-4 h-4 text-indigo-600" />
@@ -1100,7 +1103,7 @@ export default function UserApp() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
         {/* ================= TAB 1: URBAN COMPANY STYLE EXPLORE SERVICES ================= */}
         {activeTab === 'explore' && (
           <div className="space-y-8">
@@ -1198,6 +1201,14 @@ export default function UserApp() {
 
                     {/* Content */}
                     <div className="p-5 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
+                          Available in {selectedCity}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                          ✓ Pan-India Coverage
+                        </span>
+                      </div>
                       <h4 className="text-base font-bold text-slate-900">{service.title}</h4>
                       <p className="text-xs text-slate-500 leading-relaxed">{service.desc}</p>
 
@@ -1216,7 +1227,7 @@ export default function UserApp() {
                   {/* Price & Book Trigger */}
                   <div className="p-5 pt-3 border-t border-slate-100 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-400 block font-semibold uppercase">Protected Escrow</span>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Total Price (Escrow)</span>
                       <span className="text-lg font-bold font-mono text-slate-900">
                         ${service.price} USD
                       </span>
@@ -1224,7 +1235,7 @@ export default function UserApp() {
 
                     <button
                       onClick={() => openBookModal(service)}
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
                     >
                       Book Service
                     </button>
@@ -1354,18 +1365,34 @@ export default function UserApp() {
               <div className="lg:col-span-7">
                 {selectedTask ? (
                   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                      <div>
+                    <div className="flex items-start justify-between pb-4 border-b border-slate-100 gap-3">
+                      <div className="min-w-0 flex-1">
                         <div className="text-xs font-mono text-indigo-700 font-bold">{selectedTask.tracking_code}</div>
-                        <h3 className="text-base font-bold text-slate-900">{selectedTask.title}</h3>
+                        <h3 className="text-base font-bold text-slate-900 leading-snug break-words">{selectedTask.title}</h3>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <div className="text-[11px] text-slate-400">Escrow Hold</div>
                         <div className="text-xl font-bold font-mono text-emerald-600">
-                          ${selectedTask.escrow?.amount.toFixed(2)} USD
+                          ${((selectedTask.escrow?.amount ?? 0)).toFixed(2)} USD
                         </div>
                       </div>
                     </div>
+
+                    {/* Doorstep Verification PIN Card */}
+                    {selectedTask.instructions?.includes('Doorstep Verification PIN:') && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                          <KeyRound className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-emerald-950">Doorstep Handshake PIN</div>
+                            <div className="text-[11px] text-emerald-700">Share with parents for arrival check-in</div>
+                          </div>
+                        </div>
+                        <span className="font-mono font-bold text-base bg-white px-3 py-1 rounded-xl border border-emerald-200 text-emerald-900 shadow-xs">
+                          {selectedTask.instructions.split('Doorstep Verification PIN:')[1]?.trim().substring(0, 4)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Stepper */}
                     <div>
@@ -2020,8 +2047,8 @@ export default function UserApp() {
 
       {/* ================= URBAN COMPANY QUICK BOOK MODAL ================= */}
       {showBookModal && selectedService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-5 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-indigo-600" />
@@ -2171,12 +2198,12 @@ export default function UserApp() {
                             : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                         }`}
                       >
-                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] shrink-0 ${
                           isChecked ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300'
                         }`}>
                           {isChecked ? '✓' : ''}
                         </span>
-                        <span className="truncate">{item}</span>
+                        <span className="text-[11px] leading-tight text-left flex-1">{item}</span>
                       </button>
                     );
                   })}
@@ -2217,8 +2244,8 @@ export default function UserApp() {
 
       {/* ================= PROOF PHOTO MODAL ================= */}
       {showProofModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-indigo-600" />
@@ -2259,7 +2286,7 @@ export default function UserApp() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Anti-Tamper Digest:</span>
+                <span>Tamper-Proof Digital Stamp:</span>
                 <span className="font-mono text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
                   SHA-256 HMAC-OK
                 </span>
@@ -2268,7 +2295,7 @@ export default function UserApp() {
 
             <button
               onClick={() => setShowProofModal(null)}
-              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition"
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
             >
               Close
             </button>
@@ -2278,8 +2305,8 @@ export default function UserApp() {
 
       {/* ================= ADD PARENT MODAL ================= */}
       {showAddParentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Add Parent Residence</h3>
               <button onClick={() => setShowAddParentModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
@@ -2381,8 +2408,8 @@ export default function UserApp() {
 
       {/* ================= EDIT PARENT MODAL ================= */}
       {editingParent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-900">Edit Parent Details</h3>
               <button onClick={() => setEditingParent(null)} className="text-slate-400 hover:text-slate-600 p-1">

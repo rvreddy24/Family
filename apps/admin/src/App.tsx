@@ -81,6 +81,7 @@ export default function AdminApp() {
 
   // Security & Audit State
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogPage, setAuditLogPage] = useState<number>(1);
   const [securitySettings, setSecuritySettings] = useState<{
     escrow_release_pin?: string;
     geofence_tolerance_meters?: string;
@@ -584,7 +585,7 @@ export default function AdminApp() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
       {/* Toast Alert */}
       {toastAlert && (
-        <div className="fixed top-5 right-5 z-50 flex items-start gap-3 bg-white border border-slate-200 text-slate-900 p-4 rounded-2xl shadow-xl max-w-sm animate-in slide-in-from-top-3">
+        <div className="fixed bottom-6 right-6 z-[80] flex items-start gap-3 bg-white border border-slate-200 text-slate-900 p-4 rounded-2xl shadow-2xl max-w-sm animate-in slide-in-from-bottom-3">
           <Bell className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
           <div>
             <div className="text-xs font-bold text-slate-900">{toastAlert.title}</div>
@@ -697,25 +698,6 @@ export default function AdminApp() {
               {audioEnabled ? <Volume2 className="w-4 h-4 text-indigo-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
             </button>
 
-            <button
-              onClick={() => setActiveTab('security')}
-              className={`p-2 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold ${
-                isEmergencyFreeze ? 'bg-red-100 text-red-700 font-bold' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-              }`}
-              title="Security Center"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Security</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-
             <div
               onClick={() => setActiveTab('settings')}
               className="border-l border-slate-200 pl-4 flex items-center gap-2.5 cursor-pointer"
@@ -816,7 +798,7 @@ export default function AdminApp() {
       {/* Main Content */}
       <main className="flex-1 p-6 space-y-6">
         {/* Metric Cards - Interactive Filter Controls */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
           <div
             onClick={() => { setStatusFilter('PENDING'); setActiveTab('dispatch'); }}
             className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
@@ -887,7 +869,7 @@ export default function AdminApp() {
 
           <div
             onClick={() => { setStatusFilter('ALL'); setActiveTab('dispatch'); }}
-            className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+            className={`col-span-2 md:col-span-1 p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
               statusFilter === 'ALL' && activeTab === 'dispatch'
                 ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-500/20 shadow-sm'
                 : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
@@ -976,7 +958,7 @@ export default function AdminApp() {
                       <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
                         {task.tracking_code}
                       </span>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
                         task.status === 'COMPLETED'
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                           : task.status === 'VERIFICATION_SUBMITTED'
@@ -1569,23 +1551,46 @@ export default function AdminApp() {
             </div>
 
             {/* Immutable Audit Log Table */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-3 p-6">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-600" />
-                Immutable System Audit Logs ({auditLogs.length} events)
-              </h3>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-4 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" />
+                  Immutable System Audit Logs ({auditLogs.length} events)
+                </h3>
+                {auditLogs.length > 10 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      onClick={() => setAuditLogPage((p) => Math.max(1, p - 1))}
+                      disabled={auditLogPage === 1}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 font-semibold cursor-pointer"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-slate-500 font-mono text-[11px]">
+                      Page {auditLogPage} of {Math.ceil(auditLogs.length / 10)}
+                    </span>
+                    <button
+                      onClick={() => setAuditLogPage((p) => Math.min(Math.ceil(auditLogs.length / 10), p + 1))}
+                      disabled={auditLogPage >= Math.ceil(auditLogs.length / 10)}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 font-semibold cursor-pointer"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="divide-y divide-slate-100 text-xs">
-                {auditLogs.map((log) => {
+                {auditLogs.slice((auditLogPage - 1) * 10, auditLogPage * 10).map((log) => {
                   const isHigh = log.severity === 'HIGH' || log.severity === 'CRITICAL';
                   const isMed = log.severity === 'MEDIUM';
 
                   return (
                     <div key={log.id} className="py-3 flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
-                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] whitespace-nowrap shrink-0 ${
                               isHigh
                                 ? 'bg-red-100 text-red-700'
                                 : isMed
@@ -1598,9 +1603,9 @@ export default function AdminApp() {
                           <span className="font-mono font-bold text-slate-900">{log.event_type}</span>
                           <span className="text-slate-400">Actor: {log.actor_role} ({log.actor_id})</span>
                         </div>
-                        <div className="text-slate-600 font-mono text-[11px]">{log.details_json}</div>
+                        <div className="text-slate-600 font-mono text-[11px] break-all">{log.details_json}</div>
                       </div>
-                      <div className="text-[11px] text-slate-400 shrink-0">{formatDate(log.created_at)}</div>
+                      <div className="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">{formatDate(log.created_at)}</div>
                     </div>
                   );
                 })}
@@ -1669,7 +1674,7 @@ export default function AdminApp() {
       {/* ================= ESCROW STEP-UP PIN AUTHORIZATION MODAL ================= */}
       {showPinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 text-indigo-600" />
@@ -1734,7 +1739,7 @@ export default function AdminApp() {
       {/* Flag / Retake Modal */}
       {showRejectModal && auditTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
               Request New Photo from Helper

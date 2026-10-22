@@ -64,7 +64,7 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
@@ -94,7 +94,7 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
           <div className="relative z-10 flex items-center justify-between">
             <span className="text-xs font-mono text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-md border border-emerald-800 flex items-center gap-1.5">
               <Compass className="w-3.5 h-3.5" />
-              Live Telemetry: {partnerCoords?.lat.toFixed(4)}, {partnerCoords?.lng.toFixed(4)}
+              Live Telemetry: {partnerCoords ? `${partnerCoords.lat.toFixed(4)}°N, ${partnerCoords.lng.toFixed(4)}°E` : 'Locking GPS Signal...'}
             </span>
             <span className="text-xs font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-md">
               ETA: ~8 mins
@@ -108,7 +108,7 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
               <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/50 ring-4 ring-indigo-400/30 animate-pulse">
                 <Navigation className="w-6 h-6" />
               </div>
-              <span className="text-xs font-bold text-white mt-1.5">
+              <span className="text-xs font-bold text-white mt-1.5 max-w-[110px] sm:max-w-[140px] truncate text-center">
                 {task.assigned_partner?.full_name || 'Ground Partner'}
               </span>
               <span className="text-[10px] text-indigo-300">En Route (~25 km/h)</span>
@@ -126,7 +126,7 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
               <div className="w-12 h-12 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg shadow-rose-500/50 ring-4 ring-rose-400/30">
                 <MapPin className="w-6 h-6" />
               </div>
-              <span className="text-xs font-bold text-white mt-1.5">
+              <span className="text-xs font-bold text-white mt-1.5 max-w-[110px] sm:max-w-[140px] truncate text-center">
                 {task.parent?.parent_name}
               </span>
               <span className="text-[10px] text-rose-300">Target Residence</span>
@@ -134,25 +134,25 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
           </div>
 
           <div className="relative z-10 text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800 pt-2">
-            <span>Destination: {task.parent?.locality || 'Miryalaguda'}</span>
+            <span>Destination: {task.parent?.locality || 'Pan-India'}</span>
             <span className="text-emerald-400 font-semibold">150m Geofence Active</span>
           </div>
         </div>
 
         {/* Helper Details Card */}
-        <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+        <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200 shrink-0">
               {task.assigned_partner?.full_name?.substring(0, 2).toUpperCase() || 'GP'}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900">
+                <span className="text-xs font-bold text-slate-900 truncate">
                   {task.assigned_partner?.full_name || 'Assigned Ground Partner'}
                 </span>
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               </div>
-              <div className="text-[11px] text-slate-500">
+              <div className="text-[11px] text-slate-500 truncate">
                 {task.assigned_partner?.service_category} • KYC Verified
               </div>
             </div>
@@ -161,7 +161,7 @@ export const LiveTrackingModal: React.FC<LiveTrackingModalProps> = ({
           {task.assigned_partner?.phone && (
             <a
               href={`tel:${task.assigned_partner.phone}`}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0"
             >
               <Phone className="w-3.5 h-3.5" />
               Call Helper
