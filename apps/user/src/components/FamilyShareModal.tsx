@@ -69,9 +69,15 @@ export const FamilyShareModal: React.FC<FamilyShareModalProps> = ({
         playNotificationChime('success');
         setToast('Invitation sent! Sibling linked to family account.');
         setTimeout(() => setToast(null), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setToast(err.error || 'Failed to send invite.');
+        setTimeout(() => setToast(null), 4000);
       }
     } catch (err) {
       console.error(err);
+      setToast('Network error sending invite.');
+      setTimeout(() => setToast(null), 4000);
     } finally {
       setIsSubmitting(false);
     }

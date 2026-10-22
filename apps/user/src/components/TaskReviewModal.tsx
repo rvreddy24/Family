@@ -179,9 +179,9 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs transition"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit 5★ Review'}
+              {isSubmitting ? 'Submitting...' : `Submit ${rating}★ Review`}
             </button>
           </div>
         </form>

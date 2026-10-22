@@ -393,6 +393,14 @@ export default function AdminApp() {
     }
   };
 
+  const handleAdminLogout = () => {
+    localStorage.removeItem('fh_admin_logged_in');
+    localStorage.removeItem('fh_admin_id');
+    localStorage.removeItem('fh_admin_name');
+    localStorage.removeItem('fh_admin_email');
+    setIsLoggedIn(false);
+  };
+
   const filteredTasks = tasks.filter((t) => {
     if (localityFilter !== 'ALL' && !t.parent?.locality?.toLowerCase().includes(localityFilter.toLowerCase())) {
       return false;
@@ -722,12 +730,7 @@ export default function AdminApp() {
             </div>
 
             <button
-              onClick={() => {
-                localStorage.removeItem('fh_admin_logged_in');
-                localStorage.removeItem('fh_admin_id');
-                localStorage.removeItem('fh_admin_name');
-                setIsLoggedIn(false);
-              }}
+              onClick={handleAdminLogout}
               className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
               title="Sign Out"
             >
@@ -1652,11 +1655,8 @@ export default function AdminApp() {
 
             <div className="pt-2">
               <button
-                onClick={() => {
-                  localStorage.setItem('fh_admin_logged_in', 'false');
-                  setIsLoggedIn(false);
-                }}
-                className="w-full py-3.5 rounded-2xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2"
+                onClick={handleAdminLogout}
+                className="w-full py-3.5 rounded-2xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out from Operations Desk

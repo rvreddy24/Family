@@ -104,6 +104,7 @@ export default function UserApp() {
   const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'health' | 'parents' | 'billing' | 'settings'>('explore');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [parents, setParents] = useState<ParentProfile[]>([]);
+  const [healthParentId, setHealthParentId] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showProofModal, setShowProofModal] = useState<VerificationLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -1539,15 +1540,38 @@ export default function UserApp() {
 
         {/* ================= TAB 3: HEALTH & CARE MANAGEMENT ================= */}
         {activeTab === 'health' && (
-          <HealthView
-            parentId={parents[0]?.id || ''}
-            parentName={parents[0]?.parent_name || 'My Parents'}
-            clientId={currentUserId}
-            onRefillCreated={() => {
-              fetchAllData();
-              setActiveTab('trackers');
-            }}
-          />
+          <div className="space-y-4">
+            {parents.length > 1 && (
+              <div className="flex items-center gap-2 bg-white border border-slate-200 p-2.5 rounded-2xl overflow-x-auto shadow-xs">
+                <span className="text-xs font-bold text-slate-500 pl-2 shrink-0">Viewing Medical File for:</span>
+                {parents.map((p) => {
+                  const isSelected = (healthParentId || parents[0]?.id) === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setHealthParentId(p.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
+                      }`}
+                    >
+                      {p.parent_name} ({p.locality})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <HealthView
+              parentId={healthParentId || parents[0]?.id || ''}
+              parentName={parents.find((p) => p.id === (healthParentId || parents[0]?.id))?.parent_name || 'My Parents'}
+              clientId={currentUserId}
+              onRefillCreated={() => {
+                fetchAllData();
+                setActiveTab('trackers');
+              }}
+            />
+          </div>
         )}
 
         {/* ================= TAB 4: MY PARENTS ================= */}

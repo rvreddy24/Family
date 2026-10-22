@@ -129,9 +129,15 @@ export const HealthView: React.FC<HealthViewProps> = ({
         playNotificationChime('success');
         setMessage('Vitals reading logged successfully!');
         setTimeout(() => setMessage(null), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMessage(err.error || 'Failed to record vitals.');
+        setTimeout(() => setMessage(null), 4000);
       }
     } catch (err) {
       console.error(err);
+      setMessage('Network error logging vitals.');
+      setTimeout(() => setMessage(null), 4000);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,9 +171,15 @@ export const HealthView: React.FC<HealthViewProps> = ({
         playNotificationChime('success');
         setMessage('Medication added to schedule!');
         setTimeout(() => setMessage(null), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMessage(err.error || 'Failed to save medication.');
+        setTimeout(() => setMessage(null), 4000);
       }
     } catch (err) {
       console.error(err);
+      setMessage('Network error saving medication.');
+      setTimeout(() => setMessage(null), 4000);
     } finally {
       setIsSubmitting(false);
     }
