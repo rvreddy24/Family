@@ -138,3 +138,22 @@
   background: #D6C9BC;
   border-radius: 4px;
 }
+
+/* Guarantee input padding with icons */
+input[class*="!pl-"],
+input[class*="pl-10"],
+input[class*="pl-11"],
+select[class*="!pl-"],
+select[class*="pl-10"],
+select[class*="pl-11"] {
+  padding-left: 2.75rem !important;
+}
+
+input[class*="!pr-"],
+input[class*="pr-10"],
+input[class*="pr-11"],
+select[class*="!pr-"],
+select[class*="pr-10"],
+select[class*="pr-11"] {
+  padding-right: 2.75rem !important;
+}

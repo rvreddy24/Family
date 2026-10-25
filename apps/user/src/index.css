@@ -174,6 +174,25 @@ html.dark, :root.dark {
   transition: all 0.15s ease;
 }
 
+/* Prevent icon/text overlap in inputs with left or right icons */
+.filial-input.pl-9,
+.filial-input.pl-10,
+.filial-input.pl-11,
+.filial-input-icon-left,
+.filial-input.has-icon-left,
+input.filial-input[class*="pl-"] {
+  padding-left: 2.65rem !important;
+}
+
+.filial-input.pr-9,
+.filial-input.pr-10,
+.filial-input.pr-11,
+.filial-input-icon-right,
+.filial-input.has-icon-right,
+input.filial-input[class*="pr-"] {
+  padding-right: 2.65rem !important;
+}
+
 .dark .filial-input {
   background-color: #0F172A;
   border-color: #1F2937;

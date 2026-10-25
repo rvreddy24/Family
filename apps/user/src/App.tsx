@@ -648,6 +648,15 @@ export default function UserApp() {
             >
               Family
             </button>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              title="User Settings & Account Preferences"
+              id="nav-user-settings-btn"
+            >
+              <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <span>Settings</span>
+            </button>
           </nav>
 
           {/* Right: Quick Tools & Profile */}
@@ -703,11 +712,22 @@ export default function UserApp() {
               <span>SOS</span>
             </button>
 
+            {/* User Settings Button */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="px-2.5 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+              title="User Settings"
+              id="user-settings-button"
+            >
+              <Settings className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+
             {/* Profile Avatar / Settings */}
             <button
               onClick={() => setShowSettingsModal(true)}
-              className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-900 cursor-pointer"
-              title="Account Settings"
+              className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center border border-blue-200 dark:border-blue-900 cursor-pointer hover:ring-2 hover:ring-blue-400 transition"
+              title={`Logged in as ${currentUserName} (Click to open settings)`}
             >
               {currentUserName.substring(0, 2).toUpperCase()}
             </button>
@@ -786,7 +806,7 @@ export default function UserApp() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search 'Doctor home visit', 'Inverter check', 'RO plumbing', 'Pooja items'..."
-                  className="w-full filial-input pl-10"
+                  className="w-full filial-input !pl-11"
                 />
               </div>
             </div>
@@ -1669,6 +1689,17 @@ export default function UserApp() {
                   onChange={(e) => setSettingsEmail(e.target.value)}
                   required
                   className="w-full filial-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Phone Number (WhatsApp Updates)</label>
+                <input
+                  type="tel"
+                  value={settingsPhone}
+                  onChange={(e) => setSettingsPhone(e.target.value)}
+                  placeholder="+1 408 555 0192"
+                  className="w-full filial-input font-mono"
                 />
               </div>
 

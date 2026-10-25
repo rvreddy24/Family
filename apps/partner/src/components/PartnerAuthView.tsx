@@ -445,14 +445,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   {t.emailOrPhone}
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
                     placeholder="partner@familyhubs.in or 9440154321"
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-4 py-3 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-4 py-3 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all"
                   />
                 </div>
               </div>
@@ -462,14 +462,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   {t.password}
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-10 py-3 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 !pr-11 py-3 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all font-mono"
                   />
                   <button
                     type="button"
@@ -524,14 +524,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   {t.fullNameLabel} <span className="text-[#C25E2E]">*</span>
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <User className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
                     placeholder="e.g. Ramesh Kumar"
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
                   />
                 </div>
               </div>
@@ -541,14 +541,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   {t.mobileLabel} <span className="text-[#C25E2E]">*</span>
                 </label>
                 <div className="relative">
-                  <Phone className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Phone className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={signupPhone}
                     onChange={(e) => setSignupPhone(e.target.value)}
                     required
                     placeholder="+91 98765 43210"
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
                   />
                 </div>
               </div>
@@ -558,13 +558,13 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   {t.emailLabel} (Optional)
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="email"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     placeholder="partner@familyhubs.in"
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
                   />
                 </div>
               </div>
@@ -579,7 +579,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     <select
                       value={serviceCategory}
                       onChange={(e) => setServiceCategory(e.target.value)}
-                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-3 py-2.5 text-xs sm:text-sm text-[#1C1917] focus:outline-none focus:border-[#C25E2E] cursor-pointer appearance-none"
+                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-3 py-2.5 text-xs sm:text-sm text-[#1C1917] focus:outline-none focus:border-[#C25E2E] cursor-pointer appearance-none"
                     >
                       <option value="MEDICAL_TRANSPORT">Healthcare &amp; Escort</option>
                       <option value="HOME_MAINTENANCE">Electrical &amp; Plumbing</option>
@@ -598,7 +598,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     <select
                       value={operatingRegion}
                       onChange={(e) => setOperatingRegion(e.target.value)}
-                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-3 py-2.5 text-xs sm:text-sm text-[#1C1917] focus:outline-none focus:border-[#C25E2E] cursor-pointer appearance-none"
+                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-3 py-2.5 text-xs sm:text-sm text-[#1C1917] focus:outline-none focus:border-[#C25E2E] cursor-pointer appearance-none"
                     >
                       <option value="Pan-India Verified Network">Pan-India (All India)</option>
                       <option value="Telangana & Andhra Hub">Telangana &amp; Andhra Pradesh</option>
@@ -617,14 +617,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                     {t.createPassword} (min 6 chars) <span className="text-[#C25E2E]">*</span>
                   </label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
                       required
                       placeholder="••••••••"
-                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
+                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 !pr-11 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
                     />
                     <button
                       type="button"

@@ -525,14 +525,14 @@ export default function AdminApp() {
                 Admin Email Address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="email"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   required
                   placeholder="admin@familyhubs.in"
-                  className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
+                  className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 pr-4 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10"
                 />
               </div>
             </div>
@@ -542,14 +542,14 @@ export default function AdminApp() {
                 Admin Password
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type={showAdminPassword ? 'text' : 'password'}
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl pl-10 pr-10 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
+                  className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl !pl-11 !pr-11 py-2.5 text-sm text-[#1C1917] placeholder-[#8C827A] focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 font-mono"
                 />
                 <button
                   type="button"

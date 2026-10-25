@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
+  cacheDir: path.resolve(__dirname, '../../node_modules/.vite-admin'),
   base: '/ops/',
   plugins: [react(), tailwindcss()],
   root: path.resolve(__dirname),
@@ -29,6 +30,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, '../../packages/shared'),
+      'react': path.resolve(__dirname, '../../node_modules/react'),
+      'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),
     },
     dedupe: ['react', 'react-dom'],
   },
