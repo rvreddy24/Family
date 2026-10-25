@@ -314,6 +314,66 @@ function seedCleanCoreData() {
       '8c7b8a7c-e474-49be-a9ba-ba780a5d056c'
     );
   }
+
+  // Ensure default verified Client exists for zero-friction demo access
+  const existingClient = db.prepare("SELECT * FROM users WHERE email = 'rajesh.reddy@gmail.com'").get();
+  const clientId = 'c11e4701-0000-4000-8000-000000000001';
+  if (!existingClient) {
+    db.prepare(`
+      INSERT OR IGNORE INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+      VALUES (?, 'CLIENT', 'rajesh.reddy@gmail.com', '+1 408 555 0192', 'Rajesh Reddy (NRI Son)', ?, datetime('now'))
+    `).run(clientId, clientId);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO clients_profile (user_id, country_residence, currency, subscription_tier)
+      VALUES (?, 'United States', 'USD', 'GOLD')
+    `).run(clientId);
+
+    const parentId = 'prt_lakshmi_ramana_hyd';
+    db.prepare(`
+      INSERT OR IGNORE INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
+      VALUES (?, ?, 'Lakshmi & Ramana Reddy', '+91 94401 23456', '+91 94401 23456', 'Banjara Hills, Hyderabad', 'Plot 42, Road No. 12, Banjara Hills, Hyderabad, Telangana 500034', 17.4156, 78.4357, 'Hypertension & Type 2 Diabetes. Preferred Hospital: Apollo Jubilee Hills.')
+    `).run(parentId, clientId);
+
+    // Baseline Vitals
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO parent_vitals (id, parent_id, systolic, diastolic, blood_glucose_mg_dl, glucose_reading_type, pulse_bpm, spo2_pct, weight_kg, notes, recorded_at)
+        VALUES ('vtl_init_1', ?, 124, 82, 112, 'FASTING', 72, 98, 68.5, 'Normal morning vitals checkup.', datetime('now'))
+      `).run(parentId);
+    } catch {}
+
+    // Sample Medication
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO parent_medications (id, parent_id, medicine_name, dosage, frequency, timing, current_stock_count, refill_threshold_count, special_instructions)
+        VALUES ('med_init_1', ?, 'Metformin 500mg', '500mg', 'DAILY', 'Morning (After Breakfast)', 24, 7, 'Take with water after breakfast')
+      `).run(parentId);
+    } catch {}
+
+    // Sibling member
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO family_members (id, client_id, full_name, email, phone, relationship, access_level, notifications_enabled, created_at)
+        VALUES ('fam_init_1', ?, 'Pooja Reddy', 'pooja.reddy@london.co.uk', '+44 7700 900123', 'SIBLING', 'CAN_REQUEST', 1, datetime('now'))
+      `).run(clientId);
+    } catch {}
+  }
+
+  // Ensure default verified Field Partner exists for zero-friction demo access
+  const existingPartner = db.prepare("SELECT * FROM users WHERE email = 'partner@familyhubs.in'").get();
+  const partnerId = 'p11e4701-0000-4000-8000-000000000002';
+  if (!existingPartner) {
+    db.prepare(`
+      INSERT OR IGNORE INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
+      VALUES (?, 'PARTNER', 'partner@familyhubs.in', '+91 98765 43210', 'Ramesh Babu - Certified Companion', ?, datetime('now'))
+    `).run(partnerId, partnerId);
+
+    db.prepare(`
+      INSERT OR IGNORE INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance, rating, total_reviews)
+      VALUES (?, 'MEDICAL_TRANSPORT', 'Hyderabad & Telangana Central Hub', 1, 1, 3758.00, 5.0, 18)
+    `).run(partnerId);
+  }
 }
 
 // ----------------- SECURITY & AUDIT HELPERS -----------------

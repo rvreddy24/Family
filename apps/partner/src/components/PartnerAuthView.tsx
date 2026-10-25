@@ -492,6 +492,22 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Instant 1-Click Demo Companion Access */}
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={() => {
+                  setLoginEmail('partner@familyhubs.in');
+                  setLoginPassword('FamilyHubs2026!');
+                  const fakeEvent = { preventDefault: () => {} } as any;
+                  setTimeout(() => handleSignIn(fakeEvent), 50);
+                }}
+                className="w-full py-2.5 px-3 bg-[#E8F3EE] hover:bg-[#D6EBDD] text-[#1F5C42] border border-[#C8E5D7] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>⚡ 1-Click Demo Companion (Ramesh Babu - Verified Field Partner)</span>
+              </button>
             </form>
           )}
 

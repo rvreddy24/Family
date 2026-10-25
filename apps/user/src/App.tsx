@@ -38,15 +38,15 @@ import {
   Zap,
   ChevronDown,
   ShieldAlert,
-  Fingerprint,
-  KeyRound,
   Siren,
   Navigation,
   Users,
   Pencil,
   Trash2,
+  Pill,
+  FileText,
 } from 'lucide-react';
-import type { Task, ParentProfile, VerificationLog, PartnerLocationUpdate } from '@shared/types';
+import type { Task, ParentProfile, VerificationLog, PartnerLocationUpdate, FamilyMember } from '@shared/types';
 import { formatDate, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
 import { supabase } from '@shared/supabase';
 import { AuthView } from './components/AuthView';
@@ -57,7 +57,7 @@ import { FamilyShareModal } from './components/FamilyShareModal';
 import { LiveTrackingModal } from './components/LiveTrackingModal';
 
 export default function UserApp() {
-  // Persistence for login status
+  // Session Persistence
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const saved = localStorage.getItem('fh_user_logged_in');
     return saved === null ? false : saved === 'true';
@@ -70,63 +70,56 @@ export default function UserApp() {
     return localStorage.getItem('fh_user_name') || 'Rajesh Reddy (NRI Son)';
   });
   const [currentUserEmail, setCurrentUserEmail] = useState<string>(() => {
-    return localStorage.getItem('fh_user_email') || 'user@familyhubs.in';
+    return localStorage.getItem('fh_user_email') || 'rajesh.reddy@gmail.com';
   });
 
+  // Client Profile & Navigation State
   const [clientProfile, setClientProfile] = useState<any>(null);
-  const [requestFilter, setRequestFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
-  const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'health' | 'parents' | 'billing' | 'settings'>('explore');
+  // Ergonomic 3-Hub Architecture: services, tracking, family
+  const [activeTab, setActiveTab] = useState<'services' | 'tracking' | 'family'>('services');
+  const [familySubTab, setFamilySubTab] = useState<'residences' | 'health' | 'medications' | 'siblings'>('residences');
+
+  // Core Data State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [parents, setParents] = useState<ParentProfile[]>([]);
+  const [activeParentId, setActiveParentId] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [showProofModal, setShowProofModal] = useState<VerificationLog | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
 
-  // Extended Features State
+  // Telemetry & WebSocket
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [latestPartnerTelemetry, setLatestPartnerTelemetry] = useState<PartnerLocationUpdate | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [requestFilter, setRequestFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+
+  // Currency & Settings
+  const [userCurrency, setUserCurrency] = useState<string>(() => {
+    return localStorage.getItem('fh_currency') || 'USD';
+  });
+  const [emailAlerts, setEmailAlerts] = useState<boolean>(true);
+  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(true);
+  const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
+
+  // Profile Settings Form
+  const [settingsFullName, setSettingsFullName] = useState<string>(currentUserName);
+  const [settingsEmail, setSettingsEmail] = useState<string>(currentUserEmail);
+  const [settingsPhone, setSettingsPhone] = useState<string>('+1 408 555 0192');
+  const [settingsCountry, setSettingsCountry] = useState<string>('United States');
+  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
+
+  // Modals State
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showEscrowModal, setShowEscrowModal] = useState<boolean>(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState<boolean>(false);
+  const [showProofModal, setShowProofModal] = useState<VerificationLog | null>(null);
   const [reviewTargetTask, setReviewTargetTask] = useState<Task | null>(null);
   const [trackingTargetTask, setTrackingTargetTask] = useState<Task | null>(null);
   const [showFamilyModal, setShowFamilyModal] = useState<boolean>(false);
-  const [latestPartnerTelemetry, setLatestPartnerTelemetry] = useState<PartnerLocationUpdate | null>(null);
-
-  // Security Controls State
-  const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
-  const [twoFactorActive, setTwoFactorActive] = useState<boolean>(true);
-  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(true);
-
-  // Google OAuth Onboarding State
-  const [pendingGoogleUser, setPendingGoogleUser] = useState<{
-    email: string;
-    fullName: string;
-    authProviderId?: string;
-    isExisting?: boolean;
-    user?: any;
-  } | null>(null);
-
-  // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-
-  // Settings State - Fully User Editable
-  const [settingsFullName, setSettingsFullName] = useState<string>('');
-  const [settingsEmail, setSettingsEmail] = useState<string>('');
-  const [settingsPhone, setSettingsPhone] = useState<string>('');
-  const [settingsCountry, setSettingsCountry] = useState<string>('United States');
-  const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
-  const [userCurrency, setUserCurrency] = useState<string>('USD');
-  const [emailAlerts, setEmailAlerts] = useState<boolean>(true);
-  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(true);
-
-  // Settings State - Parents' Care Details
-  const [settingsParentName, setSettingsParentName] = useState<string>('');
-  const [settingsParentPhone, setSettingsParentPhone] = useState<string>('');
-  const [settingsParentWhatsapp, setSettingsParentWhatsapp] = useState<string>('');
-  const [settingsParentCity, setSettingsParentCity] = useState<string>('Pan-India');
-  const [settingsParentAddress, setSettingsParentAddress] = useState<string>('');
-  const [settingsParentNotes, setSettingsParentNotes] = useState<string>('');
-  const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
 
   // Booking Modal State
   const [showBookModal, setShowBookModal] = useState<boolean>(false);
@@ -143,32 +136,23 @@ export default function UserApp() {
     badge: string;
   } | null>(null);
   const [reqParentId, setReqParentId] = useState<string>('');
-  const [reqTitle, setReqTitle] = useState<string>('');
   const [reqInstructions, setReqInstructions] = useState<string>('');
   const [reqEscrowAmount, setReqEscrowAmount] = useState<number>(45);
 
-  // Parent Modals
+  // Add / Edit Parent Modal State
   const [showAddParentModal, setShowAddParentModal] = useState<boolean>(false);
-  const [newParentName, setNewParentName] = useState<string>('');
-  const [newParentPhone, setNewParentPhone] = useState<string>('+91 ');
-  const [newParentWhatsapp, setNewParentWhatsapp] = useState<string>('+91 ');
-  const [newParentLocality, setNewParentLocality] = useState<string>('');
-  const [newParentAddress, setNewParentAddress] = useState<string>('');
-  const [newParentNotes, setNewParentNotes] = useState<string>('');
-
-  // Edit Parent State
+  const [showEditParentModal, setShowEditParentModal] = useState<boolean>(false);
   const [editingParent, setEditingParent] = useState<ParentProfile | null>(null);
-  const [editParentName, setEditParentName] = useState<string>('');
-  const [editParentPhone, setEditParentPhone] = useState<string>('');
-  const [editParentWhatsapp, setEditParentWhatsapp] = useState<string>('');
-  const [editParentLocality, setEditParentLocality] = useState<string>('');
-  const [editParentAddress, setEditParentAddress] = useState<string>('');
-  const [editParentNotes, setEditParentNotes] = useState<string>('');
-  const [isUpdatingParent, setIsUpdatingParent] = useState<boolean>(false);
+  const [parentNameInput, setParentNameInput] = useState<string>('');
+  const [parentPhoneInput, setParentPhoneInput] = useState<string>('+91 ');
+  const [parentWhatsappInput, setParentWhatsappInput] = useState<string>('+91 ');
+  const [parentLocalityInput, setParentLocalityInput] = useState<string>('');
+  const [parentAddressInput, setParentAddressInput] = useState<string>('');
+  const [parentNotesInput, setParentNotesInput] = useState<string>('');
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Curated Concierge Eldercare Services - Pan-India
+  // Curated Concierge Services
   const servicesCatalog = [
     {
       id: 'srv_med_1',
@@ -244,16 +228,29 @@ export default function UserApp() {
     },
   ];
 
-  const fetchAllData = async (targetUserId?: unknown) => {
-    const uid = typeof targetUserId === 'string' ? targetUserId : currentUserId;
+  // Price formatting helper
+  const formatPrice = (usdAmount: number) => {
+    if (userCurrency === 'INR') return `₹${Math.round(usdAmount * 83.5)}`;
+    if (userCurrency === 'GBP') return `£${(usdAmount * 0.79).toFixed(0)}`;
+    if (userCurrency === 'EUR') return `€${(usdAmount * 0.92).toFixed(0)}`;
+    if (userCurrency === 'CAD') return `C$${(usdAmount * 1.36).toFixed(0)}`;
+    return `$${usdAmount} USD`;
+  };
+
+  // Data Fetching
+  const fetchAllData = async (targetUserId?: string) => {
+    const uid = targetUserId || currentUserId;
+    if (!uid) return;
     try {
       const apiBase = getApiBaseUrl();
-      const [tasksRes, parentsRes, profRes] = await Promise.all([
-        uid ? fetch(`${apiBase}/api/tasks?clientId=${uid}`) : Promise.resolve(null),
-        uid ? fetch(`${apiBase}/api/parents?clientId=${uid}`) : Promise.resolve(null),
-        uid ? fetch(`${apiBase}/api/auth/me?userId=${uid}&role=CLIENT`) : Promise.resolve(null),
+      const [tasksRes, parentsRes, profRes, familyRes] = await Promise.all([
+        fetch(`${apiBase}/api/tasks?clientId=${uid}`),
+        fetch(`${apiBase}/api/parents?clientId=${uid}`),
+        fetch(`${apiBase}/api/auth/me?userId=${uid}&role=CLIENT`),
+        fetch(`${apiBase}/api/clients/${uid}/family`),
       ]);
-      if (tasksRes && tasksRes.ok) {
+
+      if (tasksRes.ok) {
         const tasksData: Task[] = await tasksRes.json();
         setTasks(tasksData);
         if (!selectedTask && tasksData.length > 0) {
@@ -263,457 +260,314 @@ export default function UserApp() {
           if (updated) setSelectedTask(updated);
         }
       }
-      if (parentsRes && parentsRes.ok) {
+
+      if (parentsRes.ok) {
         const parentsData: ParentProfile[] = await parentsRes.json();
         setParents(parentsData);
         if (parentsData.length > 0) {
-          if (!reqParentId) {
+          if (!activeParentId || !parentsData.some((p) => p.id === activeParentId)) {
+            setActiveParentId(parentsData[0].id);
             setReqParentId(parentsData[0].id);
           }
-          const p = parentsData[0];
-          setSettingsParentName(p.parent_name || '');
-          setSettingsParentPhone(p.primary_phone || '');
-          setSettingsParentWhatsapp(p.whatsapp_phone || p.primary_phone || '');
-          setSettingsParentCity(p.locality || 'Pan-India');
-          setSettingsParentAddress(p.full_address || '');
-          setSettingsParentNotes(p.medical_notes || '');
         }
       }
-      if (profRes && profRes.ok) {
+
+      if (profRes.ok) {
         const profData = await profRes.json();
-        if (profData) {
+        if (profData?.user) {
           setClientProfile(profData);
-          const fName = profData.user?.full_name || '';
-          const mail = profData.user?.email || '';
-          const ph = profData.user?.phone || '';
-          const country = profData.country_residence || 'United States';
-          const curr = profData.currency || 'USD';
-
-          if (fName) {
-            setCurrentUserName(fName);
-            localStorage.setItem('fh_user_name', fName);
-            setSettingsFullName(fName);
+          if (profData.user.full_name) {
+            setCurrentUserName(profData.user.full_name);
+            setSettingsFullName(profData.user.full_name);
+            localStorage.setItem('fh_user_name', profData.user.full_name);
           }
-          if (mail) {
-            setCurrentUserEmail(mail);
-            localStorage.setItem('fh_user_email', mail);
-            setSettingsEmail(mail);
+          if (profData.user.email) {
+            setCurrentUserEmail(profData.user.email);
+            setSettingsEmail(profData.user.email);
+            localStorage.setItem('fh_user_email', profData.user.email);
           }
-          if (ph) {
-            setSettingsPhone(ph);
+          if (profData.country_residence) setSettingsCountry(profData.country_residence);
+          if (profData.currency) {
+            setUserCurrency(profData.currency);
+            localStorage.setItem('fh_currency', profData.currency);
           }
-          setSettingsCountry(country);
-          setSettingsCurrency(curr);
-          setUserCurrency(curr);
         }
       }
 
-      const secRes = await fetch(`${apiBase}/api/security/settings`);
-      if (secRes.ok) {
-        const secData = await secRes.json();
-        setIsEscrowFrozen(secData.emergency_escrow_freeze === '1' || secData.emergency_escrow_freeze === 1);
+      if (familyRes.ok) {
+        const famData = await familyRes.json();
+        if (Array.isArray(famData)) setFamilyMembers(famData);
       }
     } catch (err) {
-      console.error('Data fetch error:', err);
+      console.error('Error fetching data:', err);
     }
   };
 
-  const handleToggleEscrowFreeze = async () => {
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/security/panic-freeze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          freeze: !isEscrowFrozen,
-          actorId: currentUserId,
-          actorRole: 'CLIENT',
-          reason: isEscrowFrozen ? 'Client resumed standard escrow release' : 'Client emergency safety freeze from NRI portal',
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsEscrowFrozen(Boolean(data.emergencyFreezeActive));
-        playNotificationChime(data.emergencyFreezeActive ? 'alert' : 'success');
-        setToastMessage(
-          data.emergencyFreezeActive
-            ? 'Emergency Escrow Freeze ACTIVATED. All payouts locked.'
-            : 'Escrow disbursements resumed normally.'
-        );
-        setTimeout(() => setToastMessage(null), 5000);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingSettings(true);
-    try {
-      const api = getApiBaseUrl();
-      const clientRes = await fetch(`${api}/api/clients/${currentUserId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: settingsFullName.trim(),
-          email: settingsEmail.trim(),
-          phone: settingsPhone.trim(),
-          countryResidence: settingsCountry,
-          currency: settingsCurrency,
-        }),
-      });
-
-      if (clientRes.ok) {
-        setCurrentUserName(settingsFullName.trim());
-        setCurrentUserEmail(settingsEmail.trim());
-        setUserCurrency(settingsCurrency);
-        localStorage.setItem('fh_user_name', settingsFullName.trim());
-        localStorage.setItem('fh_user_email', settingsEmail.trim());
-      }
-
-      if (parents.length > 0) {
-        const targetParentId = parents[0].id;
-        await fetch(`${api}/api/parents/${targetParentId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            parentName: settingsParentName.trim(),
-            primaryPhone: settingsParentPhone.trim(),
-            whatsappPhone: settingsParentWhatsapp.trim() || settingsParentPhone.trim(),
-            locality: settingsParentCity.trim() || 'Pan-India',
-            fullAddress: settingsParentAddress.trim(),
-            medicalNotes: settingsParentNotes.trim() || null,
-          }),
-        });
-      }
-
-      fetchAllData();
-      playNotificationChime('success');
-      setToastMessage('Account profile and parents care details updated!');
-      setTimeout(() => setToastMessage(null), 4000);
-    } catch (err) {
-      console.error('Error saving settings:', err);
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-
+  // WebSocket Connection
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchAllData();
-    }
-  }, [isLoggedIn]);
+    if (!isLoggedIn) return;
+    fetchAllData();
 
-  // WebSocket Telemetry Listener
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let isMounted = true;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    const wsUrl = `${getWebSocketUrl()}?role=CLIENT&userId=${currentUserId}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
-    const connect = () => {
-      if (!isMounted) return;
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onmessage = (event) => {
       try {
-        const wsUrl = getWebSocketUrl('/ws/events', { role: 'CLIENT', userId: currentUserId });
-        socket = new WebSocket(wsUrl);
-        wsRef.current = socket;
-
-        socket.onopen = () => {
-          if (isMounted) setWsConnected(true);
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            fetchAllData();
-
-            if (msg.type === 'PARTNER_LOCATION_UPDATE') {
-              setLatestPartnerTelemetry(msg.payload);
-            } else if (msg.type === 'EMERGENCY_SOS_TRIGGERED') {
-              playNotificationChime('ping');
-              setToastMessage('🚨 Emergency SOS alert active! Operations dispatched response.');
-            } else if (msg.type === 'EMERGENCY_SOS_RESOLVED') {
-              playNotificationChime('success');
-              setToastMessage('✓ Emergency safely handled and resolved by Chief Concierge.');
-            } else if (msg.type === 'PARTNER_CHECKED_IN') {
-              playNotificationChime('ping');
-              setToastMessage("The helper has arrived at your parents' house.");
-            } else if (msg.type === 'ESCROW_RELEASED') {
-              playNotificationChime('success');
-              setToastMessage('Service completed and verified! Escrow released.');
-            } else if (msg.type === 'TASK_DISPATCHED') {
-              playNotificationChime('ping');
-              setToastMessage('A vetted helper has been assigned and is on the way.');
-            }
-            setTimeout(() => setToastMessage(null), 5000);
-          } catch {
-            // ignore
-          }
-        };
-
-        socket.onclose = () => {
-          if (isMounted) {
-            setWsConnected(false);
-            reconnectTimeout = setTimeout(connect, 3000);
-          }
-        };
-
-        socket.onerror = () => {
-          if (isMounted) setWsConnected(false);
-        };
-      } catch {
-        if (isMounted) {
-          reconnectTimeout = setTimeout(connect, 4000);
+        const message = JSON.parse(event.data);
+        if (message.type === 'TASK_UPDATED' || message.type === 'TASK_CREATED' || message.type === 'TASK_DISPATCHED' || message.type === 'VERIFICATION_SUBMITTED') {
+          fetchAllData();
+          playNotificationChime('ping');
+          setToastMessage(message.payload?.message || 'Care request updated live!');
+          setTimeout(() => setToastMessage(null), 4500);
+        } else if (message.type === 'PARTNER_LOCATION_UPDATE') {
+          setLatestPartnerTelemetry(message.payload);
         }
+      } catch (e) {
+        // ignore parse error
       }
     };
 
-    connect();
     return () => {
-      isMounted = false;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (socket) socket.close();
+      ws.close();
     };
-  }, []);
+  }, [isLoggedIn, currentUserId]);
 
-  const handleLogout = async () => {
-    try {
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
-    } catch (e) {
-      console.warn('Supabase signOut warning:', e);
-    }
-    localStorage.removeItem('fh_user_logged_in');
-    localStorage.removeItem('fh_user_id');
-    localStorage.removeItem('fh_user_name');
-    localStorage.removeItem('fh_user_email');
-    setIsLoggedIn(false);
-    setToastMessage('Signed out successfully.');
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  const activeParent = parents.find((p) => p.id === activeParentId) || parents[0];
 
-  const openBookModal = (srv: typeof servicesCatalog[0]) => {
-    setSelectedService(srv);
-    setReqTitle(srv.title);
-    setReqInstructions(`Please arrange ${srv.title}. Ensure the on-ground helper calls before arriving.`);
-    setReqEscrowAmount(srv.price);
-    setShowBookModal(true);
-  };
-
-  const handleConfirmBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reqTitle || !reqInstructions || !reqParentId) return;
-
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: currentUserId,
-          parentId: reqParentId,
-          category: selectedService?.category || 'MEDICAL_TRANSPORT',
-          title: reqTitle,
-          instructions: reqInstructions,
-          scheduledAt: new Date().toISOString(),
-          escrowAmount: reqEscrowAmount,
-        }),
-      });
-
-      if (res.ok) {
-        const createdTask: Task = await res.json();
-        setShowBookModal(false);
-        setActiveTab('trackers');
-        setSelectedTask(createdTask);
-        playNotificationChime('success');
-        setToastMessage(`Service booked! $${reqEscrowAmount}.00 secured in escrow.`);
-        setTimeout(() => setToastMessage(null), 5000);
-        fetchAllData();
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddParent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newParentName.trim() || !newParentPhone.trim() || !newParentWhatsapp.trim() || !newParentAddress.trim()) {
-      setToastMessage("Please fill in parent name, calling phone, WhatsApp number, and address.");
-      playNotificationChime('alert');
-      return;
-    }
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/parents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: currentUserId,
-          parentName: newParentName.trim(),
-          primaryPhone: newParentPhone.trim(),
-          whatsappPhone: newParentWhatsapp.trim() || newParentPhone.trim(),
-          locality: newParentLocality.trim() || 'Pan-India',
-          fullAddress: newParentAddress.trim(),
-          coordinatesLat: 20.5937,
-          coordinatesLng: 78.9629,
-          medicalNotes: newParentNotes.trim() || null,
-        }),
-      });
-
-      if (res.ok) {
-        setShowAddParentModal(false);
-        setNewParentName('');
-        setNewParentPhone('+91 ');
-        setNewParentWhatsapp('+91 ');
-        setNewParentLocality('');
-        setNewParentAddress('');
-        setNewParentNotes('');
-        fetchAllData();
-        playNotificationChime('success');
-        setToastMessage('Parent residence added successfully!');
-        setTimeout(() => setToastMessage(null), 5000);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleOpenEditParent = (parent: ParentProfile) => {
-    setEditingParent(parent);
-    setEditParentName(parent.parent_name);
-    setEditParentPhone(parent.primary_phone);
-    setEditParentWhatsapp(parent.whatsapp_phone || parent.primary_phone);
-    setEditParentLocality(parent.locality || 'Pan-India');
-    setEditParentAddress(parent.full_address || '');
-    setEditParentNotes(parent.medical_notes || '');
-  };
-
-  const handleUpdateParent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingParent) return;
-    if (!editParentName.trim() || !editParentPhone.trim() || !editParentAddress.trim()) {
-      setToastMessage('Please fill in parent name, calling phone, and address.');
-      return;
-    }
-    setIsUpdatingParent(true);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/parents/${editingParent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parentName: editParentName.trim(),
-          primaryPhone: editParentPhone.trim(),
-          whatsappPhone: editParentWhatsapp.trim() || editParentPhone.trim(),
-          locality: editParentLocality.trim() || 'Pan-India',
-          fullAddress: editParentAddress.trim(),
-          medicalNotes: editParentNotes.trim() || null,
-        }),
-      });
-
-      if (res.ok) {
-        setEditingParent(null);
-        fetchAllData();
-        setToastMessage('Parent details updated successfully!');
-        setTimeout(() => setToastMessage(null), 5000);
-      } else {
-        const err = await res.json();
-        setToastMessage(err.error || 'Failed to update parent details.');
-        setTimeout(() => setToastMessage(null), 5000);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setToastMessage('Error updating parent details.');
-      setTimeout(() => setToastMessage(null), 5000);
-    } finally {
-      setIsUpdatingParent(false);
-    }
-  };
-
-  const handleDeleteParent = async (parentId: string, parentName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${parentName}'s residence?`)) {
-      return;
-    }
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/parents/${parentId}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        fetchAllData();
-        setToastMessage(`${parentName}'s residence removed.`);
-        setTimeout(() => setToastMessage(null), 5000);
-      } else {
-        const err = await res.json();
-        setToastMessage(err.error || 'Failed to delete parent residence.');
-        setTimeout(() => setToastMessage(null), 5000);
-      }
-    } catch (err) {
-      console.error(err);
-      setToastMessage('Error removing parent residence.');
-      setTimeout(() => setToastMessage(null), 5000);
-    }
-  };
-
-  const getStepIndex = (status: string) => {
-    switch (status) {
-      case 'PENDING_OPS_REVIEW': return 0;
-      case 'DISPATCHED': return 1;
-      case 'ACCEPTED':
-      case 'IN_PROGRESS': return 2;
-      case 'VERIFICATION_SUBMITTED': return 3;
-      case 'COMPLETED': return 4;
-      default: return 0;
-    }
-  };
-
-  const friendlySteps = [
-    { title: 'Requested', desc: 'Secured in escrow' },
-    { title: 'Helper Assigned', desc: 'Vetted local concierge' },
-    { title: 'On the Way', desc: 'En route to residence' },
-    { title: 'Arrived & Verified', desc: 'Live GPS photo check-in' },
-    { title: 'Completed', desc: 'Verified & escrow released' },
-  ];
-
+  // Escrow Calculations
   const lockedEscrow = tasks
-    .filter((t) => t.escrow?.status === 'HOLD_IN_ESCROW')
+    .filter((t) => t.status !== 'COMPLETED' && t.escrow)
     .reduce((acc, t) => acc + (t.escrow?.amount || 0), 0);
 
   const releasedEscrow = tasks
-    .filter((t) => t.escrow?.status === 'RELEASED_TO_PARTNER')
+    .filter((t) => t.status === 'COMPLETED' && t.escrow)
     .reduce((acc, t) => acc + (t.escrow?.amount || 0), 0);
 
-  const filteredUserTasks = tasks.filter((t) => {
+  // Active Ongoing Task (if any)
+  const activeOngoingTask = tasks.find(
+    (t) => t.status === 'DISPATCHED' || t.status === 'ACCEPTED' || t.status === 'IN_PROGRESS' || t.status === 'VERIFICATION_SUBMITTED'
+  );
+
+  // Filtered Services Catalog
+  const filteredServices = servicesCatalog.filter((s) => {
+    const matchesCat = selectedCategory === 'ALL' || s.category === selectedCategory;
+    const matchesSearch =
+      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.features.some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCat && matchesSearch;
+  });
+
+  // Filtered Tasks
+  const filteredTasks = tasks.filter((t) => {
     if (requestFilter === 'ACTIVE') return t.status !== 'COMPLETED';
     if (requestFilter === 'COMPLETED') return t.status === 'COMPLETED';
     return true;
   });
 
-  useEffect(() => {
-    if (filteredUserTasks.length > 0) {
-      if (!selectedTask || !filteredUserTasks.some((t) => t.id === selectedTask.id)) {
-        setSelectedTask(filteredUserTasks[0]);
-      }
-    } else {
-      setSelectedTask(null);
-    }
-  }, [requestFilter, tasks]);
+  // Logout Handler
+  const handleLogout = () => {
+    localStorage.removeItem('fh_user_logged_in');
+    localStorage.removeItem('fh_user_id');
+    localStorage.removeItem('fh_user_name');
+    localStorage.removeItem('fh_user_email');
+    setIsLoggedIn(false);
+  };
 
-  const filteredServices = servicesCatalog.filter((s) => {
-    const matchesSearch =
-      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.desc.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === 'ALL' || s.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Open Booking Modal
+  const openBookModal = (service: typeof servicesCatalog[0]) => {
+    setSelectedService(service);
+    setReqEscrowAmount(service.price);
+    setReqInstructions(`Provide certified assistance for ${service.title} at parents' residence.`);
+    if (activeParent) setReqParentId(activeParent.id);
+    setShowBookModal(true);
+  };
+
+  // Confirm Service Booking
+  const handleConfirmBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedService) return;
+    setIsSubmitting(true);
+    try {
+      const api = getApiBaseUrl();
+      const parentToUse = parents.find((p) => p.id === reqParentId) || activeParent;
+      const res = await fetch(`${api}/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: currentUserId,
+          parentId: parentToUse ? parentToUse.id : undefined,
+          title: selectedService.title,
+          category: selectedService.category,
+          escrowAmount: reqEscrowAmount,
+          specialInstructions: reqInstructions,
+        }),
+      });
+
+      if (res.ok) {
+        const newTask = await res.json();
+        playNotificationChime('success');
+        setShowBookModal(false);
+        setToastMessage(`Service booked! $${reqEscrowAmount} secured in Escrow.`);
+        setTimeout(() => setToastMessage(null), 4000);
+        await fetchAllData();
+        setSelectedTask(newTask);
+        setActiveTab('tracking');
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to book service.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Parent CRUD Handlers
+  const handleSaveParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parentNameInput.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const api = getApiBaseUrl();
+      const payload = {
+        clientId: currentUserId,
+        parentName: parentNameInput.trim(),
+        primaryPhone: parentPhoneInput.trim(),
+        whatsappPhone: parentWhatsappInput.trim() || parentPhoneInput.trim(),
+        locality: parentLocalityInput.trim() || 'Pan-India',
+        fullAddress: parentAddressInput.trim() || 'India',
+        coordinatesLat: 17.4156,
+        coordinatesLng: 78.4357,
+        medicalNotes: parentNotesInput.trim(),
+      };
+
+      if (showEditParentModal && editingParent) {
+        const res = await fetch(`${api}/api/parents/${editingParent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          setShowEditParentModal(false);
+          setToastMessage('Parent residence updated successfully!');
+          await fetchAllData();
+        }
+      } else {
+        const res = await fetch(`${api}/api/parents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setShowAddParentModal(false);
+          setActiveParentId(created.id);
+          setToastMessage('Parent residence registered successfully!');
+          await fetchAllData();
+        }
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to save parent details.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditParent = (parent: ParentProfile) => {
+    setEditingParent(parent);
+    setParentNameInput(parent.parent_name);
+    setParentPhoneInput(parent.primary_phone);
+    setParentWhatsappInput(parent.whatsapp_phone || parent.primary_phone);
+    setParentLocalityInput(parent.locality);
+    setParentAddressInput(parent.full_address);
+    setParentNotesInput(parent.medical_notes || '');
+    setShowEditParentModal(true);
+  };
+
+  const handleDeleteParent = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${name}'s residence profile?`)) return;
+    try {
+      const api = getApiBaseUrl();
+      const res = await fetch(`${api}/api/parents/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setToastMessage('Parent residence removed.');
+        await fetchAllData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Save Settings
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      const api = getApiBaseUrl();
+      const res = await fetch(`${api}/api/client/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          fullName: settingsFullName,
+          email: settingsEmail,
+          phone: settingsPhone,
+          countryResidence: settingsCountry,
+          currency: userCurrency,
+        }),
+      });
+      if (res.ok) {
+        setCurrentUserName(settingsFullName);
+        localStorage.setItem('fh_user_name', settingsFullName);
+        localStorage.setItem('fh_currency', userCurrency);
+        setToastMessage('Account settings updated.');
+        setTimeout(() => setToastMessage(null), 3000);
+        setShowSettingsModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Stepper helper
+  const getStepIndex = (status: string) => {
+    switch (status) {
+      case 'PENDING_OPS_REVIEW':
+        return 0;
+      case 'DISPATCHED':
+        return 1;
+      case 'ACCEPTED':
+      case 'IN_PROGRESS':
+        return 2;
+      case 'VERIFICATION_SUBMITTED':
+        return 3;
+      case 'COMPLETED':
+        return 4;
+      default:
+        return 0;
+    }
+  };
+
+  const friendlySteps = [
+    { title: 'Triage & Partner Matching', desc: 'Central operations assigns a verified local care companion.' },
+    { title: 'Companion Dispatched', desc: 'Assigned companion begins transit toward parents home.' },
+    { title: 'Doorstep Check-In & Care', desc: 'Hardware GPS lock (<150m) and timestamped photo proof taken.' },
+    { title: 'NRI Review & Escrow Release', desc: 'Inspect vitals and verified photo proof before payout release.' },
+  ];
 
   // ==========================================
-  // VIEW: AUTHENTICATION SCREEN
+  // VIEW: LANDING & AUTH SCREEN
   // ==========================================
   if (!isLoggedIn) {
     return (
       <AuthView
-        pendingGoogleData={pendingGoogleUser}
         onSuccess={(user) => {
           localStorage.setItem('fh_user_logged_in', 'true');
           localStorage.setItem('fh_user_id', user.id);
@@ -723,7 +577,6 @@ export default function UserApp() {
           setCurrentUserName(user.full_name);
           setCurrentUserEmail(user.email);
           setIsLoggedIn(true);
-          setPendingGoogleUser(null);
           fetchAllData(user.id);
         }}
       />
@@ -731,88 +584,102 @@ export default function UserApp() {
   }
 
   // ==========================================
-  // VIEW: AUTHENTICATED NRI CLIENT PORTAL
+  // VIEW: AUTHENTICATED CLIENT SANCTUARY
   // ==========================================
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1C1917] selection:bg-[#C25E2E] selection:text-white">
-      {/* Toast Notification */}
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1C1917] selection:bg-[#C25E2E] selection:text-white font-body">
+      {/* Toast Feedback */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-white border border-[#E7DFD5] text-[#1C1917] px-5 py-3.5 rounded-xl shadow-lg animate-in slide-in-from-top-3">
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-white border border-[#E7DFD5] text-[#1C1917] px-5 py-3 rounded-xl shadow-lg animate-in slide-in-from-top-3">
           <Sparkles className="w-5 h-5 text-[#C25E2E] shrink-0" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Header */}
+      {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E7DFD5]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-3">
+          {/* Brand Identity */}
+          <div className="flex items-center gap-3">
             <div
-              onClick={() => setActiveTab('explore')}
-              className="flex items-center gap-3 cursor-pointer"
+              onClick={() => setActiveTab('services')}
+              className="flex items-center gap-2.5 cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-xl bg-[#C25E2E] flex items-center justify-center text-white shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-[#C25E2E] flex items-center justify-center text-white shadow-xs">
                 <Heart className="w-5 h-5 fill-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-xl font-bold text-[#1C1917] tracking-tight">FamilyHubs</span>
-                  <span className="text-[11px] bg-[#FBECE5] text-[#A3481D] font-semibold px-2 py-0.5 rounded-full border border-[#F5D3C4]">
-                    Client Concierge
-                  </span>
-                </div>
+                <span className="font-display text-xl font-bold text-[#1C1917] tracking-tight">FamilyHubs</span>
+                <span className="ml-2 hidden sm:inline-block text-[11px] bg-[#FBECE5] text-[#C25E2E] font-semibold px-2 py-0.5 rounded-full border border-[#F5D5C6]">
+                  The Filial Sanctuary
+                </span>
               </div>
             </div>
 
-            {/* Pan-India Eldercare Network Badge */}
-            <div className="hidden md:flex items-center gap-2 bg-white border border-[#E7DFD5] px-3 py-1.5 rounded-xl text-xs shadow-2xs">
-              <Globe className="w-3.5 h-3.5 text-[#1F5C42] shrink-0" />
-              <span className="font-semibold text-[#1C1917]">Pan-India Care Network</span>
-              <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] font-bold px-1.5 py-0.5 rounded-full border border-[#C8E5D7]">All Cities</span>
-            </div>
+            {/* Active Parent Selector Switcher */}
+            {parents.length > 0 && (
+              <div className="relative ml-2 hidden md:block">
+                <select
+                  value={activeParentId}
+                  onChange={(e) => {
+                    setActiveParentId(e.target.value);
+                    setReqParentId(e.target.value);
+                  }}
+                  className="bg-white border border-[#E7DFD5] text-xs font-semibold text-[#1C1917] rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#C25E2E] cursor-pointer shadow-2xs pr-8 appearance-none"
+                >
+                  {parents.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      Care for: {p.parent_name} ({p.locality})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-[#8C827A] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            )}
           </div>
 
-          {/* Profile & Settings Trigger */}
-          <div className="flex items-center gap-3">
-            {/* 1-Tap Emergency SOS Trigger */}
+          {/* Quick Actions & Profile */}
+          <div className="flex items-center gap-2.5">
+            {/* Escrow Protected Live Badge */}
+            <button
+              onClick={() => setShowEscrowModal(true)}
+              className="hidden sm:flex items-center gap-2 bg-[#E8F3EE] hover:bg-[#DCF0E5] border border-[#C8E5D7] px-3 py-1.5 rounded-xl text-xs font-semibold text-[#1F5C42] transition cursor-pointer"
+              title="View Escrow Protection Guarantee"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#1F5C42]" />
+              <span>{formatPrice(lockedEscrow)} Escrow</span>
+            </button>
+
+            {/* Emergency SOS Trigger */}
             <button
               onClick={() => setShowEmergencyModal(true)}
-              className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
-              title="Activate Emergency Response"
+              className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              title="Activate Emergency Care Relay"
             >
-              <Siren className="w-4 h-4" />
-              <span className="hidden sm:inline">EMERGENCY SOS</span>
-              <span className="sm:hidden">SOS</span>
+              <Siren className="w-4 h-4 animate-pulse" />
+              <span>EMERGENCY SOS</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-[#E7DFD5] bg-white shadow-2xs">
-              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[#1F5C42] animate-pulse' : 'bg-[#B45309]'}`} />
-              <span className={wsConnected ? 'text-[#1F5C42]' : 'text-[#B45309]'}>
-                {wsConnected ? 'Live Gateway' : 'Connecting...'}
-              </span>
-            </div>
-
+            {/* Settings Trigger */}
             <button
-              onClick={() => setActiveTab('settings')}
-              className="p-2.5 rounded-xl text-[#574F49] hover:text-[#1C1917] hover:bg-white/80 transition cursor-pointer"
-              title="Settings"
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 rounded-xl text-[#574F49] hover:text-[#1C1917] hover:bg-white border border-[#E7DFD5] transition cursor-pointer shadow-2xs"
+              title="Account Settings & Currency"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
             </button>
 
+            {/* User Profile Avatar */}
             <div
-              onClick={() => setActiveTab('settings')}
-              className="flex items-center gap-3 cursor-pointer pl-3 border-l border-[#E7DFD5]"
+              onClick={() => setShowSettingsModal(true)}
+              className="flex items-center gap-2.5 cursor-pointer pl-1.5"
             >
-              <div className="w-9 h-9 rounded-full bg-[#FBECE5] text-[#C25E2E] font-bold text-xs flex items-center justify-center border border-[#F5D3C4]">
+              <div className="w-8 h-8 rounded-full bg-[#FBECE5] text-[#C25E2E] font-bold text-xs flex items-center justify-center border border-[#F5D5C6]">
                 {currentUserName.substring(0, 2).toUpperCase()}
               </div>
-              <div className="hidden sm:block text-right">
-                <div className="text-xs font-bold text-[#1C1917]">{currentUserName}</div>
-                <div className="text-[11px] text-[#574F49]">{currentUserEmail}</div>
-              </div>
             </div>
 
+            {/* Logout */}
             <button
               onClick={handleLogout}
               className="p-2 rounded-xl text-[#8C827A] hover:text-[#B91C1C] hover:bg-[#FEE2E2] transition cursor-pointer"
@@ -823,153 +690,132 @@ export default function UserApp() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-[#E7DFD5] pt-1.5 pb-1 overflow-x-auto items-center">
+        {/* ================= 3-HUB NAVIGATION BAR ================= */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-[#E7DFD5] pt-1.5 pb-1.5">
           <button
-            onClick={() => setActiveTab('explore')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'explore'
+            onClick={() => setActiveTab('services')}
+            className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'services'
                 ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
                 : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
             }`}
           >
             <Sparkles className="w-4 h-4 text-[#C25E2E]" />
-            <span>Find Services</span>
+            <span>Care Services</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('trackers')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'trackers'
+            onClick={() => setActiveTab('tracking')}
+            className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'tracking'
                 ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
                 : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
             }`}
           >
             <Activity className="w-4 h-4 text-[#1F5C42]" />
-            <span>Active Requests</span>
+            <span>Live Tracking &amp; Requests</span>
             <span className="bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] px-1.5 py-0.2 rounded-full text-[10px]">
               {tasks.length}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab('health')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'health'
+            onClick={() => setActiveTab('family')}
+            className={`px-4 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'family'
                 ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
                 : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
             }`}
           >
-            <Heart className="w-4 h-4 text-[#C25E2E]" />
-            <span>Health &amp; Vitals</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('parents')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'parents'
-                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
-                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
-            }`}
-          >
-            <UserCheck className="w-4 h-4 text-[#1F5C42]" />
-            <span>My Parents</span>
+            <Heart className="w-4 h-4 text-[#C25E2E] fill-[#C25E2E]/20" />
+            <span>Family Sanctuary</span>
             <span className="bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] px-1.5 py-0.2 rounded-full text-[10px]">
-              {parents.length}
+              {parents.length} Parents
             </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('billing')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'billing'
-                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
-                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-[#B45309]" />
-            <span>Escrow Vault</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'settings'
-                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
-                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
-            }`}
-          >
-            <Settings className="w-4 h-4 text-[#8C827A]" />
-            <span>Settings</span>
-          </button>
-
-          <button
-            onClick={() => setShowFamilyModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-[#C25E2E] hover:bg-[#FBECE5] ml-auto whitespace-nowrap border border-[#F5D3C4] cursor-pointer"
-            title="Shared Family Care"
-          >
-            <Users className="w-4 h-4 text-[#C25E2E]" />
-            <span className="hidden md:inline">Shared Sibling Care</span>
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ================= TAB 1: EXPLORE SERVICES ================= */}
-        {activeTab === 'explore' && (
-          <div className="space-y-8">
-            {/* Hero Search & Promo Banner */}
-            <div className="bg-[#FFFFFF] rounded-3xl p-7 md:p-9 text-[#1C1917] flex flex-col md:flex-row items-center justify-between gap-8 shadow-xs border border-[#E7DFD5] relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-96 h-96 bg-[#FBECE5]/40 rounded-full blur-3xl pointer-events-none" />
+      {/* ================= MAIN CONTENT CONTAINER ================= */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        {/* ======================================================== */}
+        {/* HUB 1: CARE SERVICES                                      */}
+        {/* ======================================================== */}
+        {activeTab === 'services' && (
+          <div className="space-y-6">
+            {/* Live Ongoing Task Banner (If in progress) */}
+            {activeOngoingTask && (
+              <div className="bg-[#FFFFFF] border-2 border-[#C25E2E]/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-[#C25E2E] text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Navigation className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] px-2 py-0.5 rounded">
+                        {activeOngoingTask.tracking_code}
+                      </span>
+                      <span className="text-xs font-bold text-[#1C1917]">
+                        Active Care Dispatch in Progress
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#574F49] mt-0.5">
+                      {activeOngoingTask.title} • {activeOngoingTask.status.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                </div>
 
-              <div className="space-y-3.5 max-w-xl relative z-10">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    onClick={() => {
+                      setSelectedTask(activeOngoingTask);
+                      setActiveTab('tracking');
+                    }}
+                    className="filial-btn-primary text-xs py-2 px-4 cursor-pointer w-full sm:w-auto"
+                  >
+                    Track Live Progress ➔
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Personalized Hero Banner & Search */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 text-[#1C1917] border border-[#E7DFD5] shadow-xs relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-80 h-80 bg-[#FBECE5]/40 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="max-w-2xl space-y-3 relative z-10">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F3EE] border border-[#C8E5D7] text-[#1F5C42] text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Welcome back, {currentUserName.split(' ')[0] || 'Friend'} • All Parents Safe</span>
+                  <span>Welcome, {currentUserName.split(' ')[0]} • Dedicated Care for Your Parents in India</span>
                 </div>
-                <h2 className="font-display text-2xl md:text-3.5xl font-bold tracking-tight text-[#1C1917] leading-tight">
+                <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#1C1917]">
                   What care do your parents need today?
                 </h2>
-                <p className="text-xs md:text-sm text-[#574F49] leading-relaxed">
-                  Every booking is protected by 100% Escrow. Verified field companions check in with forensic photo proof within 150m of your parents' home.
+                <p className="text-xs sm:text-sm text-[#574F49] leading-relaxed">
+                  Every service is protected by 100% Escrow. Verified field companions check in with forensic photo proof within 150m of your parents' doorstep.
                 </p>
 
-                {/* Search Bar */}
+                {/* Instant Search Bar */}
                 <div className="relative pt-1">
-                  <Search className="w-4 h-4 text-[#8C827A] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-[#8C827A] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search 'Doctor visit', 'Inverter check', 'RO plumbing', 'Pooja items'..."
-                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] text-[#1C1917] placeholder-[#8C827A] rounded-xl pl-11 pr-4 py-3 text-xs md:text-sm focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all"
+                    placeholder="Search 'Doctor home visit', 'Inverter check', 'RO plumbing', 'Pooja items'..."
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] text-[#1C1917] placeholder-[#8C827A] rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all"
                   />
-                </div>
-              </div>
-
-              {/* Escrow Vault Glance */}
-              <div className="flex items-center gap-4 bg-[#FAF7F2] p-5 rounded-2xl border border-[#E7DFD5] shrink-0 relative z-10 shadow-xs">
-                <div>
-                  <div className="text-[11px] text-[#8C827A] font-semibold uppercase tracking-wider">Secured in Escrow</div>
-                  <div className="text-2xl font-bold font-mono text-[#1F5C42]">
-                    ${lockedEscrow.toFixed(2)} USD
-                  </div>
-                  <div className="text-[10px] text-[#574F49] mt-0.5">Released upon photo review</div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-[#E8F3EE] border border-[#C8E5D7] flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-[#1F5C42]" />
                 </div>
               </div>
             </div>
 
-            {/* Category Filter Pills */}
+            {/* Category Filter Chips */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {[
                 { id: 'ALL', label: 'All Services', icon: Sparkles },
                 { id: 'MEDICAL_TRANSPORT', label: 'Doctor & Health', icon: Stethoscope },
-                { id: 'HOME_MAINTENANCE', label: 'Electrical & RO', icon: Wrench },
-                { id: 'ERRANDS', label: 'Groceries & Pooja', icon: ShoppingBag },
+                { id: 'HOME_MAINTENANCE', label: 'Electrical & Power', icon: Wrench },
+                { id: 'ERRANDS', label: 'Provisions & Pooja', icon: ShoppingBag },
                 { id: 'EMERGENCY', label: '24/7 Emergency', icon: AlertCircle },
               ].map((cat) => {
                 const IconComponent = cat.icon;
@@ -1017,10 +863,12 @@ export default function UserApp() {
 
                     {/* Content */}
                     <div className="p-5 space-y-2.5">
-                      <h4 className="font-display text-base font-bold text-[#1C1917] leading-snug">{service.title}</h4>
+                      <h4 className="font-display text-base font-bold text-[#1C1917] leading-snug">
+                        {service.title}
+                      </h4>
                       <p className="text-xs text-[#574F49] leading-relaxed">{service.desc}</p>
 
-                      {/* Feature Bullet Points */}
+                      {/* Feature Checklist */}
                       <div className="space-y-1.5 pt-1">
                         {service.features.map((feat, fIdx) => (
                           <div key={fIdx} className="flex items-center gap-2 text-[11px] text-[#574F49]">
@@ -1032,12 +880,12 @@ export default function UserApp() {
                     </div>
                   </div>
 
-                  {/* Price & Book Trigger */}
+                  {/* Price & Booking Trigger */}
                   <div className="p-5 pt-3 border-t border-[#E7DFD5] flex items-center justify-between bg-[#FAF7F2]/50">
                     <div>
                       <span className="text-[10px] text-[#8C827A] block font-semibold uppercase">Escrow Hold</span>
                       <span className="text-lg font-bold font-mono text-[#1C1917]">
-                        ${service.price} USD
+                        {formatPrice(service.price)}
                       </span>
                     </div>
 
@@ -1054,17 +902,19 @@ export default function UserApp() {
           </div>
         )}
 
-        {/* ================= TAB 2: ACTIVE REQUESTS TRACKER ================= */}
-        {activeTab === 'trackers' && (
+        {/* ======================================================== */}
+        {/* HUB 2: LIVE TRACKING & REQUESTS                           */}
+        {/* ======================================================== */}
+        {activeTab === 'tracking' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Tasks List */}
+              {/* Left Column: Requests Queue */}
               <div className="lg:col-span-5 space-y-3">
                 <div className="flex items-center justify-between pb-1">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-[#8C827A]">
                     Care Requests
                   </h2>
-                  <button onClick={fetchAllData} className="p-1.5 text-[#8C827A] hover:text-[#1C1917] cursor-pointer">
+                  <button onClick={() => fetchAllData()} className="p-1.5 text-[#8C827A] hover:text-[#1C1917] cursor-pointer">
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -1103,29 +953,29 @@ export default function UserApp() {
                   </button>
                 </div>
 
+                {/* Requests List */}
                 {tasks.length === 0 ? (
                   <div className="p-8 text-center bg-white rounded-2xl border border-[#E7DFD5] text-[#8C827A] space-y-3">
-                    <div className="w-12 h-12 rounded-xl bg-[#FBECE5] text-[#C25E2E] flex items-center justify-center mx-auto border border-[#F5D3C4]">
+                    <div className="w-12 h-12 rounded-xl bg-[#FBECE5] text-[#C25E2E] flex items-center justify-center mx-auto border border-[#F5D5C6]">
                       <Heart className="w-6 h-6" />
                     </div>
-                    <div className="font-display text-base font-bold text-[#1C1917]">No active care requests yet</div>
+                    <div className="font-display text-base font-bold text-[#1C1917]">No active requests yet</div>
                     <p className="text-xs text-[#574F49] max-w-xs mx-auto leading-relaxed">
-                      Book doctor visits, inverter repair, water plumbing, or groceries for your parents anywhere in India.
+                      Book certified doctor visits, power backup repair, or provisions for your parents in India.
                     </p>
                     <button
-                      onClick={() => setActiveTab('explore')}
+                      onClick={() => setActiveTab('services')}
                       className="filial-btn-primary text-xs py-2 px-4 cursor-pointer"
                     >
                       Browse Services ➔
                     </button>
                   </div>
-                ) : filteredUserTasks.length === 0 ? (
-                  <div className="p-8 text-center bg-white rounded-2xl border border-[#E7DFD5] text-[#8C827A] space-y-1">
+                ) : filteredTasks.length === 0 ? (
+                  <div className="p-8 text-center bg-white rounded-2xl border border-[#E7DFD5] text-[#8C827A]">
                     <div className="text-xs font-semibold text-[#1C1917]">No requests match this filter.</div>
-                    <div className="text-[11px] text-[#8C827A]">Try switching to 'All' or 'Completed' above.</div>
                   </div>
                 ) : (
-                  filteredUserTasks.map((task) => {
+                  filteredTasks.map((task) => {
                     const isSelected = selectedTask?.id === task.id;
                     const isCompleted = task.status === 'COMPLETED';
 
@@ -1140,14 +990,14 @@ export default function UserApp() {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] border border-[#F5D3C4] px-2 py-0.5 rounded">
+                          <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] border border-[#F5D5C6] px-2 py-0.5 rounded">
                             {task.tracking_code}
                           </span>
                           <span
                             className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                               isCompleted
                                 ? 'bg-[#E8F3EE] text-[#1F5C42] border border-[#C8E5D7]'
-                                : 'bg-[#FBECE5] text-[#A3481D] border border-[#F5D3C4]'
+                                : 'bg-[#FBECE5] text-[#A3481D] border border-[#F5D5C6]'
                             }`}
                           >
                             {task.status.replace(/_/g, ' ')}
@@ -1162,7 +1012,7 @@ export default function UserApp() {
                             {task.parent?.locality || 'Pan-India'}
                           </span>
                           <span className="font-semibold text-[#1C1917] font-mono">
-                            ${task.escrow?.amount || 50} Escrow
+                            {formatPrice(task.escrow?.amount || 45)} Escrow
                           </span>
                         </div>
                       </div>
@@ -1171,10 +1021,11 @@ export default function UserApp() {
                 )}
               </div>
 
-              {/* Right Column: Timeline & Verified Proof */}
+              {/* Right Column: Detailed Operation View */}
               <div className="lg:col-span-7">
                 {selectedTask ? (
                   <div className="bg-white p-6 rounded-2xl border border-[#E7DFD5] shadow-xs space-y-6">
+                    {/* Header */}
                     <div className="flex items-center justify-between pb-4 border-b border-[#E7DFD5]">
                       <div>
                         <div className="text-xs font-mono text-[#C25E2E] font-bold">{selectedTask.tracking_code}</div>
@@ -1183,12 +1034,12 @@ export default function UserApp() {
                       <div className="text-right">
                         <div className="text-[11px] text-[#8C827A]">Protected Escrow</div>
                         <div className="text-xl font-bold font-mono text-[#1F5C42]">
-                          ${selectedTask.escrow?.amount.toFixed(2)} USD
+                          {formatPrice(selectedTask.escrow?.amount || 45)}
                         </div>
                       </div>
                     </div>
 
-                    {/* Stepper */}
+                    {/* Progress Stepper */}
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C827A] mb-4">
                         Service Progress
@@ -1229,12 +1080,12 @@ export default function UserApp() {
                       </div>
                     </div>
 
-                    {/* Proof Photo Section */}
+                    {/* Verified Photo Proof Section */}
                     <div className="bg-[#FAF7F2] rounded-xl p-4 border border-[#E7DFD5] space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Camera className="w-4 h-4 text-[#C25E2E]" />
-                          <h4 className="text-xs font-bold text-[#1C1917]">Arrival Verification Photo</h4>
+                          <h4 className="text-xs font-bold text-[#1C1917]">Arrival Forensic Photo Verification</h4>
                         </div>
                       </div>
 
@@ -1250,10 +1101,10 @@ export default function UserApp() {
                             </div>
                             <div>
                               <div className="text-xs font-bold text-[#1C1917]">
-                                {selectedTask.verification_logs[0].stage}
+                                {selectedTask.verification_logs[0].stage.replace('_', ' ')}
                               </div>
                               <div className="text-[11px] text-[#1F5C42] font-semibold mt-0.5">
-                                ✓ GPS Verified ({Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m from home)
+                                ✓ GPS Verified ({Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m from residence)
                               </div>
                             </div>
                           </div>
@@ -1262,17 +1113,17 @@ export default function UserApp() {
                             onClick={() => setShowProofModal(selectedTask.verification_logs![0])}
                             className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-xs font-semibold text-[#1C1917] rounded-lg border border-[#E7DFD5] cursor-pointer"
                           >
-                            View Photo
+                            Inspect Proof
                           </button>
                         </div>
                       ) : (
                         <div className="p-4 text-center text-xs text-[#8C827A] bg-white rounded-xl border border-dashed border-[#E7DFD5]">
-                          Waiting for on-ground arrival. Once the helper arrives, their verified photo will appear here.
+                          Waiting for companion arrival. Verified photo and sub-150m GPS proof will appear here automatically.
                         </div>
                       )}
                     </div>
 
-                    {/* Live GPS Tracker Trigger */}
+                    {/* Live Movement Trigger */}
                     {(selectedTask.status === 'IN_PROGRESS' || selectedTask.status === 'ACCEPTED' || selectedTask.status === 'DISPATCHED') && (
                       <div className="bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl p-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -1281,7 +1132,7 @@ export default function UserApp() {
                           </div>
                           <div>
                             <div className="text-xs font-bold text-[#1C1917]">Live Caregiver Movement</div>
-                            <div className="text-[11px] text-[#574F49]">Track helper traveling live to your parents' home</div>
+                            <div className="text-[11px] text-[#574F49]">Track companion live en route to parents' home</div>
                           </div>
                         </div>
                         <button
@@ -1294,7 +1145,7 @@ export default function UserApp() {
                       </div>
                     )}
 
-                    {/* CSAT Rating & Review for Completed Tasks */}
+                    {/* CSAT Review for Completed Tasks */}
                     {selectedTask.status === 'COMPLETED' && (
                       <div className="bg-[#FEF3C7]/40 border border-[#FDE68A] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
@@ -1310,20 +1161,13 @@ export default function UserApp() {
                                 {'★'.repeat(selectedTask.review.rating)}
                                 <span className="text-[#574F49] font-medium ml-1">({selectedTask.review.rating}/5 Stars)</span>
                               </div>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {selectedTask.review.tags?.map((tag) => (
-                                  <span key={tag} className="text-[10px] font-semibold bg-white border border-[#E7DFD5] text-[#574F49] px-2 py-0.5 rounded-md">
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
                               {selectedTask.review.feedback_text && (
                                 <p className="text-[11px] text-[#574F49] italic mt-1">"{selectedTask.review.feedback_text}"</p>
                               )}
                             </div>
                           ) : (
                             <p className="text-[11px] text-[#574F49] mt-0.5">
-                              Please rate the helper's punctuality and care quality to release feedback badge.
+                              Please rate the helper's punctuality and care quality.
                             </p>
                           )}
                         </div>
@@ -1342,7 +1186,7 @@ export default function UserApp() {
                   </div>
                 ) : (
                   <div className="bg-white p-12 text-center rounded-2xl border border-[#E7DFD5] text-[#8C827A]">
-                    Select a request to view live progress.
+                    Select a care request to inspect live progress and verified proof.
                   </div>
                 )}
               </div>
@@ -1350,471 +1194,188 @@ export default function UserApp() {
           </div>
         )}
 
-        {/* ================= TAB 3: HEALTH & CARE MANAGEMENT ================= */}
-        {activeTab === 'health' && (
-          <HealthView
-            parentId={parents[0]?.id || ''}
-            parentName={parents[0]?.parent_name || 'My Parents'}
-            clientId={currentUserId}
-            onRefillCreated={() => {
-              fetchAllData();
-              setActiveTab('trackers');
-            }}
-          />
-        )}
-
-        {/* ================= TAB 4: MY PARENTS ================= */}
-        {activeTab === 'parents' && (
+        {/* ======================================================== */}
+        {/* HUB 3: FAMILY SANCTUARY                                   */}
+        {/* ======================================================== */}
+        {activeTab === 'family' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-2xl font-bold text-[#1C1917]">Your Parents in India</h2>
-                <p className="text-xs text-[#574F49]">Registered residences across all Indian cities and towns.</p>
-              </div>
-              <button
-                onClick={() => setShowAddParentModal(true)}
-                className="filial-btn-primary text-xs py-2 px-3.5 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Residence</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {parents.map((parent) => (
-                <div key={parent.id} className="filial-card p-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-display text-base font-bold text-[#1C1917]">{parent.parent_name}</h3>
-                      <span className="text-xs text-[#C25E2E] font-semibold">{parent.locality}</span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center text-[#574F49]">
-                      <MapPin className="w-4 h-4 text-[#C25E2E]" />
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-[#574F49] space-y-1.5">
-                    <div><span className="font-semibold text-[#1C1917]">Address:</span> {parent.full_address}</div>
-                    <div><span className="font-semibold text-[#1C1917]">Calling Phone:</span> <span className="font-mono text-[#1C1917]">{parent.primary_phone}</span></div>
-                    <div><span className="font-semibold text-[#1C1917]">WhatsApp:</span> <span className="font-mono text-[#1F5C42] font-bold">{parent.whatsapp_phone || parent.primary_phone}</span></div>
-                  </div>
-
-                  {parent.medical_notes && (
-                    <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] text-xs text-[#574F49]">
-                      <strong className="text-[#1C1917]">Care Notes:</strong> {parent.medical_notes}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 pt-3 border-t border-[#E7DFD5]">
-                    <button
-                      onClick={() => handleOpenEditParent(parent)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] font-semibold text-xs border border-[#E7DFD5] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-[#574F49]" />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteParent(parent.id, parent.parent_name)}
-                      className="py-2 px-3 rounded-xl bg-[#FEE2E2] hover:bg-[#FECACA] text-[#B91C1C] font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer border border-[#FECACA]"
-                      title="Delete Residence"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-[#B91C1C]" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 5: ESCROW VAULT ================= */}
-        {activeTab === 'billing' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="filial-card p-6">
-                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Currently in Escrow</div>
-                <div className="text-3xl font-bold font-mono text-[#1F5C42] mt-2">${lockedEscrow.toFixed(2)}</div>
-                <p className="text-xs text-[#574F49] mt-1">Protected until helper finishes the task</p>
-              </div>
-
-              <div className="filial-card p-6">
-                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Total Completed &amp; Released</div>
-                <div className="text-3xl font-bold font-mono text-[#1C1917] mt-2">${releasedEscrow.toFixed(2)}</div>
-                <p className="text-xs text-[#574F49] mt-1">Disbursed after photo &amp; GPS verification</p>
-              </div>
-
-              <div className="filial-card p-6">
-                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Your Membership</div>
-                <div className="text-xl font-bold text-[#C25E2E] mt-2">Gold Family Plan</div>
-                <p className="text-xs text-[#574F49] mt-1">24/7 priority emergency triage &amp; local escort</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 6: SETTINGS PAGE ================= */}
-        {activeTab === 'settings' && (
-          <form onSubmit={handleSaveSettings} className="max-w-2xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-2xl font-bold text-[#1C1917]">Account &amp; Care Settings</h2>
-                <p className="text-xs text-[#574F49]">Edit your contact info, currency, and parents' care details in India.</p>
-              </div>
-              <button
-                type="submit"
-                disabled={isSavingSettings}
-                className="filial-btn-primary text-xs py-2 px-4 cursor-pointer disabled:opacity-50"
-              >
-                {isSavingSettings ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4" />
-                )}
-                <span>Save Changes</span>
-              </button>
-            </div>
-
-            {/* NRI Client Profile */}
-            <div className="filial-card p-6 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[#E7DFD5]">
-                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
-                  <User className="w-4 h-4 text-[#C25E2E]" />
-                  <span>NRI Client Profile</span>
-                </h3>
-                <span className="text-[10px] bg-[#FBECE5] text-[#A3481D] font-semibold px-2 py-0.5 rounded-full border border-[#F5D3C4]">
-                  User Editable
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="text-[#1C1917] font-semibold block mb-1">Your Full Name</label>
-                  <input
-                    type="text"
-                    value={settingsFullName}
-                    onChange={(e) => setSettingsFullName(e.target.value)}
-                    required
-                    placeholder="Enter your full name"
-                    className="w-full filial-input"
-                  />
-                </div>
-                <div>
-                  <label className="text-[#1C1917] font-semibold block mb-1">Your Email</label>
-                  <input
-                    type="email"
-                    value={settingsEmail}
-                    onChange={(e) => setSettingsEmail(e.target.value)}
-                    required
-                    placeholder="you@example.com"
-                    className="w-full filial-input"
-                  />
-                </div>
-                <div>
-                  <label className="text-[#1C1917] font-semibold block mb-1">Your Mobile Phone</label>
-                  <input
-                    type="tel"
-                    value={settingsPhone}
-                    onChange={(e) => setSettingsPhone(e.target.value)}
-                    placeholder="+1 408 555 0192"
-                    className="w-full filial-input"
-                  />
-                </div>
-                <div>
-                  <label className="text-[#1C1917] font-semibold block mb-1">Country of Residence</label>
-                  <select
-                    value={settingsCountry}
-                    onChange={(e) => setSettingsCountry(e.target.value)}
-                    className="w-full filial-input"
-                  >
-                    <option value="United States">United States</option>
-                    <option value="United Kingdom">United Kingdom</option>
-                    <option value="Canada">Canada</option>
-                    <option value="Australia">Australia</option>
-                    <option value="UAE (Dubai)">UAE (Dubai)</option>
-                    <option value="Singapore">Singapore</option>
-                    <option value="Germany">Germany</option>
-                    <option value="India">India</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-[#1C1917] font-semibold block mb-1">Preferred Currency</label>
-                  <select
-                    value={settingsCurrency}
-                    onChange={(e) => {
-                      setSettingsCurrency(e.target.value);
-                      setUserCurrency(e.target.value);
-                    }}
-                    className="w-full filial-input font-mono"
-                  >
-                    <option value="USD">USD ($ - United States Dollar)</option>
-                    <option value="GBP">GBP (£ - British Pound)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="CAD">CAD ($ - Canadian Dollar)</option>
-                    <option value="INR">INR (₹ - Indian Rupee)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Parents' Care Details in India */}
-            <div className="filial-card p-6 space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-[#E7DFD5]">
-                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
-                  <Heart className="w-4 h-4 text-[#C25E2E] fill-[#C25E2E]" />
-                  <span>Parents' Care Details in India (Pan-India)</span>
-                </h3>
-                <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] font-semibold px-2 py-0.5 rounded-full border border-[#C8E5D7]">
-                  Mandatory Phone &amp; WhatsApp
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="sm:col-span-2">
-                  <label className="text-[#1C1917] font-semibold block mb-1">
-                    Parents' Full Name(s) <span className="text-[#B91C1C]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsParentName}
-                    onChange={(e) => setSettingsParentName(e.target.value)}
-                    required
-                    placeholder="e.g. Lakshmi & Ramana Reddy"
-                    className="w-full filial-input"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[#1C1917] font-semibold block mb-1">
-                    Parents' Primary Calling Phone <span className="text-[#B91C1C]">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={settingsParentPhone}
-                    onChange={(e) => setSettingsParentPhone(e.target.value)}
-                    required
-                    placeholder="+91 94401 23456"
-                    className="w-full filial-input font-mono"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[#1C1917] font-semibold">
-                      Parents' WhatsApp Number <span className="text-[#B91C1C]">*</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setSettingsParentWhatsapp(settingsParentPhone)}
-                      className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
-                    >
-                      Same as calling
-                    </button>
-                  </div>
-                  <input
-                    type="tel"
-                    value={settingsParentWhatsapp}
-                    onChange={(e) => setSettingsParentWhatsapp(e.target.value)}
-                    required
-                    placeholder="+91 94401 23456"
-                    className="w-full filial-input font-mono"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-[#1C1917] font-semibold block mb-1">
-                    City / Town in India (Pan-India) <span className="text-[#B91C1C]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsParentCity}
-                    onChange={(e) => setSettingsParentCity(e.target.value)}
-                    required
-                    placeholder="e.g. Hyderabad, Bengaluru, Miryalaguda, Pune, Delhi"
-                    className="w-full filial-input"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-[#1C1917] font-semibold block mb-1">
-                    Full Street Address in India <span className="text-[#B91C1C]">*</span>
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settingsParentAddress}
-                    onChange={(e) => setSettingsParentAddress(e.target.value)}
-                    required
-                    placeholder="House / Flat No, Apartment Name, Street / Lane, Landmark, Pincode"
-                    className="w-full filial-input"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-[#1C1917] font-semibold block mb-1">
-                    Medical &amp; Care Notes (Optional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={settingsParentNotes}
-                    onChange={(e) => setSettingsParentNotes(e.target.value)}
-                    placeholder="Special instructions: medications, allergies, preferred hospital..."
-                    className="w-full filial-input"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSavingSettings}
-                  className="w-full filial-btn-primary py-3 text-xs font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingSettings ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Save Profile &amp; Care Changes</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Security & Trust Controls */}
-            <div className="filial-card p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#1F5C42]" />
-                  <span>Security &amp; Escrow Protection</span>
-                </h3>
-                <span className="text-[11px] font-semibold text-[#1F5C42] bg-[#E8F3EE] px-2.5 py-0.5 rounded-full border border-[#C8E5D7]">
-                  Bank-Grade 256-Bit TLS
-                </span>
-              </div>
-
-              {/* Panic Freeze Killswitch */}
-              <div className={`p-4 rounded-xl border transition ${isEscrowFrozen ? 'bg-[#FEE2E2] border-[#FECACA]' : 'bg-[#FAF7F2] border-[#E7DFD5]'}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-1.5 font-bold text-xs text-[#1C1917]">
-                      <ShieldAlert className={`w-4 h-4 ${isEscrowFrozen ? 'text-[#B91C1C]' : 'text-[#8C827A]'}`} />
-                      <span>Emergency Escrow Payout Freeze</span>
-                    </div>
-                    <p className="text-[11px] text-[#574F49] mt-1 leading-relaxed">
-                      {isEscrowFrozen
-                        ? 'EMERGENCY LOCK ACTIVE. All escrow payouts are currently blocked across the platform.'
-                        : 'If you suspect miscommunication or need to halt a service immediately, lock all outbound escrow transfers.'}
-                    </p>
-                  </div>
-
+            {/* Sanctuary Sub-navigation */}
+            <div className="flex items-center gap-2 overflow-x-auto border-b border-[#E7DFD5] pb-3">
+              {[
+                { id: 'residences', label: 'Parent Residences', icon: MapPin },
+                { id: 'health', label: 'Health & Vitals', icon: Activity },
+                { id: 'medications', label: 'Medications & Refills', icon: Pill },
+                { id: 'siblings', label: 'Sibling Care Circle', icon: Users },
+              ].map((sub) => {
+                const SubIcon = sub.icon;
+                const isSelected = familySubTab === sub.id;
+                return (
                   <button
-                    type="button"
-                    onClick={handleToggleEscrowFreeze}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                      isEscrowFrozen
-                        ? 'bg-[#B91C1C] hover:bg-[#991B1B] text-white shadow-2xs'
-                        : 'bg-white hover:bg-[#FAF7F2] text-[#1C1917] border border-[#E7DFD5] shadow-2xs'
+                    key={sub.id}
+                    onClick={() => setFamilySubTab(sub.id as any)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                        : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
                     }`}
                   >
-                    {isEscrowFrozen ? 'Unlock Escrow' : 'Lock Escrow'}
+                    <SubIcon className="w-3.5 h-3.5 text-[#C25E2E]" />
+                    <span>{sub.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Sub-Panel 1: Parent Residences */}
+            {familySubTab === 'residences' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-display text-xl font-bold text-[#1C1917]">Registered Residences in India</h3>
+                    <p className="text-xs text-[#574F49]">Manage addresses, emergency calling numbers, and care instructions.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setParentNameInput('');
+                      setParentPhoneInput('+91 ');
+                      setParentWhatsappInput('+91 ');
+                      setParentLocalityInput('');
+                      setParentAddressInput('');
+                      setParentNotesInput('');
+                      setShowAddParentModal(true);
+                    }}
+                    className="filial-btn-primary text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Residence</span>
                   </button>
                 </div>
-              </div>
 
-              {/* 2FA & Biometric status */}
-              <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
-                  <div className="flex items-center gap-2.5">
-                    <KeyRound className="w-4 h-4 text-[#C25E2E]" />
-                    <div>
-                      <div className="font-bold text-[#1C1917]">Two-Factor Authentication (2FA)</div>
-                      <div className="text-[#574F49] text-[11px]">Enforced for escrow funding &amp; booking approvals</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {parents.map((p) => (
+                    <div key={p.id} className="filial-card p-6 space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-display text-base font-bold text-[#1C1917]">{p.parent_name}</h4>
+                          <span className="text-xs text-[#C25E2E] font-semibold">{p.locality}</span>
+                        </div>
+                        <div className="w-8 h-8 rounded-full bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center text-[#574F49]">
+                          <MapPin className="w-4 h-4 text-[#C25E2E]" />
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-[#574F49] space-y-1.5">
+                        <div><strong className="text-[#1C1917]">Address:</strong> {p.full_address}</div>
+                        <div><strong className="text-[#1C1917]">Calling Phone:</strong> <span className="font-mono text-[#1C1917]">{p.primary_phone}</span></div>
+                        <div><strong className="text-[#1C1917]">WhatsApp:</strong> <span className="font-mono text-[#1F5C42] font-bold">{p.whatsapp_phone || p.primary_phone}</span></div>
+                      </div>
+
+                      {p.medical_notes && (
+                        <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] text-xs text-[#574F49]">
+                          <strong className="text-[#1C1917]">Care Notes:</strong> {p.medical_notes}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-3 border-t border-[#E7DFD5]">
+                        <button
+                          onClick={() => handleOpenEditParent(p)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] font-semibold text-xs border border-[#E7DFD5] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-[#574F49]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteParent(p.id, p.parent_name)}
+                          className="py-2 px-3 rounded-xl bg-[#FEE2E2] hover:bg-[#FECACA] text-[#B91C1C] font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer border border-[#FECACA]"
+                          title="Delete Residence"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#B91C1C]" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[11px] font-semibold text-[#1F5C42] bg-[#E8F3EE] px-2 py-0.5 rounded-md border border-[#C8E5D7]">
-                    Enabled
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
-                  <div className="flex items-center gap-2.5">
-                    <Fingerprint className="w-4 h-4 text-[#C25E2E]" />
-                    <div>
-                      <div className="font-bold text-[#1C1917]">Biometric Fast Sign-In</div>
-                      <div className="text-[#574F49] text-[11px]">Apple TouchID / Windows Hello hardware key</div>
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={biometricEnabled}
-                    onChange={(e) => setBiometricEnabled(e.target.checked)}
-                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
-                  />
-                </div>
-
-                {/* Session telemetry */}
-                <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] space-y-1">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-[#8C827A]">Authenticated Client Account:</span>
-                    <span className="font-mono text-[#1C1917] font-semibold">{currentUserEmail}</span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-[#8C827A]">Parent Geofence Tolerance:</span>
-                    <span className="text-[#1F5C42] font-semibold">Strict 150m Server Geofence Active</span>
-                  </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Notification Preferences */}
-            <div className="filial-card p-6 space-y-4">
-              <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
-                <Bell className="w-4 h-4 text-[#C25E2E]" />
-                <span>Notification Preferences</span>
-              </h3>
-              <div className="space-y-3 text-xs">
-                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
-                  <div>
-                    <div className="font-bold text-[#1C1917]">Parent WhatsApp Updates</div>
-                    <div className="text-[#574F49] text-[11px]">Send zero-friction notifications to parents' phone upon dispatch &amp; arrival</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={whatsappAlerts}
-                    onChange={(e) => setWhatsappAlerts(e.target.checked)}
-                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
-                  />
-                </label>
+            {/* Sub-Panel 2: Health & Vitals */}
+            {familySubTab === 'health' && (
+              <HealthView
+                parentId={activeParent?.id || ''}
+                parentName={activeParent?.parent_name || 'My Parents'}
+                clientId={currentUserId}
+                onRefillCreated={() => {
+                  fetchAllData();
+                  setActiveTab('tracking');
+                }}
+              />
+            )}
 
-                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
+            {/* Sub-Panel 3: Medications & Pharmacy Refills */}
+            {familySubTab === 'medications' && (
+              <HealthView
+                parentId={activeParent?.id || ''}
+                parentName={activeParent?.parent_name || 'My Parents'}
+                clientId={currentUserId}
+                onRefillCreated={() => {
+                  fetchAllData();
+                  setActiveTab('tracking');
+                }}
+              />
+            )}
+
+            {/* Sub-Panel 4: Sibling Care Circle */}
+            {familySubTab === 'siblings' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-[#1C1917]">Email Invoices &amp; Receipts</div>
-                    <div className="text-[#574F49] text-[11px]">Receive monthly statements and escrow release receipts</div>
+                    <h3 className="font-display text-xl font-bold text-[#1C1917]">Shared Sibling Care Circle</h3>
+                    <p className="text-xs text-[#574F49]">
+                      Synchronize brothers and sisters across USA, UK, Canada, and UAE so the entire family stays updated.
+                    </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={emailAlerts}
-                    onChange={(e) => setEmailAlerts(e.target.checked)}
-                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
-                  />
-                </label>
+                  <button
+                    onClick={() => setShowFamilyModal(true)}
+                    className="filial-btn-primary text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Invite Family Member</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {familyMembers.map((member) => {
+                    const name = member.invited_name || (member as any).full_name || 'Family Member';
+                    const email = member.invited_email || (member as any).email || '';
+                    return (
+                      <div key={member.id} className="filial-card p-6 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-[#FBECE5] text-[#C25E2E] font-bold text-xs flex items-center justify-center border border-[#F5D5C6]">
+                              {name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <h4 className="font-display text-sm font-bold text-[#1C1917]">{name}</h4>
+                              <span className="text-[11px] text-[#C25E2E] font-semibold">{member.relationship}</span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] border border-[#C8E5D7] px-2 py-0.5 rounded-full font-semibold">
+                            Active Sibling
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-[#574F49] space-y-1 pt-1">
+                          {email && <div><strong className="text-[#1C1917]">Email:</strong> {email}</div>}
+                          <div><strong className="text-[#1C1917]">Status:</strong> <span className="font-semibold text-[#1F5C42]">{member.status || 'ACTIVE'}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-
-            {/* Log Out Button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full py-3 rounded-xl border border-[#FECACA] text-[#B91C1C] hover:bg-[#FEE2E2] font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out from FamilyHubs</span>
-              </button>
-            </div>
-          </form>
+            )}
+          </div>
         )}
       </main>
 
@@ -1834,32 +1395,10 @@ export default function UserApp() {
 
             <form onSubmit={handleConfirmBooking} className="space-y-4 text-xs">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[#1C1917] font-semibold">Select Parent Residence</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBookModal(false);
-                      setShowAddParentModal(true);
-                    }}
-                    className="text-[#C25E2E] hover:underline text-xs font-semibold cursor-pointer"
-                  >
-                    + Add New Parent
-                  </button>
-                </div>
+                <label className="block text-[#1C1917] font-semibold mb-1">Select Parent Residence</label>
                 {parents.length === 0 ? (
-                  <div className="p-3 bg-[#FEF3C7] border border-[#FDE68A] rounded-xl text-[#92400E] text-xs flex items-center justify-between">
-                    <span>No parent registered yet.</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowBookModal(false);
-                        setShowAddParentModal(true);
-                      }}
-                      className="px-2.5 py-1 bg-[#B45309] text-white rounded-lg font-bold hover:bg-[#92400E] cursor-pointer"
-                    >
-                      Add Parent Now
-                    </button>
+                  <div className="p-3 bg-[#FEF3C7] border border-[#FDE68A] rounded-xl text-[#92400E] text-xs">
+                    Please add a parent residence first.
                   </div>
                 ) : (
                   <select
@@ -1888,14 +1427,14 @@ export default function UserApp() {
                 />
               </div>
 
-              {/* Escrow summary */}
+              {/* Escrow Guarantee Box */}
               <div className="p-4 rounded-xl bg-[#E8F3EE] border border-[#C8E5D7] flex items-center justify-between">
                 <div>
                   <div className="font-bold text-[#1F5C42]">Protected Escrow Amount</div>
-                  <div className="text-[11px] text-[#574F49]">Released only after verified completion</div>
+                  <div className="text-[11px] text-[#574F49]">Released only after you inspect arrival photo &amp; GPS proof</div>
                 </div>
                 <div className="text-xl font-bold font-mono text-[#1F5C42]">
-                  ${reqEscrowAmount}.00 USD
+                  {formatPrice(reqEscrowAmount)}
                 </div>
               </div>
 
@@ -1912,10 +1451,62 @@ export default function UserApp() {
                   disabled={isSubmitting}
                   className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer"
                 >
-                  {isSubmitting ? 'Booking...' : `Confirm & Secure ($${reqEscrowAmount})`}
+                  {isSubmitting ? 'Booking...' : `Confirm & Secure (${formatPrice(reqEscrowAmount)})`}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ESCROW PROTECTION MODAL ================= */}
+      {showEscrowModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#1F5C42]" />
+                <h3 className="font-display text-base font-bold text-[#1C1917]">100% Escrow Protection Vault</h3>
+              </div>
+              <button onClick={() => setShowEscrowModal(false)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-left">
+              <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
+                <div className="text-[10px] text-[#8C827A] font-bold uppercase">Locked in Escrow</div>
+                <div className="text-xl font-bold font-mono text-[#1F5C42] mt-1">{formatPrice(lockedEscrow)}</div>
+                <div className="text-[10px] text-[#574F49] mt-0.5">Awaiting verified service</div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
+                <div className="text-[10px] text-[#8C827A] font-bold uppercase">Total Released</div>
+                <div className="text-xl font-bold font-mono text-[#1C1917] mt-1">{formatPrice(releasedEscrow)}</div>
+                <div className="text-[10px] text-[#574F49] mt-0.5">Disbursed upon approval</div>
+              </div>
+            </div>
+
+            <div className="text-xs text-[#574F49] space-y-2 bg-[#E8F3EE]/50 p-4 rounded-xl border border-[#C8E5D7]">
+              <div className="font-bold text-[#1F5C42] flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-[#1F5C42]" />
+                <span>How Your Escrow Protects You:</span>
+              </div>
+              <p className="leading-relaxed">
+                1. Your payment is held safely in escrow before companion dispatch.
+                <br />
+                2. Companion must check in with hardware GPS (&lt;150m) and timestamped photo proof.
+                <br />
+                3. Payout is released to the companion's UPI wallet only after forensic verification.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowEscrowModal(false)}
+              className="w-full py-2.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] rounded-xl text-xs font-semibold transition border border-[#E7DFD5] cursor-pointer"
+            >
+              Got it
+            </button>
           </div>
         </div>
       )}
@@ -1927,7 +1518,7 @@ export default function UserApp() {
             <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-[#C25E2E]" />
-                <h3 className="font-display text-sm font-bold text-[#1C1917]">Verified On-Site Photo</h3>
+                <h3 className="font-display text-sm font-bold text-[#1C1917]">Verified On-Site Arrival Photo</h3>
               </div>
               <button onClick={() => setShowProofModal(null)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
@@ -1947,24 +1538,13 @@ export default function UserApp() {
 
             <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#E7DFD5] space-y-2 text-xs text-[#574F49]">
               <div className="flex justify-between">
-                <span>Stage:</span>
-                <span className="font-bold text-[#1C1917]">{showProofModal.stage.replace('_', ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Distance from Home:</span>
+                <span>Distance from Residence:</span>
                 <span className="font-bold text-[#1F5C42]">
-                  {Math.round(showProofModal.distance_from_target_meters)} meters ({showProofModal.distance_from_target_meters <= 150 ? 'At Residence' : 'Flagged Perimeter'})
+                  {Math.round(showProofModal.distance_from_target_meters)} meters (&le;150m Pass)
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Server Geofence:</span>
-                <span className="font-semibold text-[#1F5C42] flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Forensic Pass (&le;150m)
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Anti-Tamper Digest:</span>
+                <span>Anti-Tamper Integrity:</span>
                 <span className="font-mono text-[10px] text-[#574F49] bg-white px-2 py-0.5 rounded border border-[#E7DFD5]">
                   SHA-256 HMAC-OK
                 </span>
@@ -1981,24 +1561,32 @@ export default function UserApp() {
         </div>
       )}
 
-      {/* ================= ADD PARENT MODAL ================= */}
-      {showAddParentModal && (
+      {/* ================= ADD / EDIT PARENT MODAL ================= */}
+      {(showAddParentModal || showEditParentModal) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
             <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
-              <h3 className="font-display text-base font-bold text-[#1C1917]">Add Parent Residence</h3>
-              <button onClick={() => setShowAddParentModal(false)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
+              <h3 className="font-display text-base font-bold text-[#1C1917]">
+                {showEditParentModal ? 'Edit Parent Residence' : 'Add Parent Residence'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddParentModal(false);
+                  setShowEditParentModal(false);
+                }}
+                className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddParent} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveParent} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">Parent Name(s)</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Parent Full Name(s) *</label>
                 <input
                   type="text"
-                  value={newParentName}
-                  onChange={(e) => setNewParentName(e.target.value)}
+                  value={parentNameInput}
+                  onChange={(e) => setParentNameInput(e.target.value)}
                   placeholder="e.g. Lakshmi & Ramana Reddy"
                   className="w-full filial-input"
                   required
@@ -2010,9 +1598,9 @@ export default function UserApp() {
                   <label className="block text-[#1C1917] font-semibold mb-1">Calling Phone *</label>
                   <input
                     type="tel"
-                    value={newParentPhone}
-                    onChange={(e) => setNewParentPhone(e.target.value)}
-                    placeholder="+91 94401 22334"
+                    value={parentPhoneInput}
+                    onChange={(e) => setParentPhoneInput(e.target.value)}
+                    placeholder="+91 94401 23456"
                     className="w-full filial-input font-mono"
                     required
                   />
@@ -2023,7 +1611,7 @@ export default function UserApp() {
                     <label className="block text-[#1C1917] font-semibold">WhatsApp *</label>
                     <button
                       type="button"
-                      onClick={() => setNewParentWhatsapp(newParentPhone)}
+                      onClick={() => setParentWhatsappInput(parentPhoneInput)}
                       className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
                     >
                       Same as call
@@ -2031,9 +1619,9 @@ export default function UserApp() {
                   </div>
                   <input
                     type="tel"
-                    value={newParentWhatsapp}
-                    onChange={(e) => setNewParentWhatsapp(e.target.value)}
-                    placeholder="+91 94401 22334"
+                    value={parentWhatsappInput}
+                    onChange={(e) => setParentWhatsappInput(e.target.value)}
+                    placeholder="+91 94401 23456"
                     className="w-full filial-input font-mono"
                     required
                   />
@@ -2041,42 +1629,57 @@ export default function UserApp() {
               </div>
 
               <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">City / Town in India (Pan-India) *</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">City / Locality in India *</label>
                 <input
                   type="text"
-                  value={newParentLocality}
-                  onChange={(e) => setNewParentLocality(e.target.value)}
-                  placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
+                  value={parentLocalityInput}
+                  onChange={(e) => setParentLocalityInput(e.target.value)}
+                  placeholder="e.g. Banjara Hills, Hyderabad"
                   className="w-full filial-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">Full Address</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Full Street Address *</label>
                 <textarea
                   rows={2}
-                  value={newParentAddress}
-                  onChange={(e) => setNewParentAddress(e.target.value)}
-                  placeholder="House number, landmark, lane name..."
+                  value={parentAddressInput}
+                  onChange={(e) => setParentAddressInput(e.target.value)}
+                  placeholder="House/Flat No, Landmark, Road, City, Pincode"
                   className="w-full filial-input"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#1C1917] font-semibold mb-1">Care &amp; Medical Notes (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={parentNotesInput}
+                  onChange={(e) => setParentNotesInput(e.target.value)}
+                  placeholder="Medications, mobility assistance, preferred hospital..."
+                  className="w-full filial-input"
                 />
               </div>
 
               <div className="pt-2 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowAddParentModal(false)}
-                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer hover:bg-[#F5F1EB]"
+                  onClick={() => {
+                    setShowAddParentModal(false);
+                    setShowEditParentModal(false);
+                  }}
+                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer"
                 >
-                  Save Parent
+                  {isSubmitting ? 'Saving...' : 'Save Residence'}
                 </button>
               </div>
             </form>
@@ -2084,114 +1687,130 @@ export default function UserApp() {
         </div>
       )}
 
-      {/* ================= EDIT PARENT MODAL ================= */}
-      {editingParent && (
+      {/* ================= SETTINGS & PROFILE MODAL ================= */}
+      {showSettingsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-[#E7DFD5] max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
-              <h3 className="font-display text-base font-bold text-[#1C1917]">Edit Parent Details</h3>
-              <button onClick={() => setEditingParent(null)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-[#C25E2E]" />
+                <h3 className="font-display text-base font-bold text-[#1C1917]">Account &amp; Preferences</h3>
+              </div>
+              <button onClick={() => setShowSettingsModal(false)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleUpdateParent} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">Parent Name(s)</label>
-                <input
-                  type="text"
-                  value={editParentName}
-                  onChange={(e) => setEditParentName(e.target.value)}
-                  placeholder="e.g. Lakshmi & Ramana Reddy"
-                  className="w-full filial-input"
-                  required
-                />
-              </div>
+            <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+              <div className="space-y-3">
+                <h4 className="font-bold text-[#1C1917] uppercase tracking-wider text-[11px] text-[#8C827A]">
+                  NRI Profile Details
+                </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[#1C1917] font-semibold mb-1">Calling Phone *</label>
+                  <label className="block text-[#1C1917] font-semibold mb-1">Your Full Name</label>
                   <input
-                    type="tel"
-                    value={editParentPhone}
-                    onChange={(e) => setEditParentPhone(e.target.value)}
-                    placeholder="+91 94401 22334"
-                    className="w-full filial-input font-mono"
+                    type="text"
+                    value={settingsFullName}
+                    onChange={(e) => setSettingsFullName(e.target.value)}
                     required
+                    className="w-full filial-input"
                   />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[#1C1917] font-semibold">WhatsApp *</label>
-                    <button
-                      type="button"
-                      onClick={() => setEditParentWhatsapp(editParentPhone)}
-                      className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
+                  <label className="block text-[#1C1917] font-semibold mb-1">Your Email Address</label>
+                  <input
+                    type="email"
+                    value={settingsEmail}
+                    onChange={(e) => setSettingsEmail(e.target.value)}
+                    required
+                    className="w-full filial-input"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#1C1917] font-semibold mb-1">Country of Residence</label>
+                    <select
+                      value={settingsCountry}
+                      onChange={(e) => setSettingsCountry(e.target.value)}
+                      className="w-full filial-input"
                     >
-                      Same as call
-                    </button>
+                      <option value="United States">United States</option>
+                      <option value="United Kingdom">United Kingdom</option>
+                      <option value="Canada">Canada</option>
+                      <option value="Australia">Australia</option>
+                      <option value="UAE (Dubai)">UAE (Dubai)</option>
+                      <option value="Singapore">Singapore</option>
+                      <option value="India">India</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#1C1917] font-semibold mb-1">Display Currency</label>
+                    <select
+                      value={userCurrency}
+                      onChange={(e) => setUserCurrency(e.target.value)}
+                      className="w-full filial-input font-mono"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="INR">INR (₹)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="CAD">CAD ($)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Toggles */}
+              <div className="pt-2 border-t border-[#E7DFD5] space-y-3">
+                <h4 className="font-bold text-[#1C1917] uppercase tracking-wider text-[11px] text-[#8C827A]">
+                  Care Alerts
+                </h4>
+
+                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
+                  <div>
+                    <div className="font-bold text-[#1C1917]">Parent WhatsApp Notifications</div>
+                    <div className="text-[11px] text-[#574F49]">Send arrival &amp; health updates directly to parents</div>
                   </div>
                   <input
-                    type="tel"
-                    value={editParentWhatsapp}
-                    onChange={(e) => setEditParentWhatsapp(e.target.value)}
-                    placeholder="+91 94401 22334"
-                    className="w-full filial-input font-mono"
-                    required
+                    type="checkbox"
+                    checked={whatsappAlerts}
+                    onChange={(e) => setWhatsappAlerts(e.target.checked)}
+                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
                   />
-                </div>
+                </label>
+
+                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
+                  <div>
+                    <div className="font-bold text-[#1C1917]">Email Invoices &amp; Proof Digests</div>
+                    <div className="text-[11px] text-[#574F49]">Receive monthly escrow statements and receipts</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={emailAlerts}
+                    onChange={(e) => setEmailAlerts(e.target.checked)}
+                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
+                  />
+                </label>
               </div>
 
-              <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">City / Town in India *</label>
-                <input
-                  type="text"
-                  value={editParentLocality}
-                  onChange={(e) => setEditParentLocality(e.target.value)}
-                  placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
-                  className="w-full filial-input"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">Full Address</label>
-                <textarea
-                  rows={2}
-                  value={editParentAddress}
-                  onChange={(e) => setEditParentAddress(e.target.value)}
-                  placeholder="House number, landmark, lane name..."
-                  className="w-full filial-input"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#1C1917] font-semibold mb-1">Care &amp; Medical Notes</label>
-                <textarea
-                  rows={2}
-                  value={editParentNotes}
-                  onChange={(e) => setEditParentNotes(e.target.value)}
-                  placeholder="Any medical conditions, dietary rules, doctor contacts..."
-                  className="w-full filial-input"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-3">
+              <div className="pt-3 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setEditingParent(null)}
-                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer hover:bg-[#F5F1EB]"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer"
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="submit"
-                  disabled={isUpdatingParent}
-                  className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer disabled:opacity-50"
+                  disabled={isSavingSettings}
+                  className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer"
                 >
-                  {isUpdatingParent ? 'Saving...' : 'Update Details'}
+                  {isSavingSettings ? 'Saving...' : 'Save Settings'}
                 </button>
               </div>
             </form>
@@ -2199,36 +1818,51 @@ export default function UserApp() {
         </div>
       )}
 
-      {/* ================= EXTENDED FEATURE MODALS ================= */}
+      {/* ================= COMPONENT MODALS ================= */}
+      {/* 1. Emergency Modal */}
       <EmergencyModal
         isOpen={showEmergencyModal}
         onClose={() => setShowEmergencyModal(false)}
         parents={parents}
         clientId={currentUserId}
-        onEmergencyTriggered={() => fetchAllData()}
+        onEmergencyTriggered={() => {
+          fetchAllData();
+          setActiveTab('tracking');
+        }}
       />
 
-      {reviewTargetTask && (
-        <TaskReviewModal
-          task={reviewTargetTask}
-          isOpen={Boolean(reviewTargetTask)}
-          onClose={() => setReviewTargetTask(null)}
-          onReviewSubmitted={() => fetchAllData()}
-        />
-      )}
-
+      {/* 2. Live Tracking Modal */}
       {trackingTargetTask && (
         <LiveTrackingModal
           task={trackingTargetTask}
-          isOpen={Boolean(trackingTargetTask)}
+          isOpen={!!trackingTargetTask}
           onClose={() => setTrackingTargetTask(null)}
           latestTelemetry={latestPartnerTelemetry}
         />
       )}
 
+      {/* 3. Task Review Modal */}
+      {reviewTargetTask && (
+        <TaskReviewModal
+          task={reviewTargetTask}
+          isOpen={!!reviewTargetTask}
+          onClose={() => setReviewTargetTask(null)}
+          onReviewSubmitted={() => {
+            setReviewTargetTask(null);
+            fetchAllData();
+            setToastMessage('Review submitted! Thank you for rating.');
+            setTimeout(() => setToastMessage(null), 3000);
+          }}
+        />
+      )}
+
+      {/* 4. Family Share Modal */}
       <FamilyShareModal
         isOpen={showFamilyModal}
-        onClose={() => setShowFamilyModal(false)}
+        onClose={() => {
+          setShowFamilyModal(false);
+          fetchAllData();
+        }}
         clientId={currentUserId}
       />
     </div>
