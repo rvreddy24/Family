@@ -56,34 +56,8 @@ import { TaskReviewModal } from './components/TaskReviewModal';
 import { FamilyShareModal } from './components/FamilyShareModal';
 import { LiveTrackingModal } from './components/LiveTrackingModal';
 
-export const POPULAR_INDIAN_CITIES: Record<string, { lat: number; lng: number }> = {
-  'Hyderabad': { lat: 17.3850, lng: 78.4867 },
-  'Bengaluru': { lat: 12.9716, lng: 77.5946 },
-  'Mumbai': { lat: 19.0760, lng: 72.8777 },
-  'Delhi NCR': { lat: 28.6139, lng: 77.2090 },
-  'Chennai': { lat: 13.0827, lng: 80.2707 },
-  'Pune': { lat: 18.5204, lng: 73.8567 },
-  'Kolkata': { lat: 22.5726, lng: 88.3639 },
-  'Ahmedabad': { lat: 23.0225, lng: 72.5714 },
-  'Kochi': { lat: 9.9312, lng: 76.2673 },
-  'Coimbatore': { lat: 11.0168, lng: 76.9558 },
-  'Jaipur': { lat: 26.9124, lng: 75.7873 },
-  'Lucknow': { lat: 26.8467, lng: 80.9462 },
-};
-
-export function resolveCityCoordinates(cityOrAddress: string): { lat: number; lng: number } {
-  if (!cityOrAddress) return POPULAR_INDIAN_CITIES['Hyderabad'];
-  const lower = cityOrAddress.toLowerCase();
-  for (const [cityName, coords] of Object.entries(POPULAR_INDIAN_CITIES)) {
-    if (lower.includes(cityName.toLowerCase()) || lower.includes(cityName.split(' ')[0].toLowerCase())) {
-      return coords;
-    }
-  }
-  return POPULAR_INDIAN_CITIES['Hyderabad'];
-}
-
 export default function UserApp() {
-  // Persistence for login status (default false to show welcome/login first if first visit)
+  // Persistence for login status
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const saved = localStorage.getItem('fh_user_logged_in');
     return saved === null ? false : saved === 'true';
@@ -104,7 +78,6 @@ export default function UserApp() {
   const [activeTab, setActiveTab] = useState<'explore' | 'trackers' | 'health' | 'parents' | 'billing' | 'settings'>('explore');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [parents, setParents] = useState<ParentProfile[]>([]);
-  const [healthParentId, setHealthParentId] = useState<string>('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showProofModal, setShowProofModal] = useState<VerificationLog | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -121,7 +94,7 @@ export default function UserApp() {
   // Security Controls State
   const [isEscrowFrozen, setIsEscrowFrozen] = useState<boolean>(false);
   const [twoFactorActive, setTwoFactorActive] = useState<boolean>(true);
-  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(() => localStorage.getItem('fh_biometric_enabled') !== '0');
+  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(true);
 
   // Google OAuth Onboarding State
   const [pendingGoogleUser, setPendingGoogleUser] = useState<{
@@ -132,21 +105,21 @@ export default function UserApp() {
     user?: any;
   } | null>(null);
 
-  // Search & Filter State (Urban Company UX)
+  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
-  // Settings State - Fully User Editable (Client Profile)
+  // Settings State - Fully User Editable
   const [settingsFullName, setSettingsFullName] = useState<string>('');
   const [settingsEmail, setSettingsEmail] = useState<string>('');
   const [settingsPhone, setSettingsPhone] = useState<string>('');
   const [settingsCountry, setSettingsCountry] = useState<string>('United States');
   const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
   const [userCurrency, setUserCurrency] = useState<string>('USD');
-  const [emailAlerts, setEmailAlerts] = useState<boolean>(() => localStorage.getItem('fh_email_alerts') !== '0');
-  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(() => localStorage.getItem('fh_whatsapp_alerts') !== '0');
+  const [emailAlerts, setEmailAlerts] = useState<boolean>(true);
+  const [whatsappAlerts, setWhatsappAlerts] = useState<boolean>(true);
 
-  // Settings State - Parents' Care Details (Mandatory Pan-India)
+  // Settings State - Parents' Care Details
   const [settingsParentName, setSettingsParentName] = useState<string>('');
   const [settingsParentPhone, setSettingsParentPhone] = useState<string>('');
   const [settingsParentWhatsapp, setSettingsParentWhatsapp] = useState<string>('');
@@ -155,7 +128,7 @@ export default function UserApp() {
   const [settingsParentNotes, setSettingsParentNotes] = useState<string>('');
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
 
-  // Booking Modal State (Urban Company Quick Book)
+  // Booking Modal State
   const [showBookModal, setShowBookModal] = useState<boolean>(false);
   const [selectedService, setSelectedService] = useState<{
     id: string;
@@ -174,14 +147,7 @@ export default function UserApp() {
   const [reqInstructions, setReqInstructions] = useState<string>('');
   const [reqEscrowAmount, setReqEscrowAmount] = useState<number>(45);
 
-  // Urban Company UX: Active City Selector & Custom Senior Booking Options
-  const [selectedCity, setSelectedCity] = useState<string>('Hyderabad');
-  const [bookingTimeSlot, setBookingTimeSlot] = useState<string>('Morning (9:00 AM – 12:00 PM)');
-  const [bookingLanguage, setBookingLanguage] = useState<string>('Telugu');
-  const [bookingSeniorNeeds, setBookingSeniorNeeds] = useState<string[]>(['Doorstep OTP Handshake', 'WhatsApp Photo Update']);
-  const [doorstepOtp, setDoorstepOtp] = useState<string>('4829');
-
-  // New Parent Modal (Pan-India)
+  // Parent Modals
   const [showAddParentModal, setShowAddParentModal] = useState<boolean>(false);
   const [newParentName, setNewParentName] = useState<string>('');
   const [newParentPhone, setNewParentPhone] = useState<string>('+91 ');
@@ -202,7 +168,7 @@ export default function UserApp() {
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Curated Urban Company Style Services - Pan-India
+  // Curated Concierge Eldercare Services - Pan-India
   const servicesCatalog = [
     {
       id: 'srv_med_1',
@@ -275,42 +241,6 @@ export default function UserApp() {
       desc: 'Immediate emergency transport escort with trained caretaker staying by your parents side.',
       features: ['Under 20-minute rapid response dispatch', 'Vehicle escort to nearest tertiary care hospital', 'Continuous WhatsApp call coordination with NRI'],
       badge: 'Priority 24/7',
-    },
-    {
-      id: 'srv_tech_1',
-      title: 'Senior Smartphone, WhatsApp & Tech Care',
-      category: 'ERRANDS',
-      rating: '4.97',
-      reviews: '178 reviews',
-      price: 25,
-      banner: getImageUrl('/uploads/service_errands.svg'),
-      desc: 'Patient, in-person smartphone setup: configure NRI family video calls, large fonts, emergency contacts, utility bill auto-pay, and scam safety.',
-      features: ['Video calling & WhatsApp shortcuts configured', 'Online utility bills & pension certificate setup', 'Spam call blocker & scam protection guidance'],
-      badge: 'Senior Favorite',
-    },
-    {
-      id: 'srv_ac_1',
-      title: 'Split AC Power Clean & Filter Servicing',
-      category: 'HOME_MAINTENANCE',
-      rating: '4.92',
-      reviews: '154 reviews',
-      price: 35,
-      banner: getImageUrl('/uploads/service_repair.svg'),
-      desc: 'Complete anti-bacterial deep cleaning of indoor & outdoor AC units to protect aging parents from heat exhaustion and dust allergies.',
-      features: ['High-pressure jet coil wash with anti-fungal foam', 'Drain tray & pipe vacuum clog clearance', 'Cooling temperature & refrigerant gas check'],
-      badge: 'Summer Essential',
-    },
-    {
-      id: 'srv_physio_1',
-      title: 'Geriatric Physiotherapy & Fall Prevention Session',
-      category: 'MEDICAL_TRANSPORT',
-      rating: '4.99',
-      reviews: '92 reviews',
-      price: 45,
-      banner: getImageUrl('/uploads/service_medical.svg'),
-      desc: 'Qualified home physiotherapist specializing in elderly mobility, arthritis pain relief, and balance restoration.',
-      features: ['Joint mobility & posture assessment', 'Customized low-impact exercise regimen', 'Home fall-hazard audit (bathrooms & stairs)'],
-      badge: 'Certified Physio',
     },
   ];
 
@@ -418,157 +348,63 @@ export default function UserApp() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!settingsFullName.trim() || !settingsEmail.trim()) {
-      setToastMessage('Please provide your name and email.');
-      playNotificationChime('alert');
-      return;
-    }
-    if (!settingsParentName.trim() || !settingsParentPhone.trim() || !settingsParentWhatsapp.trim() || !settingsParentAddress.trim()) {
-      setToastMessage("Parents' name, calling phone, WhatsApp number, and address are mandatory.");
-      playNotificationChime('alert');
-      return;
-    }
-
     setIsSavingSettings(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/client/profile`, {
+      const api = getApiBaseUrl();
+      const clientRes = await fetch(`${api}/api/clients/${currentUserId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: currentUserId,
           fullName: settingsFullName.trim(),
           email: settingsEmail.trim(),
           phone: settingsPhone.trim(),
-          countryResidence: settingsCountry.trim(),
+          countryResidence: settingsCountry,
           currency: settingsCurrency,
-          parentName: settingsParentName.trim(),
-          parentPrimaryPhone: settingsParentPhone.trim(),
-          parentWhatsappPhone: settingsParentWhatsapp.trim(),
-          parentLocality: settingsParentCity.trim() || 'Pan-India',
-          parentAddress: settingsParentAddress.trim(),
-          parentNotes: settingsParentNotes.trim(),
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update settings.');
+      if (clientRes.ok) {
+        setCurrentUserName(settingsFullName.trim());
+        setCurrentUserEmail(settingsEmail.trim());
+        setUserCurrency(settingsCurrency);
+        localStorage.setItem('fh_user_name', settingsFullName.trim());
+        localStorage.setItem('fh_user_email', settingsEmail.trim());
       }
 
-      setCurrentUserName(settingsFullName.trim());
-      setCurrentUserEmail(settingsEmail.trim());
-      localStorage.setItem('fh_user_name', settingsFullName.trim());
-      localStorage.setItem('fh_user_email', settingsEmail.trim());
-      localStorage.setItem('fh_biometric_enabled', biometricEnabled ? '1' : '0');
-      localStorage.setItem('fh_email_alerts', emailAlerts ? '1' : '0');
-      localStorage.setItem('fh_whatsapp_alerts', whatsappAlerts ? '1' : '0');
-      if (data.profile) setClientProfile(data.profile);
-      if (data.parents) setParents(data.parents);
+      if (parents.length > 0) {
+        const targetParentId = parents[0].id;
+        await fetch(`${api}/api/parents/${targetParentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parentName: settingsParentName.trim(),
+            primaryPhone: settingsParentPhone.trim(),
+            whatsappPhone: settingsParentWhatsapp.trim() || settingsParentPhone.trim(),
+            locality: settingsParentCity.trim() || 'Pan-India',
+            fullAddress: settingsParentAddress.trim(),
+            medicalNotes: settingsParentNotes.trim() || null,
+          }),
+        });
+      }
 
+      fetchAllData();
       playNotificationChime('success');
-      setToastMessage('Account profile & parents care details saved successfully!');
-      setTimeout(() => setToastMessage(null), 5000);
-    } catch (err: any) {
-      console.error('Settings save error:', err);
-      playNotificationChime('alert');
-      setToastMessage(err.message || 'Failed to update settings.');
-      setTimeout(() => setToastMessage(null), 5000);
+      setToastMessage('Account profile and parents care details updated!');
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Error saving settings:', err);
     } finally {
       setIsSavingSettings(false);
     }
   };
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    if (isLoggedIn) {
+      fetchAllData();
+    }
+  }, [isLoggedIn]);
 
-  // Listen for Supabase OAuth Redirect or Existing Active Session
-  useEffect(() => {
-    if (!supabase) return;
-
-    const syncGoogleSession = async (session: any) => {
-      if (!session?.user) return;
-      const u = session.user;
-      const email = u.email;
-      if (!email) return;
-
-      const fullName =
-        u.user_metadata?.full_name ||
-        u.user_metadata?.name ||
-        u.user_metadata?.user_name ||
-        email.split('@')[0];
-
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/api/auth/google`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: u.id,
-            email,
-            full_name: fullName,
-            role: 'CLIENT',
-          }),
-        });
-
-        const data = await res.json();
-        if (data.success && data.user) {
-          localStorage.setItem('fh_user_logged_in', 'true');
-          localStorage.setItem('fh_user_id', data.user.id);
-          localStorage.setItem('fh_user_name', data.user.full_name);
-          localStorage.setItem('fh_user_email', data.user.email);
-          setCurrentUserId(data.user.id);
-          setCurrentUserName(data.user.full_name);
-          setCurrentUserEmail(data.user.email);
-          setIsLoggedIn(true);
-          setPendingGoogleUser(null);
-          fetchAllData(data.user.id);
-          setToastMessage(`Welcome back, ${data.user.full_name}!`);
-          setTimeout(() => setToastMessage(null), 4000);
-
-          // Clean up OAuth tokens/code from address bar without reloading
-          if (window.location.search || window.location.hash) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } else if (data.noAccount || res.status === 404) {
-          // If no account with that Google email, redirect to signup
-          setPendingGoogleUser({
-            email: data.email || email,
-            fullName: data.fullName || fullName,
-            authProviderId: data.authProviderId || u.id,
-            isExisting: false,
-          });
-          setIsLoggedIn(false);
-          setToastMessage('Google verified! Please enter your mobile phone number to complete signup.');
-          setTimeout(() => setToastMessage(null), 6000);
-          if (window.location.search || window.location.hash) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to synchronize Google user with platform:', err);
-      }
-    };
-
-    // Check active session on mount (handles OAuth redirect callback)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        syncGoogleSession(session);
-      }
-    });
-
-    // Listen for auth changes (SIGNED_IN after Google redirect)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
-        syncGoogleSession(session);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Background WebSocket listener for instant state updates with clean reconnection handling
+  // WebSocket Telemetry Listener
   useEffect(() => {
     let socket: WebSocket | null = null;
     let isMounted = true;
@@ -600,10 +436,10 @@ export default function UserApp() {
               setToastMessage('✓ Emergency safely handled and resolved by Chief Concierge.');
             } else if (msg.type === 'PARTNER_CHECKED_IN') {
               playNotificationChime('ping');
-              setToastMessage("Great news! The helper has arrived at your parents' house.");
+              setToastMessage("The helper has arrived at your parents' house.");
             } else if (msg.type === 'ESCROW_RELEASED') {
               playNotificationChime('success');
-              setToastMessage('Service completed and verified! Escrow released to helper.');
+              setToastMessage('Service completed and verified! Escrow released.');
             } else if (msg.type === 'TASK_DISPATCHED') {
               playNotificationChime('ping');
               setToastMessage('A vetted helper has been assigned and is on the way.');
@@ -657,11 +493,9 @@ export default function UserApp() {
   };
 
   const openBookModal = (srv: typeof servicesCatalog[0]) => {
-    const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    setDoorstepOtp(randomOtp);
     setSelectedService(srv);
     setReqTitle(srv.title);
-    setReqInstructions(`Please coordinate ${srv.title} with verified photo check-in. Ring doorbell twice and speak gently.`);
+    setReqInstructions(`Please arrange ${srv.title}. Ensure the on-ground helper calls before arriving.`);
     setReqEscrowAmount(srv.price);
     setShowBookModal(true);
   };
@@ -672,14 +506,6 @@ export default function UserApp() {
 
     setIsSubmitting(true);
     try {
-      const fullInstructions = [
-        reqInstructions.trim(),
-        `Preferred Window: ${bookingTimeSlot}`,
-        `Partner Language: ${bookingLanguage}`,
-        bookingSeniorNeeds.length > 0 ? `Senior Care Support: ${bookingSeniorNeeds.join(', ')}` : '',
-        `Doorstep Verification PIN: ${doorstepOtp}`,
-      ].filter(Boolean).join('\n• ');
-
       const res = await fetch(`${getApiBaseUrl()}/api/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -688,7 +514,7 @@ export default function UserApp() {
           parentId: reqParentId,
           category: selectedService?.category || 'MEDICAL_TRANSPORT',
           title: reqTitle,
-          instructions: fullInstructions,
+          instructions: reqInstructions,
           scheduledAt: new Date().toISOString(),
           escrowAmount: reqEscrowAmount,
         }),
@@ -700,18 +526,12 @@ export default function UserApp() {
         setActiveTab('trackers');
         setSelectedTask(createdTask);
         playNotificationChime('success');
-        setToastMessage(`Service confirmed! $${reqEscrowAmount}.00 is locked safely in Escrow.`);
+        setToastMessage(`Service booked! $${reqEscrowAmount}.00 secured in escrow.`);
         setTimeout(() => setToastMessage(null), 5000);
         fetchAllData();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setToastMessage(err.error || 'Failed to submit service request. Please retry.');
-        setTimeout(() => setToastMessage(null), 5000);
       }
     } catch (err) {
       console.error(err);
-      setToastMessage('Network error submitting request. Please try again.');
-      setTimeout(() => setToastMessage(null), 5000);
     } finally {
       setIsSubmitting(false);
     }
@@ -725,7 +545,6 @@ export default function UserApp() {
       return;
     }
     try {
-      const targetCoords = resolveCityCoordinates(newParentLocality + ' ' + newParentAddress);
       const res = await fetch(`${getApiBaseUrl()}/api/parents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -734,10 +553,10 @@ export default function UserApp() {
           parentName: newParentName.trim(),
           primaryPhone: newParentPhone.trim(),
           whatsappPhone: newParentWhatsapp.trim() || newParentPhone.trim(),
-          locality: newParentLocality.trim() || 'Hyderabad',
+          locality: newParentLocality.trim() || 'Pan-India',
           fullAddress: newParentAddress.trim(),
-          coordinatesLat: targetCoords.lat,
-          coordinatesLng: targetCoords.lng,
+          coordinatesLat: 20.5937,
+          coordinatesLng: 78.9629,
           medicalNotes: newParentNotes.trim() || null,
         }),
       });
@@ -779,7 +598,6 @@ export default function UserApp() {
     }
     setIsUpdatingParent(true);
     try {
-      const targetCoords = resolveCityCoordinates(editParentLocality + ' ' + editParentAddress);
       const res = await fetch(`${getApiBaseUrl()}/api/parents/${editingParent.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -787,10 +605,8 @@ export default function UserApp() {
           parentName: editParentName.trim(),
           primaryPhone: editParentPhone.trim(),
           whatsappPhone: editParentWhatsapp.trim() || editParentPhone.trim(),
-          locality: editParentLocality.trim() || 'Hyderabad',
+          locality: editParentLocality.trim() || 'Pan-India',
           fullAddress: editParentAddress.trim(),
-          coordinatesLat: targetCoords.lat,
-          coordinatesLng: targetCoords.lng,
           medicalNotes: editParentNotes.trim() || null,
         }),
       });
@@ -851,7 +667,7 @@ export default function UserApp() {
   };
 
   const friendlySteps = [
-    { title: 'Requested', desc: 'Protected in escrow' },
+    { title: 'Requested', desc: 'Secured in escrow' },
     { title: 'Helper Assigned', desc: 'Vetted local concierge' },
     { title: 'On the Way', desc: 'En route to residence' },
     { title: 'Arrived & Verified', desc: 'Live GPS photo check-in' },
@@ -882,7 +698,6 @@ export default function UserApp() {
     }
   }, [requestFilter, tasks]);
 
-  // Filtered Services based on Search & Category
   const filteredServices = servicesCatalog.filter((s) => {
     const matchesSearch =
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -893,7 +708,7 @@ export default function UserApp() {
   });
 
   // ==========================================
-  // VIEW: AUTHENTICATION SCREEN (SIGN IN / SIGN UP)
+  // VIEW: AUTHENTICATION SCREEN
   // ==========================================
   if (!isLoggedIn) {
     return (
@@ -919,57 +734,41 @@ export default function UserApp() {
   // VIEW: AUTHENTICATED NRI CLIENT PORTAL
   // ==========================================
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1C1917] selection:bg-[#C25E2E] selection:text-white">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:right-6 sm:max-w-md max-w-full z-[70] flex items-center gap-3 bg-white border border-slate-200 text-slate-900 px-5 py-3.5 rounded-2xl shadow-2xl animate-in slide-in-from-top-3">
-          <Sparkles className="w-5 h-5 text-indigo-600 shrink-0" />
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-white border border-[#E7DFD5] text-[#1C1917] px-5 py-3.5 rounded-xl shadow-lg animate-in slide-in-from-top-3">
+          <Sparkles className="w-5 h-5 text-[#C25E2E] shrink-0" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
       )}
 
-      {/* Urban Company Style Top Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
+      {/* Top Header */}
+      <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E7DFD5]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-6">
             <div
               onClick={() => setActiveTab('explore')}
               className="flex items-center gap-3 cursor-pointer"
             >
-              <img src="/logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
+              <div className="w-10 h-10 rounded-xl bg-[#C25E2E] flex items-center justify-center text-white shadow-xs">
+                <Heart className="w-5 h-5 fill-white" />
+              </div>
               <div>
-                <span className="text-lg font-bold text-slate-900 tracking-tight">FamilyHubs</span>
-                <span className="hidden md:inline-block text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full ml-2">
-                  Parent Care
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-xl font-bold text-[#1C1917] tracking-tight">FamilyHubs</span>
+                  <span className="text-[11px] bg-[#FBECE5] text-[#A3481D] font-semibold px-2 py-0.5 rounded-full border border-[#F5D3C4]">
+                    Client Concierge
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Urban Company Style City Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 border border-slate-200/80 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs transition">
-              <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-              <select
-                value={selectedCity}
-                onChange={(e) => {
-                  setSelectedCity(e.target.value);
-                  setToastMessage(`Showing verified services in ${e.target.value}`);
-                  setTimeout(() => setToastMessage(null), 3000);
-                }}
-                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer max-w-[105px] sm:max-w-none"
-              >
-                {Object.keys(POPULAR_INDIAN_CITIES).map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Pan-India Eldercare Network Badge */}
-            <div className="hidden lg:flex items-center gap-2 bg-indigo-50/80 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs">
-              <Globe className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <span className="font-semibold text-indigo-950">100% Escrow Protection</span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">Senior Safe</span>
+            <div className="hidden md:flex items-center gap-2 bg-white border border-[#E7DFD5] px-3 py-1.5 rounded-xl text-xs shadow-2xs">
+              <Globe className="w-3.5 h-3.5 text-[#1F5C42] shrink-0" />
+              <span className="font-semibold text-[#1C1917]">Pan-India Care Network</span>
+              <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] font-bold px-1.5 py-0.5 rounded-full border border-[#C8E5D7]">All Cities</span>
             </div>
           </div>
 
@@ -978,7 +777,7 @@ export default function UserApp() {
             {/* 1-Tap Emergency SOS Trigger */}
             <button
               onClick={() => setShowEmergencyModal(true)}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-rose-600/30 transition animate-pulse cursor-pointer shrink-0"
+              className="bg-[#B91C1C] hover:bg-[#991B1B] text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
               title="Activate Emergency Response"
             >
               <Siren className="w-4 h-4" />
@@ -986,30 +785,37 @@ export default function UserApp() {
               <span className="sm:hidden">SOS</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-white shadow-xs">
-              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
-              <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-[#E7DFD5] bg-white shadow-2xs">
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[#1F5C42] animate-pulse' : 'bg-[#B45309]'}`} />
+              <span className={wsConnected ? 'text-[#1F5C42]' : 'text-[#B45309]'}>
                 {wsConnected ? 'Live Gateway' : 'Connecting...'}
               </span>
             </div>
 
+            <button
+              onClick={() => setActiveTab('settings')}
+              className="p-2.5 rounded-xl text-[#574F49] hover:text-[#1C1917] hover:bg-white/80 transition cursor-pointer"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+
             <div
               onClick={() => setActiveTab('settings')}
-              className="flex items-center gap-2.5 cursor-pointer pl-2.5 border-l border-slate-200 hover:opacity-85 transition"
-              title="Account Settings"
+              className="flex items-center gap-3 cursor-pointer pl-3 border-l border-[#E7DFD5]"
             >
-              <div className="w-8.5 h-8.5 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center border border-indigo-200 shadow-xs">
+              <div className="w-9 h-9 rounded-full bg-[#FBECE5] text-[#C25E2E] font-bold text-xs flex items-center justify-center border border-[#F5D3C4]">
                 {currentUserName.substring(0, 2).toUpperCase()}
               </div>
-              <div className="hidden md:block text-right">
-                <div className="text-xs font-bold text-slate-900 leading-tight">{currentUserName}</div>
-                <div className="text-[10px] text-slate-500">{currentUserEmail}</div>
+              <div className="hidden sm:block text-right">
+                <div className="text-xs font-bold text-[#1C1917]">{currentUserName}</div>
+                <div className="text-[11px] text-[#574F49]">{currentUserEmail}</div>
               </div>
             </div>
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+              className="p-2 rounded-xl text-[#8C827A] hover:text-[#B91C1C] hover:bg-[#FEE2E2] transition cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
@@ -1018,138 +824,147 @@ export default function UserApp() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 border-t border-slate-100 py-1.5 overflow-x-auto pr-4 sm:pr-0 scroll-smooth">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-[#E7DFD5] pt-1.5 pb-1 overflow-x-auto items-center">
           <button
             onClick={() => setActiveTab('explore')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'explore'
-                ? 'bg-indigo-50 text-indigo-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'explore'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            Find Services
+            <Sparkles className="w-4 h-4 text-[#C25E2E]" />
+            <span>Find Services</span>
           </button>
 
           <button
             onClick={() => setActiveTab('trackers')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'trackers'
-                ? 'bg-indigo-50 text-indigo-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'trackers'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <Activity className="w-4 h-4 text-blue-600" />
-            Active Requests
-            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded-full text-[10px]">
+            <Activity className="w-4 h-4 text-[#1F5C42]" />
+            <span>Active Requests</span>
+            <span className="bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] px-1.5 py-0.2 rounded-full text-[10px]">
               {tasks.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('health')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'health'
-                ? 'bg-rose-50 text-rose-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'health'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
-            Health & Vitals
+            <Heart className="w-4 h-4 text-[#C25E2E]" />
+            <span>Health &amp; Vitals</span>
           </button>
 
           <button
             onClick={() => setActiveTab('parents')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'parents'
-                ? 'bg-indigo-50 text-indigo-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'parents'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <UserCheck className="w-4 h-4 text-emerald-600" />
-            My Parents
-            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded-full text-[10px]">
+            <UserCheck className="w-4 h-4 text-[#1F5C42]" />
+            <span>My Parents</span>
+            <span className="bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] px-1.5 py-0.2 rounded-full text-[10px]">
               {parents.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('billing')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'billing'
-                ? 'bg-indigo-50 text-indigo-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'billing'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            Escrow Vault
+            <ShieldCheck className="w-4 h-4 text-[#B45309]" />
+            <span>Escrow Vault</span>
           </button>
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${activeTab === 'settings'
-                ? 'bg-indigo-50 text-indigo-700 font-bold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
+            className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'settings'
+                ? 'bg-white text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                : 'text-[#574F49] hover:text-[#1C1917] hover:bg-white/60'
+            }`}
           >
-            <Settings className="w-4 h-4 text-slate-500" />
-            Settings
+            <Settings className="w-4 h-4 text-[#8C827A]" />
+            <span>Settings</span>
           </button>
 
           <button
             onClick={() => setShowFamilyModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 border border-indigo-200/80 whitespace-nowrap cursor-pointer ml-auto"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 text-[#C25E2E] hover:bg-[#FBECE5] ml-auto whitespace-nowrap border border-[#F5D3C4] cursor-pointer"
             title="Shared Family Care"
           >
-            <Users className="w-4 h-4 text-indigo-600" />
-            <span>Shared Sibling Care</span>
+            <Users className="w-4 h-4 text-[#C25E2E]" />
+            <span className="hidden md:inline">Shared Sibling Care</span>
           </button>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24">
-        {/* ================= TAB 1: URBAN COMPANY STYLE EXPLORE SERVICES ================= */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* ================= TAB 1: EXPLORE SERVICES ================= */}
         {activeTab === 'explore' && (
           <div className="space-y-8">
             {/* Hero Search & Promo Banner */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-lg">
-              <div className="space-y-4 max-w-xl">
-                <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-3 py-1 rounded-full font-semibold">
-                  Dedicated Senior Care Concierge • 100% Escrow Protected
-                </span>
-                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <div className="bg-[#FFFFFF] rounded-3xl p-7 md:p-9 text-[#1C1917] flex flex-col md:flex-row items-center justify-between gap-8 shadow-xs border border-[#E7DFD5] relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-96 h-96 bg-[#FBECE5]/40 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="space-y-3.5 max-w-xl relative z-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F3EE] border border-[#C8E5D7] text-[#1F5C42] text-xs font-semibold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Welcome back, {currentUserName.split(' ')[0] || 'Friend'} • All Parents Safe</span>
+                </div>
+                <h2 className="font-display text-2xl md:text-3.5xl font-bold tracking-tight text-[#1C1917] leading-tight">
                   What care do your parents need today?
                 </h2>
-                <p className="text-xs md:text-sm text-slate-300">
-                  Every booking is backed by 100% Escrow. Helpers are dispatched with live selfie check-in within 150m of their home.
+                <p className="text-xs md:text-sm text-[#574F49] leading-relaxed">
+                  Every booking is protected by 100% Escrow. Verified field companions check in with forensic photo proof within 150m of your parents' home.
                 </p>
 
-                {/* Urban Company Search Bar */}
+                {/* Search Bar */}
                 <div className="relative pt-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-[#8C827A] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search doctor visit, AC service, plumbing, groceries, tech care..."
-                    className="w-full bg-white/10 border border-white/20 text-white placeholder-slate-400 rounded-2xl pl-11 pr-4 py-3 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 backdrop-blur-md"
+                    placeholder="Search 'Doctor visit', 'Inverter check', 'RO plumbing', 'Pooja items'..."
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] text-[#1C1917] placeholder-[#8C827A] rounded-xl pl-11 pr-4 py-3 text-xs md:text-sm focus:outline-none focus:border-[#C25E2E] focus:ring-2 focus:ring-[#C25E2E]/10 transition-all"
                   />
                 </div>
               </div>
 
-              {/* Escrow Vault Glance Card */}
-              <div className="flex items-center gap-4 bg-white/10 p-5 rounded-2xl backdrop-blur-md border border-white/10 shrink-0 shadow-inner">
+              {/* Escrow Vault Glance */}
+              <div className="flex items-center gap-4 bg-[#FAF7F2] p-5 rounded-2xl border border-[#E7DFD5] shrink-0 relative z-10 shadow-xs">
                 <div>
-                  <div className="text-[11px] text-slate-300 font-medium">Secured in Escrow</div>
-                  <div className="text-2xl font-bold font-mono text-emerald-400">
+                  <div className="text-[11px] text-[#8C827A] font-semibold uppercase tracking-wider">Secured in Escrow</div>
+                  <div className="text-2xl font-bold font-mono text-[#1F5C42]">
                     ${lockedEscrow.toFixed(2)} USD
                   </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Released upon photo review</div>
+                  <div className="text-[10px] text-[#574F49] mt-0.5">Released upon photo review</div>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                <div className="w-12 h-12 rounded-xl bg-[#E8F3EE] border border-[#C8E5D7] flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-[#1F5C42]" />
                 </div>
               </div>
             </div>
 
-            {/* Quick Category Filter Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {[
                 { id: 'ALL', label: 'All Services', icon: Sparkles },
                 { id: 'MEDICAL_TRANSPORT', label: 'Doctor & Health', icon: Stethoscope },
@@ -1163,13 +978,14 @@ export default function UserApp() {
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${isSelected
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
-                      }`}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#C25E2E] text-white shadow-xs'
+                        : 'bg-white text-[#574F49] border border-[#E7DFD5] hover:border-[#D6C9BC]'
+                    }`}
                   >
                     <IconComponent className="w-3.5 h-3.5" />
-                    {cat.label}
+                    <span>{cat.label}</span>
                   </button>
                 );
               })}
@@ -1180,43 +996,35 @@ export default function UserApp() {
               {filteredServices.map((service) => (
                 <div
                   key={service.id}
-                  className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                  className="filial-card overflow-hidden flex flex-col justify-between"
                 >
                   <div>
                     {/* Visual Banner */}
-                    <div className="h-44 w-full bg-slate-100 overflow-hidden relative">
+                    <div className="h-44 w-full bg-[#FAF7F2] overflow-hidden relative border-b border-[#E7DFD5]">
                       <img
                         src={service.banner}
                         alt={service.title}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-800 shadow-xs">
+                      <div className="absolute top-3 left-3 bg-white/95 px-2.5 py-1 rounded-full text-[11px] font-bold text-[#1C1917] border border-[#E7DFD5] shadow-xs">
                         {service.badge}
                       </div>
-                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-slate-900 flex items-center gap-1 shadow-xs">
-                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        {service.rating}
+                      <div className="absolute top-3 right-3 bg-white/95 px-2.5 py-1 rounded-full text-[11px] font-bold text-[#1C1917] flex items-center gap-1 border border-[#E7DFD5] shadow-xs">
+                        <Star className="w-3.5 h-3.5 text-[#B45309] fill-[#B45309]" />
+                        <span>{service.rating}</span>
                       </div>
                     </div>
 
                     {/* Content */}
-                    <div className="p-5 space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                          Available in {selectedCity}
-                        </span>
-                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                          ✓ Pan-India Coverage
-                        </span>
-                      </div>
-                      <h4 className="text-base font-bold text-slate-900">{service.title}</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed">{service.desc}</p>
+                    <div className="p-5 space-y-2.5">
+                      <h4 className="font-display text-base font-bold text-[#1C1917] leading-snug">{service.title}</h4>
+                      <p className="text-xs text-[#574F49] leading-relaxed">{service.desc}</p>
 
                       {/* Feature Bullet Points */}
                       <div className="space-y-1.5 pt-1">
                         {service.features.map((feat, fIdx) => (
-                          <div key={fIdx} className="flex items-center gap-2 text-[11px] text-slate-600">
-                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <div key={fIdx} className="flex items-center gap-2 text-[11px] text-[#574F49]">
+                            <Check className="w-3.5 h-3.5 text-[#1F5C42] shrink-0" />
                             <span>{feat}</span>
                           </div>
                         ))}
@@ -1225,17 +1033,17 @@ export default function UserApp() {
                   </div>
 
                   {/* Price & Book Trigger */}
-                  <div className="p-5 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div className="p-5 pt-3 border-t border-[#E7DFD5] flex items-center justify-between bg-[#FAF7F2]/50">
                     <div>
-                      <span className="text-[10px] text-slate-400 block font-semibold">Total Price (Escrow)</span>
-                      <span className="text-lg font-bold font-mono text-slate-900">
+                      <span className="text-[10px] text-[#8C827A] block font-semibold uppercase">Escrow Hold</span>
+                      <span className="text-lg font-bold font-mono text-[#1C1917]">
                         ${service.price} USD
                       </span>
                     </div>
 
                     <button
                       onClick={() => openBookModal(service)}
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                      className="filial-btn-primary text-xs py-2 px-4 cursor-pointer"
                     >
                       Book Service
                     </button>
@@ -1253,42 +1061,42 @@ export default function UserApp() {
               {/* Left Column: Tasks List */}
               <div className="lg:col-span-5 space-y-3">
                 <div className="flex items-center justify-between pb-1">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Your Care Requests
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#8C827A]">
+                    Care Requests
                   </h2>
-                  <button onClick={fetchAllData} className="p-1.5 text-slate-400 hover:text-slate-700">
+                  <button onClick={fetchAllData} className="p-1.5 text-[#8C827A] hover:text-[#1C1917] cursor-pointer">
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                {/* Filter Pills: All, Ongoing, Completed */}
+                {/* Filter Pills */}
                 <div className="flex items-center gap-1.5 pb-1">
                   <button
                     onClick={() => setRequestFilter('ALL')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                       requestFilter === 'ALL'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        ? 'bg-[#1C1917] text-white shadow-2xs'
+                        : 'bg-white text-[#574F49] hover:bg-[#FAF7F2] border border-[#E7DFD5]'
                     }`}
                   >
                     All ({tasks.length})
                   </button>
                   <button
                     onClick={() => setRequestFilter('ACTIVE')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                       requestFilter === 'ACTIVE'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        ? 'bg-[#C25E2E] text-white shadow-2xs'
+                        : 'bg-white text-[#574F49] hover:bg-[#FAF7F2] border border-[#E7DFD5]'
                     }`}
                   >
                     Ongoing ({tasks.filter((t) => t.status !== 'COMPLETED').length})
                   </button>
                   <button
                     onClick={() => setRequestFilter('COMPLETED')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                       requestFilter === 'COMPLETED'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        ? 'bg-[#1F5C42] text-white shadow-2xs'
+                        : 'bg-white text-[#574F49] hover:bg-[#FAF7F2] border border-[#E7DFD5]'
                     }`}
                   >
                     Completed ({tasks.filter((t) => t.status === 'COMPLETED').length})
@@ -1296,25 +1104,25 @@ export default function UserApp() {
                 </div>
 
                 {tasks.length === 0 ? (
-                  <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                  <div className="p-8 text-center bg-white rounded-2xl border border-[#E7DFD5] text-[#8C827A] space-y-3">
+                    <div className="w-12 h-12 rounded-xl bg-[#FBECE5] text-[#C25E2E] flex items-center justify-center mx-auto border border-[#F5D3C4]">
                       <Heart className="w-6 h-6" />
                     </div>
-                    <div className="text-sm font-bold text-slate-800">No active care requests yet</div>
-                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    <div className="font-display text-base font-bold text-[#1C1917]">No active care requests yet</div>
+                    <p className="text-xs text-[#574F49] max-w-xs mx-auto leading-relaxed">
                       Book doctor visits, inverter repair, water plumbing, or groceries for your parents anywhere in India.
                     </p>
                     <button
                       onClick={() => setActiveTab('explore')}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-indigo-700 cursor-pointer"
+                      className="filial-btn-primary text-xs py-2 px-4 cursor-pointer"
                     >
                       Browse Services ➔
                     </button>
                   </div>
                 ) : filteredUserTasks.length === 0 ? (
-                  <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 space-y-2">
-                    <div className="text-xs font-bold text-slate-700">No requests match this filter.</div>
-                    <div className="text-[11px] text-slate-400">Try switching to 'All' or 'Completed' above.</div>
+                  <div className="p-8 text-center bg-white rounded-2xl border border-[#E7DFD5] text-[#8C827A] space-y-1">
+                    <div className="text-xs font-semibold text-[#1C1917]">No requests match this filter.</div>
+                    <div className="text-[11px] text-[#8C827A]">Try switching to 'All' or 'Completed' above.</div>
                   </div>
                 ) : (
                   filteredUserTasks.map((task) => {
@@ -1325,33 +1133,35 @@ export default function UserApp() {
                       <div
                         key={task.id}
                         onClick={() => setSelectedTask(task)}
-                        className={`p-4 rounded-2xl cursor-pointer transition border text-left ${isSelected
-                            ? 'bg-white border-indigo-600 shadow-md ring-2 ring-indigo-600/10'
-                            : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
-                          }`}
+                        className={`p-4 rounded-xl cursor-pointer transition border text-left ${
+                          isSelected
+                            ? 'bg-white border-[#C25E2E] shadow-sm ring-2 ring-[#C25E2E]/10'
+                            : 'bg-white border-[#E7DFD5] hover:border-[#D6C9BC] shadow-2xs'
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] border border-[#F5D3C4] px-2 py-0.5 rounded">
                             {task.tracking_code}
                           </span>
                           <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isCompleted
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-blue-50 text-blue-700 border border-blue-200'
-                              }`}
+                            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+                              isCompleted
+                                ? 'bg-[#E8F3EE] text-[#1F5C42] border border-[#C8E5D7]'
+                                : 'bg-[#FBECE5] text-[#A3481D] border border-[#F5D3C4]'
+                            }`}
                           >
                             {task.status.replace(/_/g, ' ')}
                           </span>
                         </div>
 
-                        <h4 className="text-sm font-bold text-slate-900 mt-2 line-clamp-1">{task.title}</h4>
+                        <h4 className="font-display text-sm font-bold text-[#1C1917] mt-2 line-clamp-1">{task.title}</h4>
 
-                        <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
+                        <div className="flex items-center gap-4 text-xs text-[#574F49] mt-2">
                           <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            <MapPin className="w-3.5 h-3.5 text-[#8C827A]" />
                             {task.parent?.locality || 'Pan-India'}
                           </span>
-                          <span className="font-semibold text-slate-700">
+                          <span className="font-semibold text-[#1C1917] font-mono">
                             ${task.escrow?.amount || 50} Escrow
                           </span>
                         </div>
@@ -1364,42 +1174,26 @@ export default function UserApp() {
               {/* Right Column: Timeline & Verified Proof */}
               <div className="lg:col-span-7">
                 {selectedTask ? (
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-                    <div className="flex items-start justify-between pb-4 border-b border-slate-100 gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-mono text-indigo-700 font-bold">{selectedTask.tracking_code}</div>
-                        <h3 className="text-base font-bold text-slate-900 leading-snug break-words">{selectedTask.title}</h3>
+                  <div className="bg-white p-6 rounded-2xl border border-[#E7DFD5] shadow-xs space-y-6">
+                    <div className="flex items-center justify-between pb-4 border-b border-[#E7DFD5]">
+                      <div>
+                        <div className="text-xs font-mono text-[#C25E2E] font-bold">{selectedTask.tracking_code}</div>
+                        <h3 className="font-display text-lg font-bold text-[#1C1917]">{selectedTask.title}</h3>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[11px] text-slate-400">Escrow Hold</div>
-                        <div className="text-xl font-bold font-mono text-emerald-600">
-                          ${((selectedTask.escrow?.amount ?? 0)).toFixed(2)} USD
+                      <div className="text-right">
+                        <div className="text-[11px] text-[#8C827A]">Protected Escrow</div>
+                        <div className="text-xl font-bold font-mono text-[#1F5C42]">
+                          ${selectedTask.escrow?.amount.toFixed(2)} USD
                         </div>
                       </div>
                     </div>
 
-                    {/* Doorstep Verification PIN Card */}
-                    {selectedTask.instructions?.includes('Doorstep Verification PIN:') && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between shadow-xs">
-                        <div className="flex items-center gap-2.5">
-                          <KeyRound className="w-5 h-5 text-emerald-600 shrink-0" />
-                          <div>
-                            <div className="text-xs font-bold text-emerald-950">Doorstep Handshake PIN</div>
-                            <div className="text-[11px] text-emerald-700">Share with parents for arrival check-in</div>
-                          </div>
-                        </div>
-                        <span className="font-mono font-bold text-base bg-white px-3 py-1 rounded-xl border border-emerald-200 text-emerald-900 shadow-xs">
-                          {selectedTask.instructions.split('Doorstep Verification PIN:')[1]?.trim().substring(0, 4)}
-                        </span>
-                      </div>
-                    )}
-
                     {/* Stepper */}
                     <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C827A] mb-4">
                         Service Progress
                       </h4>
-                      <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                      <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#E7DFD5]">
                         {friendlySteps.map((step, idx) => {
                           const currentStep = getStepIndex(selectedTask.status);
                           const isDone = idx <= currentStep;
@@ -1408,25 +1202,26 @@ export default function UserApp() {
                           return (
                             <div key={idx} className="relative flex items-start gap-3.5">
                               <div
-                                className={`absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition ${isDone
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'bg-white text-slate-400 border border-slate-300'
-                                  }`}
+                                className={`absolute -left-6 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition ${
+                                  isDone
+                                    ? 'bg-[#1F5C42] text-white shadow-2xs'
+                                    : 'bg-white text-[#8C827A] border border-[#E7DFD5]'
+                                }`}
                               >
                                 {isDone ? '✓' : idx + 1}
                               </div>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-sm font-semibold ${isDone ? 'text-slate-900' : 'text-slate-400'}`}>
+                                  <span className={`text-sm font-semibold ${isDone ? 'text-[#1C1917]' : 'text-[#8C827A]'}`}>
                                     {step.title}
                                   </span>
                                   {isCurrent && (
-                                    <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                                    <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] border border-[#C8E5D7] px-2 py-0.5 rounded-full font-semibold">
                                       Current Step
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs text-slate-500 mt-0.5">{step.desc}</p>
+                                <p className="text-xs text-[#574F49] mt-0.5">{step.desc}</p>
                               </div>
                             </div>
                           );
@@ -1435,18 +1230,18 @@ export default function UserApp() {
                     </div>
 
                     {/* Proof Photo Section */}
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
+                    <div className="bg-[#FAF7F2] rounded-xl p-4 border border-[#E7DFD5] space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Camera className="w-4 h-4 text-indigo-600" />
-                          <h4 className="text-xs font-bold text-slate-900">Arrival Verification Photo</h4>
+                          <Camera className="w-4 h-4 text-[#C25E2E]" />
+                          <h4 className="text-xs font-bold text-[#1C1917]">Arrival Verification Photo</h4>
                         </div>
                       </div>
 
                       {selectedTask.verification_logs && selectedTask.verification_logs.length > 0 ? (
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3 shadow-sm">
+                        <div className="p-3 bg-white rounded-xl border border-[#E7DFD5] flex items-center justify-between gap-3 shadow-2xs">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#FAF7F2] border border-[#E7DFD5] shrink-0">
                               <img
                                 src={getImageUrl(selectedTask.verification_logs[0].selfie_image_url)}
                                 alt="Verification Proof"
@@ -1454,10 +1249,10 @@ export default function UserApp() {
                               />
                             </div>
                             <div>
-                              <div className="text-xs font-bold text-slate-900">
+                              <div className="text-xs font-bold text-[#1C1917]">
                                 {selectedTask.verification_logs[0].stage}
                               </div>
-                              <div className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                              <div className="text-[11px] text-[#1F5C42] font-semibold mt-0.5">
                                 ✓ GPS Verified ({Math.round(selectedTask.verification_logs[0].distance_from_target_meters)}m from home)
                               </div>
                             </div>
@@ -1465,69 +1260,69 @@ export default function UserApp() {
 
                           <button
                             onClick={() => setShowProofModal(selectedTask.verification_logs![0])}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 rounded-lg cursor-pointer"
+                            className="px-3 py-1.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-xs font-semibold text-[#1C1917] rounded-lg border border-[#E7DFD5] cursor-pointer"
                           >
                             View Photo
                           </button>
                         </div>
                       ) : (
-                        <div className="p-4 text-center text-xs text-slate-500 bg-white rounded-xl border border-dashed border-slate-200">
+                        <div className="p-4 text-center text-xs text-[#8C827A] bg-white rounded-xl border border-dashed border-[#E7DFD5]">
                           Waiting for on-ground arrival. Once the helper arrives, their verified photo will appear here.
                         </div>
                       )}
                     </div>
 
-                    {/* Live GPS Tracker Trigger for in-progress tasks */}
+                    {/* Live GPS Tracker Trigger */}
                     {(selectedTask.status === 'IN_PROGRESS' || selectedTask.status === 'ACCEPTED' || selectedTask.status === 'DISPATCHED') && (
-                      <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-4 flex items-center justify-between">
+                      <div className="bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl p-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/20">
+                          <div className="w-10 h-10 rounded-xl bg-[#C25E2E] text-white flex items-center justify-center shrink-0 shadow-2xs">
                             <Navigation className="w-5 h-5 animate-pulse" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-slate-900">Live Helper GPS Movement</div>
-                            <div className="text-[11px] text-slate-500">Track helper traveling live to your parents' home</div>
+                            <div className="text-xs font-bold text-[#1C1917]">Live Caregiver Movement</div>
+                            <div className="text-[11px] text-[#574F49]">Track helper traveling live to your parents' home</div>
                           </div>
                         </div>
                         <button
                           onClick={() => setTrackingTargetTask(selectedTask)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          className="filial-btn-primary text-xs py-2 px-3.5 cursor-pointer"
                         >
                           <Navigation className="w-3.5 h-3.5" />
-                          Open Live Map
+                          <span>Open Live Map</span>
                         </button>
                       </div>
                     )}
 
                     {/* CSAT Rating & Review for Completed Tasks */}
                     {selectedTask.status === 'COMPLETED' && (
-                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="bg-[#FEF3C7]/40 border border-[#FDE68A] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-                            <span className="text-xs font-bold text-slate-900">
+                            <Star className="w-4 h-4 text-[#B45309] fill-[#B45309]" />
+                            <span className="text-xs font-bold text-[#1C1917]">
                               {selectedTask.review ? 'Verified Service Review' : 'Service Feedback'}
                             </span>
                           </div>
                           {selectedTask.review ? (
                             <div className="mt-1 space-y-1">
-                              <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                              <div className="flex items-center gap-1 text-[#B45309] font-bold text-xs">
                                 {'★'.repeat(selectedTask.review.rating)}
-                                <span className="text-slate-600 font-medium ml-1">({selectedTask.review.rating}/5 Stars)</span>
+                                <span className="text-[#574F49] font-medium ml-1">({selectedTask.review.rating}/5 Stars)</span>
                               </div>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {selectedTask.review.tags?.map((tag) => (
-                                  <span key={tag} className="text-[10px] font-semibold bg-white border border-amber-200 text-amber-800 px-2 py-0.5 rounded-md">
+                                  <span key={tag} className="text-[10px] font-semibold bg-white border border-[#E7DFD5] text-[#574F49] px-2 py-0.5 rounded-md">
                                     {tag}
                                   </span>
                                 ))}
                               </div>
                               {selectedTask.review.feedback_text && (
-                                <p className="text-[11px] text-slate-600 italic mt-1">"{selectedTask.review.feedback_text}"</p>
+                                <p className="text-[11px] text-[#574F49] italic mt-1">"{selectedTask.review.feedback_text}"</p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-[#574F49] mt-0.5">
                               Please rate the helper's punctuality and care quality to release feedback badge.
                             </p>
                           )}
@@ -1536,17 +1331,17 @@ export default function UserApp() {
                         {!selectedTask.review && (
                           <button
                             onClick={() => setReviewTargetTask(selectedTask)}
-                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                            className="bg-[#B45309] hover:bg-[#92400E] text-white font-bold text-xs px-4 py-2 rounded-xl shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
                           >
                             <Star className="w-3.5 h-3.5 fill-white" />
-                            Rate Service
+                            <span>Rate Service</span>
                           </button>
                         )}
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-400">
+                  <div className="bg-white p-12 text-center rounded-2xl border border-[#E7DFD5] text-[#8C827A]">
                     Select a request to view live progress.
                   </div>
                 )}
@@ -1557,38 +1352,15 @@ export default function UserApp() {
 
         {/* ================= TAB 3: HEALTH & CARE MANAGEMENT ================= */}
         {activeTab === 'health' && (
-          <div className="space-y-4">
-            {parents.length > 1 && (
-              <div className="flex items-center gap-2 bg-white border border-slate-200 p-2.5 rounded-2xl overflow-x-auto shadow-xs">
-                <span className="text-xs font-bold text-slate-500 pl-2 shrink-0">Viewing Medical File for:</span>
-                {parents.map((p) => {
-                  const isSelected = (healthParentId || parents[0]?.id) === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setHealthParentId(p.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
-                        isSelected
-                          ? 'bg-rose-600 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
-                      }`}
-                    >
-                      {p.parent_name} ({p.locality})
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <HealthView
-              parentId={healthParentId || parents[0]?.id || ''}
-              parentName={parents.find((p) => p.id === (healthParentId || parents[0]?.id))?.parent_name || 'My Parents'}
-              clientId={currentUserId}
-              onRefillCreated={() => {
-                fetchAllData();
-                setActiveTab('trackers');
-              }}
-            />
-          </div>
+          <HealthView
+            parentId={parents[0]?.id || ''}
+            parentName={parents[0]?.parent_name || 'My Parents'}
+            clientId={currentUserId}
+            onRefillCreated={() => {
+              fetchAllData();
+              setActiveTab('trackers');
+            }}
+          />
         )}
 
         {/* ================= TAB 4: MY PARENTS ================= */}
@@ -1596,57 +1368,57 @@ export default function UserApp() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Your Parents in India</h2>
-                <p className="text-xs text-slate-500">Registered residences across all Indian cities and towns.</p>
+                <h2 className="font-display text-2xl font-bold text-[#1C1917]">Your Parents in India</h2>
+                <p className="text-xs text-[#574F49]">Registered residences across all Indian cities and towns.</p>
               </div>
               <button
                 onClick={() => setShowAddParentModal(true)}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm cursor-pointer"
+                className="filial-btn-primary text-xs py-2 px-3.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                Add New Residence
+                <span>Add Residence</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {parents.map((parent) => (
-                <div key={parent.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div key={parent.id} className="filial-card p-6 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-base font-bold text-slate-900">{parent.parent_name}</h3>
-                      <span className="text-xs text-indigo-700 font-medium">{parent.locality}</span>
+                      <h3 className="font-display text-base font-bold text-[#1C1917]">{parent.parent_name}</h3>
+                      <span className="text-xs text-[#C25E2E] font-semibold">{parent.locality}</span>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                      <MapPin className="w-4 h-4 text-indigo-600" />
+                    <div className="w-8 h-8 rounded-full bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center text-[#574F49]">
+                      <MapPin className="w-4 h-4 text-[#C25E2E]" />
                     </div>
                   </div>
 
-                  <div className="text-xs text-slate-600 space-y-1.5">
-                    <div><span className="font-semibold text-slate-700">Address:</span> {parent.full_address}</div>
-                    <div><span className="font-semibold text-slate-700">Calling Phone:</span> <span className="font-mono text-slate-800">{parent.primary_phone}</span></div>
-                    <div><span className="font-semibold text-slate-700">WhatsApp:</span> <span className="font-mono text-emerald-700 font-bold">{parent.whatsapp_phone || parent.primary_phone}</span></div>
+                  <div className="text-xs text-[#574F49] space-y-1.5">
+                    <div><span className="font-semibold text-[#1C1917]">Address:</span> {parent.full_address}</div>
+                    <div><span className="font-semibold text-[#1C1917]">Calling Phone:</span> <span className="font-mono text-[#1C1917]">{parent.primary_phone}</span></div>
+                    <div><span className="font-semibold text-[#1C1917]">WhatsApp:</span> <span className="font-mono text-[#1F5C42] font-bold">{parent.whatsapp_phone || parent.primary_phone}</span></div>
                   </div>
 
                   {parent.medical_notes && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                      <strong>Care Notes:</strong> {parent.medical_notes}
+                    <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] text-xs text-[#574F49]">
+                      <strong className="text-[#1C1917]">Care Notes:</strong> {parent.medical_notes}
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+                  <div className="flex items-center gap-2 pt-3 border-t border-[#E7DFD5]">
                     <button
                       onClick={() => handleOpenEditParent(parent)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex-1 py-2 px-3 rounded-xl bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] font-semibold text-xs border border-[#E7DFD5] transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      <Pencil className="w-3.5 h-3.5 text-slate-500" />
+                      <Pencil className="w-3.5 h-3.5 text-[#574F49]" />
                       <span>Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteParent(parent.id, parent.parent_name)}
-                      className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="py-2 px-3 rounded-xl bg-[#FEE2E2] hover:bg-[#FECACA] text-[#B91C1C] font-semibold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer border border-[#FECACA]"
                       title="Delete Residence"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      <Trash2 className="w-3.5 h-3.5 text-[#B91C1C]" />
                       <span>Delete</span>
                     </button>
                   </div>
@@ -1656,43 +1428,43 @@ export default function UserApp() {
           </div>
         )}
 
-        {/* ================= TAB 4: ESCROW VAULT ================= */}
+        {/* ================= TAB 5: ESCROW VAULT ================= */}
         {activeTab === 'billing' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-slate-400 font-bold uppercase">Currently in Escrow</div>
-                <div className="text-3xl font-bold font-mono text-emerald-600 mt-2">${lockedEscrow.toFixed(2)}</div>
-                <p className="text-xs text-slate-500 mt-1">Protected until helper finishes the task</p>
+              <div className="filial-card p-6">
+                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Currently in Escrow</div>
+                <div className="text-3xl font-bold font-mono text-[#1F5C42] mt-2">${lockedEscrow.toFixed(2)}</div>
+                <p className="text-xs text-[#574F49] mt-1">Protected until helper finishes the task</p>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-slate-400 font-bold uppercase">Total Completed &amp; Released</div>
-                <div className="text-3xl font-bold font-mono text-slate-900 mt-2">${releasedEscrow.toFixed(2)}</div>
-                <p className="text-xs text-slate-500 mt-1">Disbursed after photo &amp; GPS verification</p>
+              <div className="filial-card p-6">
+                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Total Completed &amp; Released</div>
+                <div className="text-3xl font-bold font-mono text-[#1C1917] mt-2">${releasedEscrow.toFixed(2)}</div>
+                <p className="text-xs text-[#574F49] mt-1">Disbursed after photo &amp; GPS verification</p>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="text-xs text-slate-400 font-bold uppercase">Your Membership</div>
-                <div className="text-xl font-bold text-indigo-700 mt-2">Gold Family Plan</div>
-                <p className="text-xs text-slate-500 mt-1">24/7 priority emergency triage &amp; local escort</p>
+              <div className="filial-card p-6">
+                <div className="text-xs text-[#8C827A] font-bold uppercase tracking-wider">Your Membership</div>
+                <div className="text-xl font-bold text-[#C25E2E] mt-2">Gold Family Plan</div>
+                <p className="text-xs text-[#574F49] mt-1">24/7 priority emergency triage &amp; local escort</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* ================= TAB 5: SETTINGS PAGE (FULLY USER EDITABLE) ================= */}
+        {/* ================= TAB 6: SETTINGS PAGE ================= */}
         {activeTab === 'settings' && (
           <form onSubmit={handleSaveSettings} className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Account &amp; Care Settings</h2>
-                <p className="text-xs text-slate-500">Edit your contact info, currency, and parents' care details in India.</p>
+                <h2 className="font-display text-2xl font-bold text-[#1C1917]">Account &amp; Care Settings</h2>
+                <p className="text-xs text-[#574F49]">Edit your contact info, currency, and parents' care details in India.</p>
               </div>
               <button
                 type="submit"
                 disabled={isSavingSettings}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                className="filial-btn-primary text-xs py-2 px-4 cursor-pointer disabled:opacity-50"
               >
                 {isSavingSettings ? (
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1703,57 +1475,57 @@ export default function UserApp() {
               </button>
             </div>
 
-            {/* NRI Client Profile - USER EDITABLE */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <User className="w-4 h-4 text-indigo-600" />
-                  NRI Client Profile
+            {/* NRI Client Profile */}
+            <div className="filial-card p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E7DFD5]">
+                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#C25E2E]" />
+                  <span>NRI Client Profile</span>
                 </h3>
-                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-[#FBECE5] text-[#A3481D] font-semibold px-2 py-0.5 rounded-full border border-[#F5D3C4]">
                   User Editable
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="text-slate-600 font-bold block mb-1">Your Full Name</label>
+                  <label className="text-[#1C1917] font-semibold block mb-1">Your Full Name</label>
                   <input
                     type="text"
                     value={settingsFullName}
                     onChange={(e) => setSettingsFullName(e.target.value)}
                     required
                     placeholder="Enter your full name"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-600 font-bold block mb-1">Your Email</label>
+                  <label className="text-[#1C1917] font-semibold block mb-1">Your Email</label>
                   <input
                     type="email"
                     value={settingsEmail}
                     onChange={(e) => setSettingsEmail(e.target.value)}
                     required
                     placeholder="you@example.com"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-600 font-bold block mb-1">Your Mobile Phone</label>
+                  <label className="text-[#1C1917] font-semibold block mb-1">Your Mobile Phone</label>
                   <input
                     type="tel"
                     value={settingsPhone}
                     onChange={(e) => setSettingsPhone(e.target.value)}
                     placeholder="+1 408 555 0192"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-600 font-bold block mb-1">Country of Residence</label>
+                  <label className="text-[#1C1917] font-semibold block mb-1">Country of Residence</label>
                   <select
                     value={settingsCountry}
                     onChange={(e) => setSettingsCountry(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   >
                     <option value="United States">United States</option>
                     <option value="United Kingdom">United Kingdom</option>
@@ -1767,14 +1539,14 @@ export default function UserApp() {
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 font-bold block mb-1">Preferred Currency</label>
+                  <label className="text-[#1C1917] font-semibold block mb-1">Preferred Currency</label>
                   <select
                     value={settingsCurrency}
                     onChange={(e) => {
                       setSettingsCurrency(e.target.value);
                       setUserCurrency(e.target.value);
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input font-mono"
                   >
                     <option value="USD">USD ($ - United States Dollar)</option>
                     <option value="GBP">GBP (£ - British Pound)</option>
@@ -1786,22 +1558,22 @@ export default function UserApp() {
               </div>
             </div>
 
-            {/* Parents' Care Details in India - USER EDITABLE & MANDATORY CONTACTS */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-                  Parents' Care Details in India (Pan-India)
+            {/* Parents' Care Details in India */}
+            <div className="filial-card p-6 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E7DFD5]">
+                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-[#C25E2E] fill-[#C25E2E]" />
+                  <span>Parents' Care Details in India (Pan-India)</span>
                 </h3>
-                <span className="text-[10px] bg-rose-50 text-rose-700 font-semibold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] font-semibold px-2 py-0.5 rounded-full border border-[#C8E5D7]">
                   Mandatory Phone &amp; WhatsApp
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 font-bold block mb-1">
-                    Parents' Full Name(s) <span className="text-rose-500">*</span>
+                  <label className="text-[#1C1917] font-semibold block mb-1">
+                    Parents' Full Name(s) <span className="text-[#B91C1C]">*</span>
                   </label>
                   <input
                     type="text"
@@ -1809,13 +1581,13 @@ export default function UserApp() {
                     onChange={(e) => setSettingsParentName(e.target.value)}
                     required
                     placeholder="e.g. Lakshmi & Ramana Reddy"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
 
                 <div>
-                  <label className="text-slate-600 font-bold block mb-1">
-                    Parents' Primary Calling Phone <span className="text-rose-500">*</span>
+                  <label className="text-[#1C1917] font-semibold block mb-1">
+                    Parents' Primary Calling Phone <span className="text-[#B91C1C]">*</span>
                   </label>
                   <input
                     type="tel"
@@ -1823,19 +1595,19 @@ export default function UserApp() {
                     onChange={(e) => setSettingsParentPhone(e.target.value)}
                     required
                     placeholder="+91 94401 23456"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-mono font-medium outline-none transition"
+                    className="w-full filial-input font-mono"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-600 font-bold">
-                      Parents' WhatsApp Number <span className="text-rose-500">*</span>
+                    <label className="text-[#1C1917] font-semibold">
+                      Parents' WhatsApp Number <span className="text-[#B91C1C]">*</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setSettingsParentWhatsapp(settingsParentPhone)}
-                      className="text-[10px] text-indigo-600 hover:underline"
+                      className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
                     >
                       Same as calling
                     </button>
@@ -1846,27 +1618,27 @@ export default function UserApp() {
                     onChange={(e) => setSettingsParentWhatsapp(e.target.value)}
                     required
                     placeholder="+91 94401 23456"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-mono font-medium outline-none transition"
+                    className="w-full filial-input font-mono"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 font-bold block mb-1">
-                    City / Town / District in India (Pan-India) <span className="text-rose-500">*</span>
+                  <label className="text-[#1C1917] font-semibold block mb-1">
+                    City / Town in India (Pan-India) <span className="text-[#B91C1C]">*</span>
                   </label>
                   <input
                     type="text"
                     value={settingsParentCity}
                     onChange={(e) => setSettingsParentCity(e.target.value)}
                     required
-                    placeholder="e.g. Hyderabad, Bengaluru, Miryalaguda, Pune, Delhi, etc."
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    placeholder="e.g. Hyderabad, Bengaluru, Miryalaguda, Pune, Delhi"
+                    className="w-full filial-input"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 font-bold block mb-1">
-                    Full Street Address in India <span className="text-rose-500">*</span>
+                  <label className="text-[#1C1917] font-semibold block mb-1">
+                    Full Street Address in India <span className="text-[#B91C1C]">*</span>
                   </label>
                   <textarea
                     rows={2}
@@ -1874,12 +1646,12 @@ export default function UserApp() {
                     onChange={(e) => setSettingsParentAddress(e.target.value)}
                     required
                     placeholder="House / Flat No, Apartment Name, Street / Lane, Landmark, Pincode"
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 font-bold block mb-1">
+                  <label className="text-[#1C1917] font-semibold block mb-1">
                     Medical &amp; Care Notes (Optional)
                   </label>
                   <textarea
@@ -1887,7 +1659,7 @@ export default function UserApp() {
                     value={settingsParentNotes}
                     onChange={(e) => setSettingsParentNotes(e.target.value)}
                     placeholder="Special instructions: medications, allergies, preferred hospital..."
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-2 text-slate-800 font-medium outline-none transition"
+                    className="w-full filial-input"
                   />
                 </div>
               </div>
@@ -1896,7 +1668,7 @@ export default function UserApp() {
                 <button
                   type="submit"
                   disabled={isSavingSettings}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full filial-btn-primary py-3 text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   {isSavingSettings ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1911,26 +1683,26 @@ export default function UserApp() {
             </div>
 
             {/* Security & Trust Controls */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="filial-card p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  Security &amp; Escrow Protection
+                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#1F5C42]" />
+                  <span>Security &amp; Escrow Protection</span>
                 </h3>
-                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <span className="text-[11px] font-semibold text-[#1F5C42] bg-[#E8F3EE] px-2.5 py-0.5 rounded-full border border-[#C8E5D7]">
                   Bank-Grade 256-Bit TLS
                 </span>
               </div>
 
               {/* Panic Freeze Killswitch */}
-              <div className={`p-4 rounded-xl border transition ${isEscrowFrozen ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
+              <div className={`p-4 rounded-xl border transition ${isEscrowFrozen ? 'bg-[#FEE2E2] border-[#FECACA]' : 'bg-[#FAF7F2] border-[#E7DFD5]'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                      <ShieldAlert className={`w-4 h-4 ${isEscrowFrozen ? 'text-red-600' : 'text-slate-500'}`} />
-                      Emergency Escrow Payout Freeze
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-[#1C1917]">
+                      <ShieldAlert className={`w-4 h-4 ${isEscrowFrozen ? 'text-[#B91C1C]' : 'text-[#8C827A]'}`} />
+                      <span>Emergency Escrow Payout Freeze</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-[#574F49] mt-1 leading-relaxed">
                       {isEscrowFrozen
                         ? 'EMERGENCY LOCK ACTIVE. All escrow payouts are currently blocked across the platform.'
                         : 'If you suspect miscommunication or need to halt a service immediately, lock all outbound escrow transfers.'}
@@ -1940,10 +1712,11 @@ export default function UserApp() {
                   <button
                     type="button"
                     onClick={handleToggleEscrowFreeze}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${isEscrowFrozen
-                        ? 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
-                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-xs'
-                      }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                      isEscrowFrozen
+                        ? 'bg-[#B91C1C] hover:bg-[#991B1B] text-white shadow-2xs'
+                        : 'bg-white hover:bg-[#FAF7F2] text-[#1C1917] border border-[#E7DFD5] shadow-2xs'
+                    }`}
                   >
                     {isEscrowFrozen ? 'Unlock Escrow' : 'Lock Escrow'}
                   </button>
@@ -1952,79 +1725,79 @@ export default function UserApp() {
 
               {/* 2FA & Biometric status */}
               <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
                   <div className="flex items-center gap-2.5">
-                    <KeyRound className="w-4 h-4 text-indigo-600" />
+                    <KeyRound className="w-4 h-4 text-[#C25E2E]" />
                     <div>
-                      <div className="font-bold text-slate-900">Two-Factor Authentication (2FA)</div>
-                      <div className="text-slate-500 text-[11px]">Enforced for escrow funding &amp; booking approvals</div>
+                      <div className="font-bold text-[#1C1917]">Two-Factor Authentication (2FA)</div>
+                      <div className="text-[#574F49] text-[11px]">Enforced for escrow funding &amp; booking approvals</div>
                     </div>
                   </div>
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                  <span className="text-[11px] font-semibold text-[#1F5C42] bg-[#E8F3EE] px-2 py-0.5 rounded-md border border-[#C8E5D7]">
                     Enabled
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5]">
                   <div className="flex items-center gap-2.5">
-                    <Fingerprint className="w-4 h-4 text-indigo-600" />
+                    <Fingerprint className="w-4 h-4 text-[#C25E2E]" />
                     <div>
-                      <div className="font-bold text-slate-900">Biometric Fast Sign-In</div>
-                      <div className="text-slate-500 text-[11px]">Apple TouchID / Windows Hello hardware key</div>
+                      <div className="font-bold text-[#1C1917]">Biometric Fast Sign-In</div>
+                      <div className="text-[#574F49] text-[11px]">Apple TouchID / Windows Hello hardware key</div>
                     </div>
                   </div>
                   <input
                     type="checkbox"
                     checked={biometricEnabled}
                     onChange={(e) => setBiometricEnabled(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded"
+                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
                   />
                 </div>
 
                 {/* Session telemetry */}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 space-y-1">
+                <div className="p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] space-y-1">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">Authenticated Client Account:</span>
-                    <span className="font-mono text-slate-800 font-semibold">{currentUserEmail}</span>
+                    <span className="text-[#8C827A]">Authenticated Client Account:</span>
+                    <span className="font-mono text-[#1C1917] font-semibold">{currentUserEmail}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-slate-400">Parent Geofence Tolerance:</span>
-                    <span className="text-emerald-700 font-semibold">Strict 150m Server Geofence Active</span>
+                    <span className="text-[#8C827A]">Parent Geofence Tolerance:</span>
+                    <span className="text-[#1F5C42] font-semibold">Strict 150m Server Geofence Active</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Notification Preferences */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-indigo-600" />
-                Notification Preferences
+            <div className="filial-card p-6 space-y-4">
+              <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                <Bell className="w-4 h-4 text-[#C25E2E]" />
+                <span>Notification Preferences</span>
               </h3>
               <div className="space-y-3 text-xs">
-                <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
                   <div>
-                    <div className="font-bold text-slate-900">Parent WhatsApp Updates</div>
-                    <div className="text-slate-500 text-[11px]">Send zero-friction notifications to parents' phone upon dispatch &amp; arrival</div>
+                    <div className="font-bold text-[#1C1917]">Parent WhatsApp Updates</div>
+                    <div className="text-[#574F49] text-[11px]">Send zero-friction notifications to parents' phone upon dispatch &amp; arrival</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={whatsappAlerts}
                     onChange={(e) => setWhatsappAlerts(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded"
+                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
                   />
                 </label>
 
-                <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <label className="flex items-center justify-between p-3 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] cursor-pointer">
                   <div>
-                    <div className="font-bold text-slate-900">Email Invoices &amp; Receipts</div>
-                    <div className="text-slate-500 text-[11px]">Receive monthly PDF statements and escrow release receipts</div>
+                    <div className="font-bold text-[#1C1917]">Email Invoices &amp; Receipts</div>
+                    <div className="text-[#574F49] text-[11px]">Receive monthly statements and escrow release receipts</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={emailAlerts}
                     onChange={(e) => setEmailAlerts(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded"
+                    className="w-4 h-4 accent-[#C25E2E] rounded cursor-pointer"
                   />
                 </label>
               </div>
@@ -2035,26 +1808,26 @@ export default function UserApp() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full py-3.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 rounded-xl border border-[#FECACA] text-[#B91C1C] hover:bg-[#FEE2E2] font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out from FamilyHubs
+                <span>Sign Out from FamilyHubs</span>
               </button>
             </div>
           </form>
         )}
       </main>
 
-      {/* ================= URBAN COMPANY QUICK BOOK MODAL ================= */}
+      {/* ================= QUICK BOOK MODAL ================= */}
       {showBookModal && selectedService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-5 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-bold text-slate-900">{selectedService.title}</h3>
+                <Sparkles className="w-5 h-5 text-[#C25E2E]" />
+                <h3 className="font-display text-base font-bold text-[#1C1917]">{selectedService.title}</h3>
               </div>
-              <button onClick={() => setShowBookModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button onClick={() => setShowBookModal(false)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
               </button>
             </div>
@@ -2062,20 +1835,20 @@ export default function UserApp() {
             <form onSubmit={handleConfirmBooking} className="space-y-4 text-xs">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-700 font-bold">Select Parent Residence</label>
+                  <label className="block text-[#1C1917] font-semibold">Select Parent Residence</label>
                   <button
                     type="button"
                     onClick={() => {
                       setShowBookModal(false);
                       setShowAddParentModal(true);
                     }}
-                    className="text-indigo-600 hover:text-indigo-700 text-xs font-semibold"
+                    className="text-[#C25E2E] hover:underline text-xs font-semibold cursor-pointer"
                   >
                     + Add New Parent
                   </button>
                 </div>
                 {parents.length === 0 ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center justify-between">
+                  <div className="p-3 bg-[#FEF3C7] border border-[#FDE68A] rounded-xl text-[#92400E] text-xs flex items-center justify-between">
                     <span>No parent registered yet.</span>
                     <button
                       type="button"
@@ -2083,7 +1856,7 @@ export default function UserApp() {
                         setShowBookModal(false);
                         setShowAddParentModal(true);
                       }}
-                      className="px-2.5 py-1 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700"
+                      className="px-2.5 py-1 bg-[#B45309] text-white rounded-lg font-bold hover:bg-[#92400E] cursor-pointer"
                     >
                       Add Parent Now
                     </button>
@@ -2092,7 +1865,7 @@ export default function UserApp() {
                   <select
                     value={reqParentId}
                     onChange={(e) => setReqParentId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    className="w-full filial-input"
                     required
                   >
                     {parents.map((p) => (
@@ -2105,118 +1878,23 @@ export default function UserApp() {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Specific Instructions for Local Helper</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Specific Instructions for Local Helper</label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={reqInstructions}
                   onChange={(e) => setReqInstructions(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
-              {/* Urban Company Style: Preferred Time Slot */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1.5">Preferred Time Window</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'Morning (9:00 AM – 12:00 PM)', label: 'Morning', time: '9 AM – 12 PM' },
-                    { id: 'Afternoon (1:00 PM – 4:00 PM)', label: 'Afternoon', time: '1 PM – 4 PM' },
-                    { id: 'Evening (5:00 PM – 8:00 PM)', label: 'Evening', time: '5 PM – 8 PM' },
-                  ].map((slot) => (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      onClick={() => setBookingTimeSlot(slot.id)}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        bookingTimeSlot === slot.id
-                          ? 'border-indigo-600 bg-indigo-50/80 text-indigo-900 font-bold shadow-xs'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="text-[11px] font-bold">{slot.label}</div>
-                      <div className="text-[9px] text-slate-500">{slot.time}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Urban Company Style: Partner Preferred Regional Language */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Partner Language</label>
-                  <select
-                    value={bookingLanguage}
-                    onChange={(e) => setBookingLanguage(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
-                  >
-                    <option value="Telugu">Telugu (తెలుగు)</option>
-                    <option value="Hindi">Hindi (हिन्दी)</option>
-                    <option value="Tamil">Tamil (தமிழ்)</option>
-                    <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
-                    <option value="Marathi">Marathi (मराठी)</option>
-                    <option value="Bengali">Bengali (বাংলা)</option>
-                    <option value="English">English</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-bold mb-1">Doorstep Handshake PIN</label>
-                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-emerald-900 font-mono font-bold text-sm">
-                    <KeyRound className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{doorstepOtp}</span>
-                    <span className="text-[10px] text-emerald-700 font-sans font-normal ml-auto">Share with parents</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Senior Care Assistance Checklist */}
-              <div>
-                <label className="block text-slate-700 font-bold mb-1.5">Senior Comfort & Assistance Options</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[
-                    'Wheelchair / Mobility Support',
-                    'Ring Bell Twice & Speak Loudly',
-                    'WhatsApp Video Update on Arrival',
-                    'Female Partner Attendant Preferred',
-                  ].map((item) => {
-                    const isChecked = bookingSeniorNeeds.includes(item);
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => {
-                          if (isChecked) {
-                            setBookingSeniorNeeds(bookingSeniorNeeds.filter((i) => i !== item));
-                          } else {
-                            setBookingSeniorNeeds([...bookingSeniorNeeds, item]);
-                          }
-                        }}
-                        className={`p-2 rounded-xl border text-left flex items-center gap-2 text-[11px] transition cursor-pointer ${
-                          isChecked
-                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-semibold'
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] shrink-0 ${
-                          isChecked ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300'
-                        }`}>
-                          {isChecked ? '✓' : ''}
-                        </span>
-                        <span className="text-[11px] leading-tight text-left flex-1">{item}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               {/* Escrow summary */}
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-[#E8F3EE] border border-[#C8E5D7] flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-slate-900">Protected Escrow Amount</div>
-                  <div className="text-[11px] text-slate-600">Released only after verified completion</div>
+                  <div className="font-bold text-[#1F5C42]">Protected Escrow Amount</div>
+                  <div className="text-[11px] text-[#574F49]">Released only after verified completion</div>
                 </div>
-                <div className="text-xl font-bold font-mono text-emerald-700">
+                <div className="text-xl font-bold font-mono text-[#1F5C42]">
                   ${reqEscrowAmount}.00 USD
                 </div>
               </div>
@@ -2225,14 +1903,14 @@ export default function UserApp() {
                 <button
                   type="button"
                   onClick={() => setShowBookModal(false)}
-                  className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-semibold"
+                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer hover:bg-[#F5F1EB]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition shadow-sm"
+                  className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer"
                 >
                   {isSubmitting ? 'Booking...' : `Confirm & Secure ($${reqEscrowAmount})`}
                 </button>
@@ -2244,50 +1922,50 @@ export default function UserApp() {
 
       {/* ================= PROOF PHOTO MODAL ================= */}
       {showProofModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
               <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Verified On-Site Photo</h3>
+                <Camera className="w-5 h-5 text-[#C25E2E]" />
+                <h3 className="font-display text-sm font-bold text-[#1C1917]">Verified On-Site Photo</h3>
               </div>
-              <button onClick={() => setShowProofModal(null)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button onClick={() => setShowProofModal(null)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
               </button>
             </div>
 
-            <div className="rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 aspect-square relative">
+            <div className="rounded-xl overflow-hidden bg-[#FAF7F2] border border-[#E7DFD5] aspect-square relative">
               <img
                 src={getImageUrl(showProofModal.selfie_image_url)}
                 alt="Verification Proof"
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-3 right-3 bg-white/95 text-emerald-700 text-xs px-2.5 py-1 rounded-full font-bold shadow-md">
+              <div className="absolute top-3 right-3 bg-white/95 text-[#1F5C42] text-xs px-2.5 py-1 rounded-full font-bold shadow-md border border-[#C8E5D7]">
                 ✓ GPS Checked
               </div>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs text-slate-600">
+            <div className="bg-[#FAF7F2] p-4 rounded-xl border border-[#E7DFD5] space-y-2 text-xs text-[#574F49]">
               <div className="flex justify-between">
                 <span>Stage:</span>
-                <span className="font-bold text-slate-900">{showProofModal.stage.replace('_', ' ')}</span>
+                <span className="font-bold text-[#1C1917]">{showProofModal.stage.replace('_', ' ')}</span>
               </div>
               <div className="flex justify-between">
                 <span>Distance from Home:</span>
-                <span className="font-bold text-emerald-700">
+                <span className="font-bold text-[#1F5C42]">
                   {Math.round(showProofModal.distance_from_target_meters)} meters ({showProofModal.distance_from_target_meters <= 150 ? 'At Residence' : 'Flagged Perimeter'})
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Server Geofence:</span>
-                <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                <span className="font-semibold text-[#1F5C42] flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   Forensic Pass (&le;150m)
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Tamper-Proof Digital Stamp:</span>
-                <span className="font-mono text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+                <span>Anti-Tamper Digest:</span>
+                <span className="font-mono text-[10px] text-[#574F49] bg-white px-2 py-0.5 rounded border border-[#E7DFD5]">
                   SHA-256 HMAC-OK
                 </span>
               </div>
@@ -2295,7 +1973,7 @@ export default function UserApp() {
 
             <button
               onClick={() => setShowProofModal(null)}
-              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
+              className="w-full py-2.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] rounded-xl text-xs font-semibold transition border border-[#E7DFD5] cursor-pointer"
             >
               Close
             </button>
@@ -2305,48 +1983,48 @@ export default function UserApp() {
 
       {/* ================= ADD PARENT MODAL ================= */}
       {showAddParentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Add Parent Residence</h3>
-              <button onClick={() => setShowAddParentModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
+              <h3 className="font-display text-base font-bold text-[#1C1917]">Add Parent Residence</h3>
+              <button onClick={() => setShowAddParentModal(false)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddParent} className="space-y-4 text-xs">
+            <form onSubmit={handleAddParent} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Parent Name(s)</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Parent Name(s)</label>
                 <input
                   type="text"
                   value={newParentName}
                   onChange={(e) => setNewParentName(e.target.value)}
                   placeholder="e.g. Lakshmi & Ramana Reddy"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Calling Phone *</label>
+                  <label className="block text-[#1C1917] font-semibold mb-1">Calling Phone *</label>
                   <input
                     type="tel"
                     value={newParentPhone}
                     onChange={(e) => setNewParentPhone(e.target.value)}
                     placeholder="+91 94401 22334"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    className="w-full filial-input font-mono"
                     required
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-slate-700 font-bold">WhatsApp *</label>
+                    <label className="block text-[#1C1917] font-semibold">WhatsApp *</label>
                     <button
                       type="button"
                       onClick={() => setNewParentWhatsapp(newParentPhone)}
-                      className="text-[10px] text-indigo-600 hover:underline"
+                      className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
                     >
                       Same as call
                     </button>
@@ -2356,32 +2034,32 @@ export default function UserApp() {
                     value={newParentWhatsapp}
                     onChange={(e) => setNewParentWhatsapp(e.target.value)}
                     placeholder="+91 94401 22334"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    className="w-full filial-input font-mono"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">City / Town in India (Pan-India) *</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">City / Town in India (Pan-India) *</label>
                 <input
                   type="text"
                   value={newParentLocality}
                   onChange={(e) => setNewParentLocality(e.target.value)}
                   placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Full Address</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Full Address</label>
                 <textarea
                   rows={2}
                   value={newParentAddress}
                   onChange={(e) => setNewParentAddress(e.target.value)}
                   placeholder="House number, landmark, lane name..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
@@ -2390,13 +2068,13 @@ export default function UserApp() {
                 <button
                   type="button"
                   onClick={() => setShowAddParentModal(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold cursor-pointer"
+                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer hover:bg-[#F5F1EB]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 cursor-pointer"
+                  className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer"
                 >
                   Save Parent
                 </button>
@@ -2408,48 +2086,48 @@ export default function UserApp() {
 
       {/* ================= EDIT PARENT MODAL ================= */}
       {editingParent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto my-auto p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Edit Parent Details</h3>
-              <button onClick={() => setEditingParent(null)} className="text-slate-400 hover:text-slate-600 p-1">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1C1917]/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-[#E7DFD5]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
+              <h3 className="font-display text-base font-bold text-[#1C1917]">Edit Parent Details</h3>
+              <button onClick={() => setEditingParent(null)} className="text-[#8C827A] hover:text-[#1C1917] p-1 cursor-pointer">
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleUpdateParent} className="space-y-4 text-xs">
+            <form onSubmit={handleUpdateParent} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Parent Name(s)</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Parent Name(s)</label>
                 <input
                   type="text"
                   value={editParentName}
                   onChange={(e) => setEditParentName(e.target.value)}
                   placeholder="e.g. Lakshmi & Ramana Reddy"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Calling Phone *</label>
+                  <label className="block text-[#1C1917] font-semibold mb-1">Calling Phone *</label>
                   <input
                     type="tel"
                     value={editParentPhone}
                     onChange={(e) => setEditParentPhone(e.target.value)}
                     placeholder="+91 94401 22334"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    className="w-full filial-input font-mono"
                     required
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-slate-700 font-bold">WhatsApp *</label>
+                    <label className="block text-[#1C1917] font-semibold">WhatsApp *</label>
                     <button
                       type="button"
                       onClick={() => setEditParentWhatsapp(editParentPhone)}
-                      className="text-[10px] text-indigo-600 hover:underline"
+                      className="text-[10px] text-[#C25E2E] hover:underline cursor-pointer"
                     >
                       Same as call
                     </button>
@@ -2459,44 +2137,44 @@ export default function UserApp() {
                     value={editParentWhatsapp}
                     onChange={(e) => setEditParentWhatsapp(e.target.value)}
                     placeholder="+91 94401 22334"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    className="w-full filial-input font-mono"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">City / Town in India *</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">City / Town in India *</label>
                 <input
                   type="text"
                   value={editParentLocality}
                   onChange={(e) => setEditParentLocality(e.target.value)}
                   placeholder="e.g. Hyderabad, Bengaluru, Delhi, Miryalaguda, Pune"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Full Address</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Full Address</label>
                 <textarea
                   rows={2}
                   value={editParentAddress}
                   onChange={(e) => setEditParentAddress(e.target.value)}
                   placeholder="House number, landmark, lane name..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Care &amp; Medical Notes</label>
+                <label className="block text-[#1C1917] font-semibold mb-1">Care &amp; Medical Notes</label>
                 <textarea
                   rows={2}
                   value={editParentNotes}
                   onChange={(e) => setEditParentNotes(e.target.value)}
                   placeholder="Any medical conditions, dietary rules, doctor contacts..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  className="w-full filial-input"
                 />
               </div>
 
@@ -2504,14 +2182,14 @@ export default function UserApp() {
                 <button
                   type="button"
                   onClick={() => setEditingParent(null)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-semibold cursor-pointer"
+                  className="flex-1 py-2.5 bg-[#FAF7F2] border border-[#E7DFD5] text-[#574F49] rounded-xl font-semibold cursor-pointer hover:bg-[#F5F1EB]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdatingParent}
-                  className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 cursor-pointer disabled:opacity-50"
+                  className="flex-1 filial-btn-primary py-2.5 text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   {isUpdatingParent ? 'Saving...' : 'Update Details'}
                 </button>

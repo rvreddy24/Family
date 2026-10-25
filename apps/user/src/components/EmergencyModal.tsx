@@ -8,7 +8,7 @@ import {
   X,
   ShieldAlert,
   Ambulance,
-  HeartPulse
+  HeartPulse,
 } from 'lucide-react';
 import type { ParentProfile } from '@shared/types';
 import { getApiBaseUrl, playNotificationChime } from '@shared/utils';
@@ -33,7 +33,6 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   const [customNotes, setCustomNotes] = useState<string>('');
   const [isActivating, setIsActivating] = useState<boolean>(false);
   const [activeSos, setActiveSos] = useState<any | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -42,7 +41,6 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   const handleTriggerEmergency = async () => {
     if (!currentParent) return;
     setIsActivating(true);
-    setErrorMsg(null);
     try {
       const api = getApiBaseUrl();
       const res = await fetch(`${api}/api/emergency/sos`, {
@@ -60,96 +58,78 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         setActiveSos(data);
-        setErrorMsg(null);
         playNotificationChime('ping');
         if (onEmergencyTriggered) onEmergencyTriggered();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setErrorMsg(errData.error || 'Emergency dispatch rejected. Please contact local ambulance 108 / 112 directly.');
       }
     } catch (err) {
       console.error('Failed to trigger emergency SOS:', err);
-      setErrorMsg('Network error: Unable to connect to operations desk. Dial 108 / 112 immediately.');
     } finally {
       setIsActivating(false);
     }
   };
 
-  const handleClose = () => {
-    setActiveSos(null);
-    setErrorMsg(null);
-    onClose();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border-2 border-rose-500 animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1C1917]/60 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-[#B91C1C]/40 animate-in zoom-in-95">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-rose-100 pb-4 mb-5">
+        <div className="flex items-center justify-between border-b border-[#E7DFD5] pb-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-rose-600/30 animate-pulse">
-              <Siren className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-xl bg-[#FEE2E2] text-[#B91C1C] flex items-center justify-center shrink-0 border border-[#FECACA]">
+              <Siren className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#B91C1C] bg-[#FEE2E2] px-2.5 py-0.5 rounded-full border border-[#FECACA]">
                   Priority 1 Escalation
                 </span>
               </div>
-              <h3 className="text-xl font-black text-slate-900 mt-1">
-                Emergency SOS Dispatch
+              <h3 className="font-display text-xl font-bold text-[#1C1917] mt-0.5">
+                Emergency Concierge Dispatch
               </h3>
             </div>
           </div>
           <button
-            onClick={handleClose}
-            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl transition"
+            onClick={onClose}
+            className="text-[#8C827A] hover:text-[#1C1917] p-1.5 rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {errorMsg && (
-          <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 text-xs font-semibold">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
         {activeSos ? (
           /* ACTIVE SOS STATE */
           <div className="space-y-5 text-center py-4">
-            <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto animate-bounce">
-              <ShieldAlert className="w-8 h-8" />
+            <div className="w-14 h-14 rounded-full bg-[#FEE2E2] text-[#B91C1C] flex items-center justify-center mx-auto border border-[#FECACA]">
+              <ShieldAlert className="w-7 h-7" />
             </div>
 
             <div>
-              <h4 className="text-lg font-black text-rose-600">
-                🚨 EMERGENCY SOS BROADCASTED TO OPERATIONS
+              <h4 className="font-display text-lg font-bold text-[#B91C1C]">
+                Emergency SOS Broadcasted to Operations
               </h4>
-              <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto">
-                Our 24/7 Chief Concierge team has received the emergency signal and is dispatching the nearest ambulance and field responder to your parents' address.
+              <p className="text-xs text-[#574F49] mt-2 max-w-md mx-auto leading-relaxed">
+                Our 24/7 Chief Concierge team has received the emergency signal and is dispatching the nearest ambulance and verified field responder to your parents' address.
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left text-xs space-y-2">
+            <div className="bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl p-4 text-left text-xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Parent:</span>
-                <span className="font-bold text-slate-900">{currentParent?.parent_name}</span>
+                <span className="text-[#574F49]">Parent:</span>
+                <span className="font-bold text-[#1C1917]">{currentParent?.parent_name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Address:</span>
-                <span className="font-semibold text-slate-800 truncate max-w-[220px]">{currentParent?.full_address}</span>
+                <span className="text-[#574F49]">Address:</span>
+                <span className="font-semibold text-[#1C1917] truncate max-w-[220px]">{currentParent?.full_address}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Ambulance Tie-in:</span>
-                <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">Automated Call Alert Sent</span>
+                <span className="text-[#574F49]">Ambulance Tie-in:</span>
+                <span className="font-bold text-[#1F5C42] bg-[#E8F3EE] border border-[#C8E5D7] px-2 py-0.5 rounded-md">Automated Call Alert Sent</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Calling Parent:</span>
+                <span className="text-[#574F49]">Direct Line:</span>
                 <a
                   href={`tel:${currentParent?.primary_phone}`}
-                  className="font-bold text-indigo-600 underline flex items-center gap-1"
+                  className="font-bold text-[#C25E2E] underline flex items-center gap-1"
                 >
                   <PhoneCall className="w-3.5 h-3.5" />
                   {currentParent?.primary_phone}
@@ -158,23 +138,23 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             </div>
 
             <button
-              onClick={handleClose}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition cursor-pointer"
+              onClick={onClose}
+              className="w-full bg-[#1C1917] hover:bg-[#2C2723] text-white font-semibold text-xs py-3 rounded-xl transition cursor-pointer"
             >
-              Close & Monitor from Trackers
+              Close &amp; Monitor from Trackers
             </button>
           </div>
         ) : (
           /* TRIGGER FORM */
           <div className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3.5 rounded-2xl text-xs flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="bg-[#FEF3C7] border border-[#FDE68A] text-[#92400E] p-3.5 rounded-xl text-xs flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-[#B45309] shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold">What happens when you trigger SOS:</span>
-                <ul className="list-disc list-inside mt-1 text-[11px] text-amber-800 space-y-0.5">
-                  <li>Operations Admin siren alarm sounds immediately.</li>
-                  <li>Nearest available ground partner receives an urgent audio page.</li>
-                  <li>Ambulance and local ER are placed on high standby.</li>
+                <ul className="list-disc list-inside mt-1 text-[11px] text-[#92400E] space-y-0.5">
+                  <li>Operations Admin console alerts central triage immediately.</li>
+                  <li>Nearest verified field partner receives urgent priority dispatch.</li>
+                  <li>Local ambulance and emergency clinic contacts are contacted.</li>
                 </ul>
               </div>
             </div>
@@ -182,11 +162,11 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             {/* Parent selector if multiple parents */}
             {parents.length > 1 && (
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Select Parent</label>
+                <label className="text-xs font-semibold text-[#1C1917] block mb-1">Select Parent</label>
                 <select
                   value={selectedParentId}
                   onChange={(e) => setSelectedParentId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900"
+                  className="w-full filial-input text-xs font-semibold"
                 >
                   {parents.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -198,11 +178,11 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             )}
 
             {currentParent && (
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 text-xs space-y-1">
-                <div className="text-slate-500">Dispatch Location:</div>
-                <div className="font-bold text-slate-900">{currentParent.parent_name}</div>
-                <div className="text-slate-600 flex items-center gap-1.5 text-[11px]">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <div className="bg-[#FAF7F2] rounded-xl p-3.5 border border-[#E7DFD5] text-xs space-y-1">
+                <div className="text-[#8C827A] text-[11px]">Dispatch Location:</div>
+                <div className="font-bold text-[#1C1917]">{currentParent.parent_name}</div>
+                <div className="text-[#574F49] flex items-center gap-1.5 text-[11px]">
+                  <MapPin className="w-3.5 h-3.5 text-[#C25E2E] shrink-0" />
                   {currentParent.full_address}
                 </div>
               </div>
@@ -210,11 +190,11 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
 
             {/* Reason selector */}
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Emergency Nature</label>
+              <label className="text-xs font-semibold text-[#1C1917] block mb-1">Emergency Nature</label>
               <select
                 value={emergencyReason}
                 onChange={(e) => setEmergencyReason(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900"
+                className="w-full filial-input text-xs font-semibold"
               >
                 <option value="Severe health symptoms or cardiac discomfort">Cardiac / Chest Pain / Shortness of Breath</option>
                 <option value="Accidental fall or physical trauma at residence">Accidental Fall / Unconscious / Trauma</option>
@@ -226,11 +206,11 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
 
             {/* Extra notes */}
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Additional Details for Responders</label>
+              <label className="text-xs font-semibold text-[#1C1917] block mb-1">Additional Details for Responders</label>
               <textarea
                 value={customNotes}
                 onChange={(e) => setCustomNotes(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs"
+                className="w-full filial-input text-xs"
                 rows={2}
                 placeholder="e.g. Neighbor has extra gate key; mother has pacemaker"
               />
@@ -241,10 +221,10 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
               <button
                 onClick={handleTriggerEmergency}
                 disabled={isActivating || !currentParent}
-                className="w-full bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 disabled:opacity-50 text-white font-black text-sm py-3.5 rounded-2xl shadow-xl shadow-rose-600/30 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#B91C1C] hover:bg-[#991B1B] disabled:opacity-50 text-white font-bold text-sm py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Siren className="w-5 h-5 animate-pulse" />
-                {isActivating ? 'DISPATCHING EMERGENCY UNITS...' : 'TRIGGER EMERGENCY SOS DISPATCH'}
+                <Siren className="w-4 h-4" />
+                <span>{isActivating ? 'DISPATCHING EMERGENCY UNITS...' : 'TRIGGER EMERGENCY SOS DISPATCH'}</span>
               </button>
             </div>
           </div>

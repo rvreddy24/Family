@@ -1,45 +1,176 @@
 @import "tailwindcss";
 
+:root {
+  --font-display: 'Eczar', Georgia, serif;
+  --font-body: 'Albert Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --color-primary: #C25E2E;
+  --color-primary-deep: #A3481D;
+  --color-primary-soft: #FBECE5;
+  --color-secondary: #1F5C42;
+  --color-secondary-soft: #E8F3EE;
+  --color-neutral-bg: #FAF7F2;
+  --color-neutral-surface: #FFFFFF;
+  --color-neutral-card: #F5F1EB;
+  --color-neutral-border: #E7DFD5;
+  --color-charcoal-ink: #1C1917;
+  --color-espresso-subtle: #574F49;
+  --color-muted-stone: #8C827A;
+  --color-gold-escrow: #B45309;
+  --color-gold-soft: #FEF3C7;
+  --color-crimson-sos: #B91C1C;
+  --color-crimson-soft: #FEE2E2;
+}
+
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    background-color: #F8FAFC;
-    color: #0F172A;
+    font-family: var(--font-body);
+    background-color: var(--color-neutral-bg);
+    color: var(--color-charcoal-ink);
+    letter-spacing: -0.01em;
   }
   
-  code, pre {
-    font-family: 'JetBrains Mono', monospace;
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Friendly card styling */
-.friendly-card {
+/* Warm Filial Cards & Panels */
+.filial-card, .friendly-card {
   background-color: #FFFFFF;
-  border: 1px solid #E2E8F0;
+  border: 1px solid var(--color-neutral-border);
   border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease-in-out;
+  box-shadow: 0 1px 3px rgba(28, 25, 23, 0.04), 0 1px 2px -1px rgba(28, 25, 23, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.friendly-card:hover {
-  border-color: #CBD5E1;
+.filial-card:hover, .friendly-card:hover {
+  border-color: #D6C9BC;
+  box-shadow: 0 4px 14px -2px rgba(194, 94, 46, 0.07), 0 2px 6px -1px rgba(28, 25, 23, 0.04);
 }
 
-/* Custom scrollbars */
+.filial-panel {
+  background-color: var(--color-neutral-card);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: 0.875rem;
+}
+
+/* Buttons */
+.filial-btn-primary {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border-radius: 0.625rem;
+  padding: 0.625rem 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+}
+
+.filial-btn-primary:hover {
+  background-color: var(--color-primary-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -2px rgba(194, 94, 46, 0.25);
+}
+
+.filial-btn-secondary {
+  background-color: var(--color-secondary-soft);
+  color: var(--color-secondary);
+  border: 1px solid #C8E5D7;
+  font-family: var(--font-body);
+  font-weight: 600;
+  border-radius: 0.625rem;
+  padding: 0.625rem 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.18s ease;
+}
+
+.filial-btn-secondary:hover {
+  background-color: #DCEDE5;
+  border-color: #A3D4BE;
+}
+
+/* Chips & Badges */
+.filial-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.filial-chip-emerald {
+  background-color: var(--color-secondary-soft);
+  color: var(--color-secondary);
+  border: 1px solid #C8E5D7;
+}
+
+.filial-chip-terracotta {
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-deep);
+  border: 1px solid #F5D3C4;
+}
+
+.filial-chip-gold {
+  background-color: var(--color-gold-soft);
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.filial-chip-crimson {
+  background-color: var(--color-crimson-soft);
+  color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
+/* Inputs & Form controls */
+.filial-input {
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-neutral-border);
+  color: var(--color-charcoal-ink);
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  font-family: var(--font-body);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.filial-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(194, 94, 46, 0.14);
+}
+
+/* Custom warm scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #F1F5F9;
+  background: var(--color-neutral-card);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #D6C9BC;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: #B8A99A;
 }

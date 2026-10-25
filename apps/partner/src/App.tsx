@@ -30,6 +30,7 @@ import {
   Heart,
   Activity,
   Star,
+  ExternalLink,
 } from 'lucide-react';
 import type { Task, PartnerProfile } from '@shared/types';
 import { calculateDistanceMeters, playNotificationChime, getApiBaseUrl, getWebSocketUrl, getImageUrl } from '@shared/utils';
@@ -93,11 +94,6 @@ export default function PartnerApp() {
   const [deviceLat, setDeviceLat] = useState<number>(16.8724);
   const [deviceLng, setDeviceLng] = useState<number>(79.5631);
   const [distanceToParentMeters, setDistanceToParentMeters] = useState<number>(18);
-  const coordsRef = useRef({ lat: 16.8724, lng: 79.5631 });
-
-  useEffect(() => {
-    coordsRef.current = { lat: deviceLat, lng: deviceLng };
-  }, [deviceLat, deviceLng]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -106,55 +102,55 @@ export default function PartnerApp() {
   // Comprehensive Multi-Language Dictionary (Indian Languages)
   const dict = {
     en: {
-      hubTitle: 'Field Partner Portal',
-      onlineStatus: 'Online (Ready for Jobs)',
-      offlineStatus: 'Offline',
+      hubTitle: 'Care Companion Console',
+      onlineStatus: 'Active on Duty',
+      offlineStatus: 'Off Duty',
       goOnline: 'GO ONLINE',
       goOffline: 'GO OFFLINE',
-      assignedJobs: 'Assigned Jobs',
-      currentTask: 'Current Task',
-      myWallet: 'Earnings & Wallet',
-      settingsTab: 'Partner Settings',
-      newJobAlert: 'New Job Assigned!',
+      assignedJobs: 'Available & Assigned Tasks',
+      currentTask: 'Active Care Task',
+      myWallet: 'Earnings & Escrow Wallet',
+      settingsTab: 'Companion Settings',
+      newJobAlert: 'New Care Dispatch Assigned!',
       guaranteedPayout: 'Guaranteed Payout',
-      acceptJob: 'Accept Job',
+      acceptJob: 'Accept Dispatch',
       declineJob: 'Decline',
-      callParent: 'Call Parent',
-      googleMaps: 'Open Google Maps',
+      callParent: 'Call Parent (Relay)',
+      googleMaps: 'Navigate in Google Maps',
       arrivalCheckin: 'Take Arrival Photo Check-In',
-      completionProof: 'Take Service Completion Photo',
-      within150m: '✓ Within 150m of Residence',
-      walletBalance: 'Your Wallet Balance',
-      payoutReady: 'Direct Bank Transfer (NEFT/UPI): Ready',
-      snapPhoto: 'Snap Photo',
-      confirmUpload: 'Confirm & Upload',
-      retake: 'Retake',
+      completionProof: 'Take Task Completion Photo',
+      within150m: '✓ Within 150m of Parent Residence',
+      walletBalance: 'Escrow Wallet Balance',
+      payoutReady: 'Direct UPI Settlement: Ready',
+      snapPhoto: 'Capture Photo Proof',
+      confirmUpload: 'Confirm & Submit to Family',
+      retake: 'Retake Photo',
       languageSelect: 'Language',
-      dutyNotice: 'You are currently active and eligible to receive local job dispatches across India.',
-      signInBtn: 'Sign In to Partner Portal',
-      signOutBtn: 'Sign Out from Partner Portal',
-      helperProfile: 'Field Helper Profile',
-      serviceArea: 'Operating Area',
+      dutyNotice: 'You are currently active and eligible to receive verified eldercare dispatches.',
+      signInBtn: 'Sign In to Console',
+      signOutBtn: 'Sign Out',
+      helperProfile: 'Companion Profile',
+      serviceArea: 'Operating Territory',
       bankUpi: 'Bank Payout UPI ID',
-      appLanguage: 'Primary App Language',
-      noActiveJob: 'No active job in progress right now.',
-      viewAssigned: 'View Assigned Jobs',
-      jobDetails: 'Job Details & Parent Location',
-      instructions: 'Instructions from Family Abroad',
+      appLanguage: 'Preferred App Language',
+      noActiveJob: 'No active care task in progress right now.',
+      viewAssigned: 'View Assigned Tasks',
+      jobDetails: 'Care Details & Residence Location',
+      instructions: 'Caregiver Instructions from Family Abroad',
       markComplete: 'Mark Task Completed',
-      noAssignedJobs: 'No pending jobs assigned right now. You are online and ready for new dispatches across India.',
+      noAssignedJobs: 'No pending tasks assigned right now. You are online and ready for new dispatches.',
       privacyMaskNotice: 'Parent contact protected via FamilyHubs Secure Relay',
-      emptyWallet: 'No completed jobs yet. Payouts are credited instantly upon verified task completion.',
-      kycTitle: 'KYC & Security Verification',
+      emptyWallet: 'No completed tasks yet. Payouts are credited instantly upon verified task completion.',
+      kycTitle: 'KYC & Police Security Verification',
     },
     te: {
-      hubTitle: 'ఫీల్డ్ భాగస్వామి పోర్టల్',
+      hubTitle: 'కేర్ భాగస్వామి కన్సోల్',
       onlineStatus: 'డ్యూటీ ఆన్ (పనులకు సిద్ధం)',
       offlineStatus: 'ఆఫ్‌లైన్',
       goOnline: 'డ్యూటీ ప్రారంభించండి',
       goOffline: 'ఆఫ్‌లైన్ వెళ్ళండి',
       assignedJobs: 'కేటాయించిన పనులు',
-      currentTask: 'ప్రస్తుత పని',
+      currentTask: 'ప్రస్తుత సంరక్షణ పని',
       myWallet: 'నా సంపాదన & వాలెట్',
       settingsTab: 'సెట్టింగ్‌లు',
       newJobAlert: 'కొత్త పని కేటాయించబడింది!',
@@ -167,14 +163,14 @@ export default function PartnerApp() {
       completionProof: 'పని పూర్తయిన ఫోటో తీయండి',
       within150m: '✓ నివాసానికి 150 మీటర్ల పరిధిలో ఉన్నారు',
       walletBalance: 'మీ వాలెట్ బ్యాలెన్స్',
-      payoutReady: 'బ్యాంక్ బదిలీ (UPI/NEFT): సిద్ధంగా ఉంది',
+      payoutReady: 'బ్యాంక్ బదిలీ (UPI): సిద్ధంగా ఉంది',
       snapPhoto: 'ఫోటో తీయండి',
       confirmUpload: 'ధృవీకరించి అప్‌లోడ్ చేయండి',
       retake: 'మళ్ళీ తీయండి',
       languageSelect: 'భాష',
-      dutyNotice: 'మీరు ప్రస్తుతం డ్యూటీలో ఉన్నారు. మీ సర్వీస్ ఏరియాలో కొత్త పనులు అందుకోవడానికి సిద్ధంగా ఉన్నారు.',
-      signInBtn: 'భాగస్వామి పోర్టల్‌లోకి ప్రవేశించండి',
-      signOutBtn: 'పోర్టల్ నుండి లాగౌట్ చేయండి',
+      dutyNotice: 'మీరు ప్రస్తుతం డ్యూటీలో ఉన్నారు. కొత్త పనులు అందుకోవడానికి సిద్ధంగా ఉన్నారు.',
+      signInBtn: 'పోర్టల్‌లోకి ప్రవేశించండి',
+      signOutBtn: 'లాగౌట్ చేయండి',
       helperProfile: 'సహాయకుని ప్రొఫైల్',
       serviceArea: 'పనిచేసే ప్రాంతం',
       bankUpi: 'బ్యాంక్ చెల్లింపు UPI ఐడీ',
@@ -184,19 +180,19 @@ export default function PartnerApp() {
       jobDetails: 'పని వివరాలు & చిరునామా',
       instructions: 'విదేశాల నుండి కుటుంబ సభ్యుల సూచనలు',
       markComplete: 'పని పూర్తయినట్లు నమోదు చేయండి',
-      noAssignedJobs: 'ప్రస్తుతం కేటాయించిన పనులు ఏవీ లేవు. మీరు ఆన్‌లైన్‌లో ఉన్నారు, మీ సర్వీస్ ఏరియాలో కొత్త పనుల కోసం సిద్ధంగా ఉన్నారు.',
+      noAssignedJobs: 'ప్రస్తుతం కేటాయించిన పనులు ఏవీ లేవు. మీరు ఆన్‌లైన్‌లో ఉన్నారు.',
       privacyMaskNotice: 'తల్లిదండ్రుల గోప్యతా రక్షణ కోసం ఫోన్ నంబర్ దాచబడింది (FamilyHubs సెక్యూర్ రిలే)',
-      emptyWallet: 'ఇంకా పూర్తి చేసిన పనులు లేవు. పని పూర్తయి ధృవీకరించబడిన వెంటనే చెల్లింపు మీ వాలెట్‌కు చేరుతుంది.',
-      kycTitle: 'కేవైసీ & భద్రతా ధృవీకరణ',
+      emptyWallet: 'ఇంకా పూర్తి చేసిన పనులు లేవు. పని పూర్తి కాగానే తక్షణ చెల్లింపు మీ వాలెట్‌కు చేరుతుంది.',
+      kycTitle: 'కేవైసీ & పోలీస్ భద్రతా ధృవీకరణ',
     },
     hi: {
-      hubTitle: 'फील्ड पार्टनर पोर्टल',
+      hubTitle: 'केयर कंपेनियन कंसोल',
       onlineStatus: 'ड्यूटी ऑन (कार्य के लिए तैयार)',
       offlineStatus: 'ऑफलाइन',
       goOnline: 'ड्यूटी शुरू करें',
       goOffline: 'ऑफलाइन जाएं',
       assignedJobs: 'सौंपे गए कार्य',
-      currentTask: 'वर्तमान कार्य',
+      currentTask: 'वर्तमान केयर टास्क',
       myWallet: 'कमाई और वॉलेट',
       settingsTab: 'सेटिंग्स',
       newJobAlert: 'नया कार्य सौंपा गया!',
@@ -209,14 +205,14 @@ export default function PartnerApp() {
       completionProof: 'कार्य समाप्ति फोटो लें',
       within150m: '✓ घर से 150 मीटर के दायरे में',
       walletBalance: 'आपका वॉलेट बैलेंस',
-      payoutReady: 'सीधा बैंक ट्रांसफर (NEFT/UPI): तैयार',
+      payoutReady: 'सीधा बैंक ट्रांसफर (UPI): तैयार',
       snapPhoto: 'फोटो खींचें',
       confirmUpload: 'पुष्टि करें और अपलोड करें',
       retake: 'फिर से लें',
       languageSelect: 'भाषा',
-      dutyNotice: 'आप अभी ड्यूटी पर हैं और अपने सेवा क्षेत्र में कार्य प्राप्त करने के पात्र हैं।',
+      dutyNotice: 'आप अभी ड्यूटी पर हैं और नए कार्य प्राप्त करने के पात्र हैं।',
       signInBtn: 'पार्टनर पोर्टल में प्रवेश करें',
-      signOutBtn: 'पार्टनर पोर्टल से लॉग आउट करें',
+      signOutBtn: 'लॉग आउट करें',
       helperProfile: 'हेल्पर प्रोफाइल',
       serviceArea: 'कार्य क्षेत्र',
       bankUpi: 'बैंक UPI आईडी',
@@ -226,13 +222,13 @@ export default function PartnerApp() {
       jobDetails: 'कार्य विवरण और पता',
       instructions: 'विदेश में परिवार के निर्देश',
       markComplete: 'कार्य पूर्ण दर्ज करें',
-      noAssignedJobs: 'वर्तमान में कोई कार्य नहीं सौंपा गया है। आप ऑनलाइन हैं और अपने सेवा क्षेत्र में नए कार्यों के लिए तैयार हैं।',
+      noAssignedJobs: 'वर्तमान में कोई कार्य नहीं सौंपा गया है। आप ऑनलाइन हैं।',
       privacyMaskNotice: 'अभिभावक की सुरक्षा हेतु फोन नंबर सुरक्षित रूप से छिपाया गया है',
-      emptyWallet: 'अभी कोई पूर्ण कार्य नहीं है। कार्य पूरा और सत्यापित होने पर तुरंत भुगतान जमा होता है।',
-      kycTitle: 'केवाईसी और सुरक्षा सत्यापन',
+      emptyWallet: 'अभी कोई पूर्ण कार्य नहीं है। कार्य सत्यापित होते ही तुरंत भुगतान जमा होगा।',
+      kycTitle: 'केवाईसी और पुलिस सुरक्षा सत्यापन',
     },
     ta: {
-      hubTitle: 'களப் பங்குதாரர் போர்டல்',
+      hubTitle: 'களப் பராமரிப்பாளர் கன்சோல்',
       onlineStatus: 'பணியில் உள்ளார் (தயார்)',
       offlineStatus: 'ஆஃப்லைன்',
       goOnline: 'பணியைத் தொடங்கு',
@@ -256,9 +252,9 @@ export default function PartnerApp() {
       confirmUpload: 'பதிவேற்றத்தை உறுதிசெய்',
       retake: 'மீண்டும் எடு',
       languageSelect: 'மொழி',
-      dutyNotice: 'நீங்கள் பணியில் உள்ளீர்கள். மிர்யாலகுடாவில் புதிய பணிகளைப் பெறலாம்.',
-      signInBtn: 'போர்டலில் உள்நுழைக',
-      signOutBtn: 'போர்ட்டலில் இருந்து வெளியேறு',
+      dutyNotice: 'நீங்கள் பணியில் உள்ளீர்கள். புதிய பணிகளைப் பெறலாம்.',
+      signInBtn: 'உள்நுழைக',
+      signOutBtn: 'வெளியேறு',
       helperProfile: 'பணியாளர் விவரம்',
       serviceArea: 'பணிபுரியும் பகுதி',
       bankUpi: 'வங்கி UPI ஐடி',
@@ -271,10 +267,10 @@ export default function PartnerApp() {
       noAssignedJobs: 'தற்போது எந்த பணியும் ஒதுக்கப்படவில்லை. நீங்கள் ஆன்லைனில் உள்ளீர்கள்.',
       privacyMaskNotice: 'பெற்றோர் பாதுகாப்புக்காக எண் மறைக்கப்பட்டுள்ளது',
       emptyWallet: 'இன்னும் பணிகள் எதுவும் முடிக்கப்படவில்லை. பணி முடிந்ததும் கட்டணம் வரவு வைக்கப்படும்.',
-      kycTitle: 'கேஒய்சி & பாதுகாப்பு சரிபார்ப்பு',
+      kycTitle: 'கேஒய்சி & போலீஸ் சரிபார்ப்பு',
     },
     kn: {
-      hubTitle: 'ಫೀಲ್ಡ್ ಪಾರ್ಟ್ನರ್ ಪೋರ್ಟಲ್',
+      hubTitle: 'ಆರೈಕೆ ಸಹಾಯಕ ಕನ್ಸೋಲ್',
       onlineStatus: 'ಡ್ಯೂಟಿಯಲ್ಲಿದ್ದಾರೆ (ಸಿದ್ಧ)',
       offlineStatus: 'ಆಫ್‌ಲೈನ್',
       goOnline: 'ಡ್ಯೂಟಿ ಆರಂಭಿಸಿ',
@@ -298,9 +294,9 @@ export default function PartnerApp() {
       confirmUpload: 'ಖಚಿತಪಡಿಸಿ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ',
       retake: 'ಮತ್ತೆ ತೆಗೆಯಿರಿ',
       languageSelect: 'ಭಾಷೆ',
-      dutyNotice: 'ನೀವು ಕರ್ತವ್ಯದಲ್ಲಿದ್ದೀರಿ. ಮಿರ್ಯಾಲಗುಡಾದಲ್ಲಿ ಹೊಸ ಕೆಲಸಗಳನ್ನು ಪಡೆಯಲು ಅರ್ಹರಾಗಿದ್ದೀರಿ.',
-      signInBtn: 'ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ಲಾಗಿನ್ ಮಾಡಿ',
-      signOutBtn: 'ಪೋರ್ಟಲ್‌ನಿಂದ ಲಾಗ್‌ಔಟ್ ಮಾಡಿ',
+      dutyNotice: 'ನೀವು ಕರ್ತವ್ಯದಲ್ಲಿದ್ದೀರಿ. ಹೊಸ ಕೆಲಸಗಳನ್ನು ಪಡೆಯಲು ಅರ್ಹರಾಗಿದ್ದೀರಿ.',
+      signInBtn: 'ಲಾಗಿನ್ ಮಾಡಿ',
+      signOutBtn: 'ಲಾಗ್‌ಔಟ್ ಮಾಡಿ',
       helperProfile: 'ಸಹಾಯಕ ವಿವರ',
       serviceArea: 'ಕಾರ್ಯನಿರ್ವಹಿಸುವ ಪ್ರದೇಶ',
       bankUpi: 'ಬ್ಯಾಂಕ್ UPI ಐಡಿ',
@@ -313,7 +309,7 @@ export default function PartnerApp() {
       noAssignedJobs: 'ಪ್ರಸ್ತುತ ಯಾವುದೇ ಕೆಲಸ ನಿಯೋಜಿಸಲಾಗಿಲ್ಲ. ನೀವು ಆನ್‌ಲೈನ್‌ನಲ್ಲಿದ್ದೀರಿ.',
       privacyMaskNotice: 'ಪೋಷಕರ ಗೌಪ್ಯತೆಗಾಗಿ ಫೋನ್ ಸಂಖ್ಯೆಯನ್ನು ಮರೆಮಾಡಲಾಗಿದೆ',
       emptyWallet: 'ಇನ್ನೂ ಯಾವುದೇ ಕೆಲಸಗಳು ಪೂರ್ಣಗೊಂಡಿಲ್ಲ. ಕೆಲಸ ಪೂರ್ಣಗೊಂಡ ತಕ್ಷಣ ಪಾವತಿ ಜಮೆಯಾಗುತ್ತದೆ.',
-      kycTitle: 'ಕೆವೈಸಿ & ಭದ್ರತಾ ಪರಿಶೀಲನೆ',
+      kycTitle: 'ಕೆವೈಸಿ & ಪೊಲೀಸ್ ಪರಿಶೀಲನೆ',
     },
   };
 
@@ -344,8 +340,8 @@ export default function PartnerApp() {
         const tasksData: Task[] = await tasksRes.json();
         setTasks(tasksData);
 
-        const current = tasksData.find((t) =>
-          ['ACCEPTED', 'IN_PROGRESS', 'VERIFICATION_SUBMITTED'].includes(t.status)
+        const current = tasksData.find((tk) =>
+          ['ACCEPTED', 'IN_PROGRESS', 'VERIFICATION_SUBMITTED'].includes(tk.status)
         );
         setActiveTask(current || null);
       }
@@ -490,11 +486,6 @@ export default function PartnerApp() {
     };
   }, [partnerId]);
 
-  const handleLogin = () => {
-    localStorage.setItem('fh_partner_logged_in', 'true');
-    setIsLoggedIn(true);
-  };
-
   const handleLogout = async () => {
     try {
       if (supabase) {
@@ -542,19 +533,6 @@ export default function PartnerApp() {
     }
   };
 
-  const handleStartJob = async (taskId: string) => {
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/tasks/${taskId}/start`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   // Periodic GPS broadcast to server for live tracking
   useEffect(() => {
     if (!isLoggedIn || !partnerId || !isBroadcastingGps) return;
@@ -593,7 +571,7 @@ export default function PartnerApp() {
     }
 
     const interval = setInterval(() => {
-      sendLocation(coordsRef.current.lat, coordsRef.current.lng);
+      sendLocation(deviceLat, deviceLng);
     }, 8000);
 
     return () => {
@@ -602,16 +580,7 @@ export default function PartnerApp() {
       }
       clearInterval(interval);
     };
-  }, [isLoggedIn, partnerId, isBroadcastingGps, activeTask?.id]);
-
-  // Clean up camera on unmount or stream change
-  useEffect(() => {
-    return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [cameraStream]);
+  }, [isLoggedIn, partnerId, isBroadcastingGps, activeTask?.id, deviceLat, deviceLng]);
 
   const handleSubmitPartnerVitals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -635,7 +604,7 @@ export default function PartnerApp() {
 
       if (res.ok) {
         setShowPartnerVitalModal(false);
-        setVitalSuccessToast('Parent vitals successfully recorded and transmitted to family!');
+        setVitalSuccessToast('Parent vitals successfully recorded and transmitted to family vault!');
         playNotificationChime('success');
         setTimeout(() => setVitalSuccessToast(null), 4000);
       } else {
@@ -690,44 +659,44 @@ export default function PartnerApp() {
     if (videoRef.current && cameraStream) {
       ctx.drawImage(videoRef.current, 0, 0, 640, 640);
     } else {
-      ctx.fillStyle = '#f1f5f9';
+      ctx.fillStyle = '#FAF7F2';
       ctx.fillRect(0, 0, 640, 640);
-      ctx.fillStyle = '#4f46e5';
+      ctx.fillStyle = '#C25E2E';
       ctx.beginPath();
       ctx.arc(320, 260, 120, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#fbcfe8';
+      ctx.fillStyle = '#F5D5C6';
       ctx.beginPath();
       ctx.arc(320, 220, 75, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#818cf8';
+      ctx.fillStyle = '#A3481D';
       ctx.beginPath();
       ctx.ellipse(320, 480, 180, 120, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // High-Contrast Watermark Stamp
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.fillRect(15, 490, 610, 135);
-    ctx.strokeStyle = '#10b981';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(15, 490, 610, 135);
+    // High-Contrast Watermark Stamp with Filial Sanctuary Styling
+    ctx.fillStyle = 'rgba(28, 25, 23, 0.90)';
+    ctx.fillRect(15, 480, 610, 145);
+    ctx.strokeStyle = '#1F5C42';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(15, 480, 610, 145);
 
-    ctx.fillStyle = '#10b981';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(`GEO-VERIFIED: ${deviceLat.toFixed(5)}°N, ${deviceLng.toFixed(5)}°E`, 30, 525);
+    ctx.fillStyle = '#34D399';
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillText(`GEO-VERIFIED: ${deviceLat.toFixed(5)}°N, ${deviceLng.toFixed(5)}°E`, 30, 515);
 
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = '#FAF7F2';
     ctx.font = '15px sans-serif';
-    ctx.fillText(`STAGE: ${cameraStage} | DISTANCE: ${Math.round(distanceToParentMeters)}m`, 30, 555);
+    ctx.fillText(`STAGE: ${cameraStage} | DISTANCE: ${Math.round(distanceToParentMeters)}m`, 30, 545);
 
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#D6D3D1';
     ctx.font = '13px sans-serif';
-    ctx.fillText(`HELPER: ${profile?.user?.full_name || 'Field Partner'} | TASK: ${activeTask?.tracking_code || ''}`, 30, 585);
+    ctx.fillText(`COMPANION: ${profile?.user?.full_name || 'Field Partner'} | CODE: ${activeTask?.tracking_code || ''}`, 30, 575);
 
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = '#FBBF24';
     ctx.font = '12px sans-serif';
-    ctx.fillText(`TIME: ${new Date().toLocaleTimeString()} IST | Pan-India Hub`, 30, 610);
+    ctx.fillText(`TIMESTAMP: ${new Date().toLocaleTimeString()} IST | FamilyHubs Trust Mesh`, 30, 605);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedPhoto(dataUrl);
@@ -780,12 +749,7 @@ export default function PartnerApp() {
     }
   };
 
-  // ==========================================
-  // VIEW: PARTNER WELCOME / LOGIN SCREEN
-  // ==========================================
-  // ==========================================
-  // VIEW: AUTHENTICATION SCREEN (SIGN IN / SIGN UP)
-  // ==========================================
+  // If unauthenticated, show redesigned PartnerAuthView
   if (!isLoggedIn) {
     return (
       <PartnerAuthView
@@ -804,61 +768,76 @@ export default function PartnerApp() {
     );
   }
 
-  // ==========================================
-  // VIEW: AUTHENTICATED PARTNER DESKTOP & WEB APP
-  // ==========================================
+  // Authenticated Companion View
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1C1917] font-body antialiased">
+      {/* Editorial Decorative Grain Pattern */}
+      <div 
+        className="fixed inset-0 pointer-events-none opacity-[0.025] z-0"
+        style={{
+          backgroundImage: `radial-gradient(#C25E2E 0.75px, transparent 0.75px)`,
+          backgroundSize: '24px 24px',
+        }}
+      />
+
       {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#E7DFD5] shadow-xs">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="./logo_icon.png" alt="FamilyHubs" className="w-10 h-10 object-contain drop-shadow-sm" />
+            <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-1.5 shadow-xs shrink-0">
+              <img src="./logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+            </div>
             <div>
-              <div className="text-base font-bold text-slate-900 flex items-center gap-2">
-                {profile?.user?.full_name || 'Field Partner'}
-                <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
-                  ✓ Verified
+              <div className="text-base font-bold text-[#1C1917] flex items-center gap-2 flex-wrap">
+                <span className="font-display tracking-tight">
+                  {profile?.user?.full_name || 'Field Companion'}
                 </span>
-                <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-bold">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span className="text-[11px] bg-[#E8F3EE] text-[#1F5C42] font-semibold px-2 py-0.5 rounded-full border border-[#C8E5D7] flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  Verified
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-[#B45309] bg-[#FEF3C7] px-2 py-0.5 rounded-full border border-[#FDE68A] font-bold">
+                  <Star className="w-3 h-3 fill-[#F59E0B] text-[#F59E0B]" />
                   <span>{profile?.rating ? profile.rating.toFixed(1) : '5.0'}</span>
-                  <span className="text-[10px] text-amber-700/80 font-normal">
+                  <span className="text-[10px] text-[#92400E] font-normal">
                     ({profile?.total_reviews || 12})
                   </span>
                 </span>
               </div>
-              <div className="text-xs text-slate-500">
-                {t.hubTitle} • {profile?.service_category.replace('_', ' ') || 'Healthcare Escort'}
+              <div className="text-xs text-[#8C827A] flex items-center gap-2">
+                <span>{t.hubTitle}</span>
+                <span>•</span>
+                <span>{profile?.service_category.replace('_', ' ') || 'Healthcare Escort'}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border bg-slate-50">
-              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
-              <span className={wsConnected ? 'text-emerald-700' : 'text-amber-700'}>
-                {wsConnected ? 'Live Network' : 'Connecting...'}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Live Network Pill */}
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-[#FAF7F2] border-[#E7DFD5]">
+              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[#1F5C42] animate-pulse' : 'bg-[#B45309]'}`} />
+              <span className={wsConnected ? 'text-[#1F5C42]' : 'text-[#B45309]'}>
+                {wsConnected ? 'Mesh Online' : 'Reconnecting...'}
               </span>
             </div>
 
-            {/* Multi-Language Switcher (Indian Languages) */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-              <Languages className="w-4 h-4 text-slate-500 ml-1.5" />
+            {/* Multilingual Switcher */}
+            <div className="flex items-center gap-1 bg-[#F5F1EB] p-1 rounded-xl border border-[#E7DFD5]">
+              <Languages className="w-3.5 h-3.5 text-[#8C827A] ml-1 mr-0.5 hidden sm:block" />
               {[
-                { code: 'te', label: 'తెలుగు' },
-                { code: 'en', label: 'English' },
-                { code: 'hi', label: 'हिंदी' },
-                { code: 'ta', label: 'தமிழ்' },
-                { code: 'kn', label: 'ಕನ್ನಡ' },
+                { code: 'te', label: 'తె' },
+                { code: 'en', label: 'EN' },
+                { code: 'hi', label: 'हि' },
+                { code: 'ta', label: 'த' },
+                { code: 'kn', label: 'ಕ' },
               ].map((item) => (
                 <button
                   key={item.code}
                   onClick={() => setLang(item.code as LanguageCode)}
-                  className={`px-2 py-1 text-xs font-bold rounded-lg transition ${
+                  className={`px-2 py-1 text-xs font-bold rounded-lg transition-all ${
                     lang === item.code
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-[#FFFFFF] text-[#C25E2E] shadow-xs border border-[#E7DFD5]'
+                      : 'text-[#574F49] hover:text-[#1C1917]'
                   }`}
                 >
                   {item.label}
@@ -869,10 +848,10 @@ export default function PartnerApp() {
             {/* Master Duty Switch */}
             <button
               onClick={handleToggleDuty}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
                 isAvailable
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  ? 'bg-[#1F5C42] text-white hover:bg-[#164632]'
+                  : 'bg-[#E7DFD5] text-[#574F49] hover:bg-[#D6D3D1]'
               }`}
             >
               <Power className="w-3.5 h-3.5" />
@@ -882,7 +861,7 @@ export default function PartnerApp() {
             {/* Sign Out Button */}
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+              className="p-2 rounded-xl text-[#8C827A] hover:text-[#B91C1C] hover:bg-[#FEE2E2] transition cursor-pointer"
               title={t.signOutBtn}
             >
               <LogOut className="w-4 h-4" />
@@ -891,37 +870,43 @@ export default function PartnerApp() {
         </div>
 
         {/* View Tabs */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-2 border-t border-slate-100 pt-1 overflow-x-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 border-t border-[#E7DFD5] pt-1 overflow-x-auto">
           <button
             onClick={() => setActiveTab('jobs')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'jobs' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'jobs' 
+                ? 'border-b-2 border-[#C25E2E] text-[#C25E2E] font-bold bg-[#FAF7F2]' 
+                : 'text-[#574F49] hover:text-[#1C1917]'
             }`}
           >
             <Zap className="w-4 h-4" />
             {t.assignedJobs}
-            <span className="bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded-full text-[10px]">
+            <span className="bg-[#E7DFD5] text-[#1C1917] px-1.5 py-0.2 rounded-full text-[10px] font-bold">
               {tasks.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('active')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'active' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'active' 
+                ? 'border-b-2 border-[#C25E2E] text-[#C25E2E] font-bold bg-[#FAF7F2]' 
+                : 'text-[#574F49] hover:text-[#1C1917]'
             }`}
           >
             <Navigation className="w-4 h-4" />
             {t.currentTask}
             {activeTask && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-[#1F5C42] animate-pulse" />
             )}
           </button>
 
           <button
             onClick={() => setActiveTab('wallet')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'wallet' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'wallet' 
+                ? 'border-b-2 border-[#C25E2E] text-[#C25E2E] font-bold bg-[#FAF7F2]' 
+                : 'text-[#574F49] hover:text-[#1C1917]'
             }`}
           >
             <Wallet className="w-4 h-4" />
@@ -930,8 +915,10 @@ export default function PartnerApp() {
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600 hover:text-slate-900'
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'settings' 
+                ? 'border-b-2 border-[#C25E2E] text-[#C25E2E] font-bold bg-[#FAF7F2]' 
+                : 'text-[#574F49] hover:text-[#1C1917]'
             }`}
           >
             <Settings className="w-4 h-4" />
@@ -940,32 +927,38 @@ export default function PartnerApp() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 z-10">
         {/* ================= TAB 1: ASSIGNED JOBS ================= */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E7DFD5]">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">{t.assignedJobs}</h2>
-                <p className="text-xs text-slate-500">{t.dutyNotice}</p>
+                <h2 className="font-display text-xl sm:text-2xl font-bold text-[#1C1917]">
+                  {t.assignedJobs}
+                </h2>
+                <p className="text-xs text-[#574F49] mt-0.5">{t.dutyNotice}</p>
               </div>
-              <button onClick={fetchData} className="p-2 text-slate-400 hover:text-slate-700">
+              <button 
+                onClick={fetchData} 
+                className="p-2 text-[#8C827A] hover:text-[#1C1917] hover:bg-[#F5F1EB] rounded-xl transition cursor-pointer"
+                title="Refresh tasks"
+              >
                 <RefreshCw className="w-4 h-4" />
               </button>
             </div>
 
             {tasks.length === 0 ? (
-              <div className="bg-white p-12 text-center rounded-3xl border border-slate-200 text-slate-500 max-w-xl mx-auto space-y-4 shadow-xs">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+              <div className="bg-[#FFFFFF] p-12 text-center rounded-3xl border border-[#E7DFD5] text-[#574F49] max-w-xl mx-auto space-y-4 shadow-xs">
+                <div className="w-16 h-16 rounded-2xl bg-[#FBECE5] text-[#C25E2E] flex items-center justify-center mx-auto">
                   <Zap className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">{t.assignedJobs}</h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">{t.noAssignedJobs}</p>
+                  <h3 className="font-display text-lg font-bold text-[#1C1917]">{t.assignedJobs}</h3>
+                  <p className="text-xs text-[#8C827A] mt-1 max-w-md mx-auto">{t.noAssignedJobs}</p>
                 </div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F3EE] text-[#1F5C42] text-xs font-semibold border border-[#C8E5D7]">
+                  <span className="w-2 h-2 rounded-full bg-[#1F5C42] animate-pulse" />
                   {t.onlineStatus}
                 </div>
               </div>
@@ -976,55 +969,57 @@ export default function PartnerApp() {
                   return (
                     <div
                       key={task.id}
-                      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between"
+                      className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-4 flex flex-col justify-between hover:border-[#C25E2E]/40 transition-all"
                     >
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] px-2.5 py-0.5 rounded-md border border-[#F5D5C6]">
                             {task.tracking_code}
                           </span>
-                          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                            ₹{payoutINR} Payout
+                          <span className="text-xs font-bold text-[#1F5C42] bg-[#E8F3EE] px-3 py-1 rounded-full border border-[#C8E5D7]">
+                            ₹{payoutINR} Escrow Payout
                           </span>
                         </div>
 
-                        <h3 className="text-base font-bold text-slate-900">{task.title}</h3>
+                        <h3 className="font-display text-lg font-bold text-[#1C1917] leading-snug">
+                          {task.title}
+                        </h3>
 
-                        <div className="text-xs text-slate-600 space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <div className="text-xs text-[#574F49] space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-[#8C827A] shrink-0" />
                             <span>{task.parent?.locality} — {task.parent?.full_address}</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Parent: {task.parent?.parent_name}</span>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-[#8C827A] shrink-0" />
+                            <span>Parent: <strong className="text-[#1C1917]">{task.parent?.parent_name}</strong></span>
                           </div>
                         </div>
 
-                        <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                          {task.instructions}
+                        <p className="text-xs text-[#574F49] bg-[#FAF7F2] p-3 rounded-xl border border-[#E7DFD5] leading-relaxed">
+                          "{task.instructions}"
                         </p>
                       </div>
 
                       <div className="pt-2 flex gap-3">
                         {task.status === 'DISPATCHED' ? (
-                          <>
-                            <button
-                              onClick={() => handleAcceptJob(task.id)}
-                              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
-                            >
-                              {t.acceptJob}
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleAcceptJob(task.id)}
+                            className="w-full py-3.5 bg-[#C25E2E] hover:bg-[#A3481D] text-white rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <span>{t.acceptJob}</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
                         ) : (
                           <button
                             onClick={() => {
                               setActiveTask(task);
                               setActiveTab('active');
                             }}
-                            className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition"
+                            className="w-full py-3.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] border border-[#E7DFD5] rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 cursor-pointer"
                           >
-                            {t.currentTask} ➔
+                            <span>{t.currentTask}</span>
+                            <ChevronRight className="w-4 h-4 text-[#8C827A]" />
                           </button>
                         )}
                       </div>
@@ -1040,45 +1035,49 @@ export default function PartnerApp() {
         {activeTab === 'active' && (
           <div>
             {activeTask ? (
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-2xl mx-auto">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="bg-[#FFFFFF] p-6 sm:p-8 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-6 max-w-2xl mx-auto">
+                <div className="flex items-start justify-between pb-4 border-b border-[#E7DFD5]">
                   <div>
-                    <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                    <span className="text-xs font-mono font-bold text-[#C25E2E] bg-[#FBECE5] px-2.5 py-0.5 rounded-md border border-[#F5D5C6]">
                       {activeTask.tracking_code}
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 mt-1">{activeTask.title}</h3>
+                    <h3 className="font-display text-xl font-bold text-[#1C1917] mt-1.5">
+                      {activeTask.title}
+                    </h3>
                   </div>
                   <div className="text-right">
-                    <div className="text-[11px] text-slate-400">{t.guaranteedPayout}</div>
-                    <div className="text-2xl font-bold font-mono text-emerald-600">
+                    <div className="text-[11px] text-[#8C827A]">{t.guaranteedPayout}</div>
+                    <div className="text-2xl font-bold font-mono text-[#1F5C42]">
                       ₹{Math.round((activeTask.escrow?.amount || 45) * 83)}
                     </div>
                   </div>
                 </div>
 
                 {/* Parent Residence Info with Privacy Relay */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#E7DFD5] space-y-3.5 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900">{t.jobDetails}</span>
-                    <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-medium">
-                      🔒 Privacy Relay
+                    <span className="font-bold text-[#1C1917] text-sm">{t.jobDetails}</span>
+                    <span className="text-[10px] bg-[#E8F3EE] text-[#1F5C42] px-2.5 py-0.5 rounded-full font-semibold border border-[#C8E5D7]">
+                      🔒 Privacy Relay Active
                     </span>
                   </div>
 
-                  <div><strong>Parent:</strong> {activeTask.parent?.parent_name}</div>
-                  <div><strong>Address:</strong> {activeTask.parent?.full_address} ({activeTask.parent?.locality})</div>
-                  <div><strong>Instructions:</strong> {activeTask.instructions}</div>
+                  <div className="space-y-1 text-[#574F49]">
+                    <div><strong>Parent:</strong> {activeTask.parent?.parent_name}</div>
+                    <div><strong>Address:</strong> {activeTask.parent?.full_address} ({activeTask.parent?.locality})</div>
+                    <div><strong>Instructions:</strong> {activeTask.instructions}</div>
+                  </div>
 
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2 shadow-xs">
+                  <div className="p-3 bg-[#FFFFFF] rounded-xl border border-[#E7DFD5] flex items-center justify-between gap-3 shadow-xs">
                     <div>
-                      <div className="font-bold text-slate-800">
+                      <div className="font-bold text-[#1C1917]">
                         {activeTask.parent?.primary_phone ? `${activeTask.parent.primary_phone.slice(0, 8)} •••••` : '+91 94901 •••••'}
                       </div>
-                      <div className="text-[10px] text-slate-500">{t.privacyMaskNotice}</div>
+                      <div className="text-[10px] text-[#8C827A]">{t.privacyMaskNotice}</div>
                     </div>
                     <a
                       href={`tel:${activeTask.parent?.primary_phone || ''}`}
-                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs text-xs"
+                      className="px-3.5 py-2.5 bg-[#C25E2E] hover:bg-[#A3481D] text-white font-semibold rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs text-xs cursor-pointer"
                     >
                       <Phone className="w-3.5 h-3.5" />
                       {t.callParent}
@@ -1090,55 +1089,56 @@ export default function PartnerApp() {
                       href={`https://maps.google.com/?q=${activeTask.parent?.coordinates_lat},${activeTask.parent?.coordinates_lng}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="w-full py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl flex items-center justify-center gap-1.5 transition text-xs"
+                      className="w-full py-3 bg-[#FFFFFF] hover:bg-[#F5F1EB] text-[#1C1917] border border-[#E7DFD5] font-semibold rounded-xl flex items-center justify-center gap-2 transition text-xs shadow-xs"
                     >
-                      <MapPin className="w-3.5 h-3.5" />
+                      <MapPin className="w-4 h-4 text-[#C25E2E]" />
                       {t.googleMaps}
+                      <ExternalLink className="w-3.5 h-3.5 text-[#8C827A]" />
                     </a>
                   </div>
                 </div>
 
                 {/* GPS Status Indicator & Live Telemetry Stream */}
                 <div className="space-y-2">
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                  <div className="p-4 rounded-2xl bg-[#E8F3EE] border border-[#C8E5D7] flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                        <MapPin className="w-5 h-5" />
+                      <div className="w-10 h-10 rounded-xl bg-[#FFFFFF] text-[#1F5C42] flex items-center justify-center border border-[#C8E5D7] shadow-xs">
+                        <MapPin className="w-5 h-5 text-[#1F5C42]" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-emerald-800">{t.within150m}</div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-xs font-bold text-[#1F5C42]">{t.within150m}</div>
+                        <div className="text-[11px] text-[#574F49] font-mono">
                           GPS: {deviceLat.toFixed(4)}°N, {deviceLng.toFixed(4)}°E • Distance: {Math.round(distanceToParentMeters)}m
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between text-xs">
+                  <div className="p-3 bg-[#FAF7F2] border border-[#E7DFD5] rounded-2xl flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="font-semibold text-indigo-900">Broadcasting Real-Time GPS to Family</span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#1F5C42] animate-pulse" />
+                      <span className="font-semibold text-[#1C1917]">Live Telemetry Broadcasting to Family</span>
                     </div>
-                    <span className="font-mono text-[11px] text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
-                      Live Telemetry Active
+                    <span className="font-mono text-[10px] text-[#1F5C42] bg-[#FFFFFF] px-2 py-0.5 rounded-md border border-[#E7DFD5]">
+                      Sensor Linked
                     </span>
                   </div>
                 </div>
 
-                {/* Health Vitals Logging Trigger */}
-                <div className="p-4 bg-rose-50/60 border border-rose-200 rounded-2xl flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
-                      <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                {/* Parent Health Vitals Logging Action */}
+                <div className="p-4 bg-[#FBECE5]/70 border border-[#F5D5C6] rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFFFFF] text-[#C25E2E] flex items-center justify-center border border-[#F5D5C6] shadow-xs">
+                      <Heart className="w-5 h-5 fill-[#C25E2E] text-[#C25E2E]" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-rose-950">Parent Health Check</div>
-                      <div className="text-[11px] text-rose-800/80">Log BP, Blood Glucose & Pulse directly to family vault</div>
+                      <div className="text-xs font-bold text-[#1C1917]">Parent Health &amp; Vitals Check</div>
+                      <div className="text-[11px] text-[#574F49]">Log BP, Blood Glucose & Pulse directly to encrypted family vault</div>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowPartnerVitalModal(true)}
-                    className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+                    className="px-3.5 py-2.5 bg-[#C25E2E] hover:bg-[#A3481D] text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer shrink-0"
                   >
                     <Activity className="w-3.5 h-3.5" />
                     Log Vitals
@@ -1149,7 +1149,7 @@ export default function PartnerApp() {
                 <div className="space-y-3 pt-2">
                   <button
                     onClick={() => startCamera('ARRIVAL_CHECKIN')}
-                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md transition"
+                    className="w-full py-4 bg-[#C25E2E] hover:bg-[#A3481D] text-white font-semibold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                   >
                     <Camera className="w-4 h-4" />
                     {t.arrivalCheckin}
@@ -1157,20 +1157,20 @@ export default function PartnerApp() {
 
                   <button
                     onClick={() => startCamera('TASK_COMPLETION')}
-                    className="w-full py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition"
+                    className="w-full py-3.5 bg-[#FAF7F2] hover:bg-[#F5F1EB] text-[#1C1917] font-semibold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 border border-[#E7DFD5] transition cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <CheckCircle2 className="w-4 h-4 text-[#1F5C42]" />
                     {t.completionProof}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="bg-white p-12 text-center rounded-3xl border border-slate-200 text-slate-400 max-w-md mx-auto space-y-3">
-                <Navigation className="w-12 h-12 text-slate-300 mx-auto" />
-                <div className="text-sm font-bold text-slate-700">{t.noActiveJob}</div>
+              <div className="bg-[#FFFFFF] p-12 text-center rounded-3xl border border-[#E7DFD5] text-[#8C827A] max-w-md mx-auto space-y-4 shadow-xs">
+                <Navigation className="w-12 h-12 text-[#8C827A] mx-auto opacity-40" />
+                <div className="font-display text-base font-bold text-[#1C1917]">{t.noActiveJob}</div>
                 <button
                   onClick={() => setActiveTab('jobs')}
-                  className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+                  className="px-5 py-2.5 bg-[#C25E2E] hover:bg-[#A3481D] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-xs transition"
                 >
                   {t.viewAssigned}
                 </button>
@@ -1182,35 +1182,50 @@ export default function PartnerApp() {
         {/* ================= TAB 3: WALLET & EARNINGS ================= */}
         {activeTab === 'wallet' && (
           <div className="space-y-6 max-w-2xl mx-auto">
-            <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-3xl p-8 text-white shadow-lg space-y-4">
-              <span className="text-xs bg-white/20 text-white px-3 py-1 rounded-full font-semibold">
-                Instant UPI Settlement • Pan-India Network
-              </span>
-              <div className="text-xs text-emerald-200">{t.walletBalance}</div>
-              <div className="text-4xl font-extrabold font-mono">
-                ₹{Math.round((profile?.wallet_balance || 0) * 83)}
+            {/* Dignified Escrow Balance Card */}
+            <div className="bg-gradient-to-br from-[#1F5C42] to-[#164632] rounded-3xl p-8 text-white shadow-md space-y-4 relative overflow-hidden">
+              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-64 h-64 bg-white/5 rounded-full pointer-events-none" />
+              
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] bg-white/15 text-white px-3 py-1 rounded-full font-semibold tracking-wide uppercase">
+                  Instant UPI Escrow Payouts
+                </span>
+                <span className="text-xs font-mono text-emerald-200">
+                  Pan-India Direct Settlement
+                </span>
               </div>
-              <div className="text-xs text-emerald-200 flex items-center gap-2 pt-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                {t.payoutReady} ({bankUpiId})
+
+              <div>
+                <div className="text-xs text-emerald-200/80 mb-1">{t.walletBalance}</div>
+                <div className="font-display text-4xl sm:text-5xl font-extrabold tracking-tight">
+                  ₹{Math.round((profile?.wallet_balance || 0) * 83)}
+                </div>
+              </div>
+
+              <div className="text-xs text-emerald-100 flex items-center gap-2 pt-2 border-t border-white/15">
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span>{t.payoutReady} ({bankUpiId})</span>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-              <h3 className="text-sm font-bold text-slate-900">Recent Completed Jobs</h3>
+            {/* Completed Tasks Audit */}
+            <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-4">
+              <h3 className="font-display text-base font-bold text-[#1C1917]">
+                Recent Task Disbursements
+              </h3>
               {tasks.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <div className="p-8 text-center text-xs text-[#8C827A] bg-[#FAF7F2] rounded-2xl border border-dashed border-[#E7DFD5]">
                   {t.emptyWallet}
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 text-xs">
+                <div className="divide-y divide-[#E7DFD5] text-xs">
                   {tasks.map((task) => (
-                    <div key={task.id} className="py-3 flex items-center justify-between">
+                    <div key={task.id} className="py-3.5 flex items-center justify-between">
                       <div>
-                        <div className="font-bold text-slate-800">{task.title}</div>
-                        <div className="text-slate-400">{task.parent?.locality} • {task.tracking_code}</div>
+                        <div className="font-bold text-[#1C1917]">{task.title}</div>
+                        <div className="text-[#8C827A] mt-0.5">{task.parent?.locality} • <span className="font-mono">{task.tracking_code}</span></div>
                       </div>
-                      <span className="font-bold font-mono text-emerald-600">
+                      <span className="font-bold font-mono text-[#1F5C42] text-sm">
                         +₹{Math.round((task.escrow?.amount || 45) * 83)}
                       </span>
                     </div>
@@ -1224,106 +1239,110 @@ export default function PartnerApp() {
         {/* ================= TAB 4: SETTINGS PAGE ================= */}
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">{t.settingsTab}</h2>
-              <p className="text-xs text-slate-500">Configure profile, primary language, and bank payout details.</p>
+            <div className="pb-2 border-b border-[#E7DFD5]">
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-[#1C1917]">
+                {t.settingsTab}
+              </h2>
+              <p className="text-xs text-[#574F49] mt-0.5">
+                Configure profile, primary language, and bank payout details.
+              </p>
             </div>
 
             {/* Profile Info */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <User className="w-4 h-4 text-indigo-600" />
+            <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-4">
+              <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                <User className="w-4 h-4 text-[#C25E2E]" />
                 {t.helperProfile}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Full Name</label>
+                  <label className="text-[#8C827A] font-semibold block mb-1">Full Name</label>
                   <input
                     type="text"
-                    value={profile?.user?.full_name || profile?.full_name || 'Pavan Kumar (Field Partner)'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
+                    value={profile?.user?.full_name || profile?.full_name || 'Verified Companion'}
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3.5 py-2.5 text-[#1C1917] font-medium"
                     readOnly
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Phone Number</label>
+                  <label className="text-[#8C827A] font-semibold block mb-1">Phone Number</label>
                   <input
                     type="text"
                     value={profile?.user?.phone || '+91 94401 55667'}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-medium"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3.5 py-2.5 text-[#1C1917] font-medium font-mono"
                     readOnly
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">{t.serviceArea}</label>
+                  <label className="text-[#8C827A] font-semibold block mb-1">{t.serviceArea}</label>
                   <input
                     type="text"
                     value={operatingTown}
                     onChange={(e) => setOperatingTown(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3.5 py-2.5 text-[#1C1917]"
                   />
                 </div>
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">{t.bankUpi}</label>
+                  <label className="text-[#8C827A] font-semibold block mb-1">{t.bankUpi}</label>
                   <input
                     type="text"
                     value={bankUpiId}
                     onChange={(e) => setBankUpiId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3.5 py-2.5 text-[#1C1917] font-mono"
                   />
                 </div>
               </div>
             </div>
 
             {/* KYC & Police Security Verification */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#1F5C42]" />
                   {t.kycTitle}
                 </h3>
-                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <span className="text-[11px] font-semibold text-[#1F5C42] bg-[#E8F3EE] px-2.5 py-0.5 rounded-full border border-[#C8E5D7]">
                   ✓ Verified Active
                 </span>
               </div>
 
               <div className="space-y-2.5 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E7DFD5] flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-slate-900">Police Clearance Certificate (PCC)</div>
-                    <div className="text-slate-500 text-[11px]">State Police Department Verification • PCC #401</div>
+                    <div className="font-bold text-[#1C1917]">Police Clearance Certificate (PCC)</div>
+                    <div className="text-[#8C827A] text-[11px]">State Police Department Verification • PCC #401</div>
                   </div>
-                  <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
+                  <span className="text-[#1F5C42] font-semibold text-[11px] bg-[#E8F3EE] px-2 py-0.5 rounded border border-[#C8E5D7]">
                     Verified
                   </span>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E7DFD5] flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-slate-900">Aadhaar Biometric KYC</div>
-                    <div className="text-slate-500 text-[11px]">UIDAI Masked: XXXX-XXXX-8921</div>
+                    <div className="font-bold text-[#1C1917]">Aadhaar Biometric KYC</div>
+                    <div className="text-[#8C827A] text-[11px]">UIDAI Masked: XXXX-XXXX-8921</div>
                   </div>
-                  <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
+                  <span className="text-[#1F5C42] font-semibold text-[11px] bg-[#E8F3EE] px-2 py-0.5 rounded border border-[#C8E5D7]">
                     Verified
                   </span>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E7DFD5] flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-slate-900">Hardware GPS &amp; Camera Calibration</div>
-                    <div className="text-slate-500 text-[11px]">Sub-5m GPS Accuracy Sensor Lock</div>
+                    <div className="font-bold text-[#1C1917]">Hardware GPS &amp; Camera Calibration</div>
+                    <div className="text-[#8C827A] text-[11px]">Sub-5m GPS Accuracy Sensor Lock</div>
                   </div>
-                  <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
+                  <span className="text-[#1F5C42] font-semibold text-[11px] bg-[#E8F3EE] px-2 py-0.5 rounded border border-[#C8E5D7]">
                     Calibrated
                   </span>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E7DFD5] flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-slate-900">NPCI Direct Bank Settlement</div>
-                    <div className="text-slate-500 text-[11px]">Beneficiary Name: {profile?.user?.full_name || 'Verified Field Partner'}</div>
+                    <div className="font-bold text-[#1C1917]">NPCI Direct Bank Settlement</div>
+                    <div className="text-[#8C827A] text-[11px]">Beneficiary Name: {profile?.user?.full_name || 'Verified Field Partner'}</div>
                   </div>
-                  <span className="text-emerald-700 font-semibold text-[11px] bg-emerald-100/70 px-2 py-0.5 rounded">
+                  <span className="text-[#1F5C42] font-semibold text-[11px] bg-[#E8F3EE] px-2 py-0.5 rounded border border-[#C8E5D7]">
                     Linked
                   </span>
                 </div>
@@ -1331,26 +1350,26 @@ export default function PartnerApp() {
             </div>
 
             {/* Language Switcher in Settings */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Languages className="w-4 h-4 text-indigo-600" />
+            <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E7DFD5] shadow-xs space-y-3">
+              <h3 className="font-display text-base font-bold text-[#1C1917] flex items-center gap-2">
+                <Languages className="w-4 h-4 text-[#C25E2E]" />
                 {t.appLanguage}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                 {[
-                  { code: 'te', label: 'తెలుగు (Telugu)' },
+                  { code: 'te', label: 'తెలుగు' },
                   { code: 'en', label: 'English' },
-                  { code: 'hi', label: 'हिंदी (Hindi)' },
-                  { code: 'ta', label: 'தமிழ் (Tamil)' },
-                  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
+                  { code: 'hi', label: 'हिंदी' },
+                  { code: 'ta', label: 'தமிழ்' },
+                  { code: 'kn', label: 'ಕನ್ನಡ' },
                 ].map((item) => (
                   <button
                     key={item.code}
                     onClick={() => setLang(item.code as LanguageCode)}
-                    className={`py-3 px-2 rounded-xl font-bold border transition text-center ${
+                    className={`py-3 px-2 rounded-xl font-bold border transition-all text-center cursor-pointer ${
                       lang === item.code
-                        ? 'bg-indigo-50 border-indigo-600 text-indigo-700'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        ? 'bg-[#FBECE5] border-[#C25E2E] text-[#C25E2E]'
+                        : 'bg-[#FAF7F2] border-[#E7DFD5] text-[#574F49] hover:bg-[#F5F1EB]'
                     }`}
                   >
                     {item.label}
@@ -1363,7 +1382,7 @@ export default function PartnerApp() {
             <div className="pt-2">
               <button
                 onClick={handleLogout}
-                className="w-full py-3.5 rounded-2xl border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl border border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 {t.signOutBtn}
@@ -1375,26 +1394,29 @@ export default function PartnerApp() {
 
       {/* ================= FORENSIC CAMERA MODAL ================= */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/95 flex flex-col p-4 sm:p-6 justify-between animate-in fade-in h-screen h-dvh pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/90 backdrop-blur-sm flex flex-col p-4 sm:p-6 justify-between animate-fadeIn">
           <div className="flex items-center justify-between text-white max-w-2xl mx-auto w-full pb-2">
-            <div className="text-xs font-bold text-emerald-400">
-              {cameraStage === 'ARRIVAL_CHECKIN' ? 'ARRIVAL PHOTO' : 'COMPLETION PHOTO'}
+            <div className="text-xs font-bold text-[#34D399] tracking-wider uppercase flex items-center gap-2">
+              <Camera className="w-4 h-4" />
+              <span>{cameraStage === 'ARRIVAL_CHECKIN' ? 'ARRIVAL PHOTO PROOF' : 'COMPLETION PHOTO PROOF'}</span>
             </div>
-            <button onClick={stopCamera} className="p-2 text-slate-400 hover:text-white cursor-pointer">
+            <button 
+              onClick={stopCamera} 
+              className="p-2 text-[#D6D3D1] hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
+            >
               ✕
             </button>
           </div>
 
-          <div className="max-w-2xl mx-auto w-full flex-1 rounded-3xl overflow-hidden bg-black relative flex items-center justify-center border-2 border-emerald-500">
+          <div className="max-w-2xl mx-auto w-full flex-1 rounded-3xl overflow-hidden bg-black relative flex items-center justify-center border-2 border-[#1F5C42]">
             {!capturedPhoto ? (
               <>
                 <video ref={videoRef} playsInline autoPlay muted className="w-full h-full object-cover" />
-                <div className="absolute top-3 left-3 right-3 bg-black/75 backdrop-blur-xs p-2.5 rounded-xl text-white text-xs font-mono space-y-0.5 border border-white/10 shadow-lg">
-                  <div className="text-emerald-400 font-bold text-[11px] flex items-center justify-between">
-                    <span>GPS: {deviceLat.toFixed(5)}°N, {deviceLng.toFixed(5)}°E</span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-sans">Live Lock</span>
+                <div className="absolute bottom-4 left-4 right-4 bg-[#1C1917]/85 backdrop-blur-xs p-3.5 rounded-2xl text-white text-xs font-mono space-y-1 border border-white/10">
+                  <div className="text-[#34D399] font-bold">
+                    GPS: {deviceLat.toFixed(5)}°N, {deviceLng.toFixed(5)}°E
                   </div>
-                  <div className="text-[10px] text-slate-300">Distance: {Math.round(distanceToParentMeters)}m (At Residence)</div>
+                  <div>Distance: {Math.round(distanceToParentMeters)}m (At Residence)</div>
                 </div>
               </>
             ) : (
@@ -1409,7 +1431,7 @@ export default function PartnerApp() {
               <button
                 onClick={capturePhotoAndWatermark}
                 disabled={isCapturing}
-                className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                className="w-full py-4 bg-[#1F5C42] hover:bg-[#164632] text-white font-semibold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer"
               >
                 <Camera className="w-5 h-5" />
                 {t.snapPhoto}
@@ -1418,14 +1440,14 @@ export default function PartnerApp() {
               <>
                 <button
                   onClick={() => setCapturedPhoto(null)}
-                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs cursor-pointer"
+                  className="flex-1 py-4 bg-[#292524] text-white font-semibold rounded-2xl text-xs hover:bg-[#44403C] transition cursor-pointer"
                 >
                   {t.retake}
                 </button>
                 <button
                   onClick={handleUploadAndSubmitProof}
                   disabled={isUploading}
-                  className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 py-4 bg-[#1F5C42] hover:bg-[#164632] text-white font-semibold rounded-2xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   {isUploading ? 'Uploading...' : t.confirmUpload}
                 </button>
@@ -1437,21 +1459,21 @@ export default function PartnerApp() {
 
       {/* ================= PARTNER RECORD VITALS MODAL ================= */}
       {showPartnerVitalModal && activeTask && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#FFFFFF] rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-[#E7DFD5] space-y-5 animate-scaleUp">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E7DFD5]">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#FBECE5] text-[#C25E2E] flex items-center justify-center border border-[#F5D5C6]">
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Record Parent Vitals</h3>
-                  <p className="text-xs text-slate-500">For {activeTask.parent?.parent_name || 'Parent'}</p>
+                  <h3 className="font-display text-base font-bold text-[#1C1917]">Record Parent Vitals</h3>
+                  <p className="text-xs text-[#8C827A]">For {activeTask.parent?.parent_name || 'Parent'}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowPartnerVitalModal(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100"
+                className="p-1.5 rounded-full text-[#8C827A] hover:bg-[#FAF7F2] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1460,7 +1482,7 @@ export default function PartnerApp() {
             <form onSubmit={handleSubmitPartnerVitals} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Pressure (Sys)</label>
+                  <label className="block text-xs font-semibold text-[#574F49] mb-1">Blood Pressure (Sys)</label>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
@@ -1468,13 +1490,13 @@ export default function PartnerApp() {
                       onChange={(e) => setPartnerBpSys(e.target.value)}
                       placeholder="120"
                       required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                     />
-                    <span className="text-[10px] text-slate-400">mmHg</span>
+                    <span className="text-[10px] text-[#8C827A]">mmHg</span>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Pressure (Dia)</label>
+                  <label className="block text-xs font-semibold text-[#574F49] mb-1">Blood Pressure (Dia)</label>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
@@ -1482,57 +1504,57 @@ export default function PartnerApp() {
                       onChange={(e) => setPartnerBpDia(e.target.value)}
                       placeholder="80"
                       required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold"
+                      className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                     />
-                    <span className="text-[10px] text-slate-400">mmHg</span>
+                    <span className="text-[10px] text-[#8C827A]">mmHg</span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Glucose</label>
+                  <label className="block text-[11px] font-semibold text-[#574F49] mb-1">Glucose</label>
                   <input
                     type="number"
                     value={partnerSugar}
                     onChange={(e) => setPartnerSugar(e.target.value)}
                     placeholder="110"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-2.5 py-2 text-xs font-mono text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">mg/dL</span>
+                  <span className="text-[9px] text-[#8C827A] block mt-0.5">mg/dL</span>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pulse</label>
+                  <label className="block text-[11px] font-semibold text-[#574F49] mb-1">Pulse</label>
                   <input
                     type="number"
                     value={partnerPulse}
                     onChange={(e) => setPartnerPulse(e.target.value)}
                     placeholder="72"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-2.5 py-2 text-xs font-mono text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">BPM</span>
+                  <span className="text-[9px] text-[#8C827A] block mt-0.5">BPM</span>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">SpO2</label>
+                  <label className="block text-[11px] font-semibold text-[#574F49] mb-1">SpO2</label>
                   <input
                     type="number"
                     value={partnerSpo2}
                     onChange={(e) => setPartnerSpo2(e.target.value)}
                     placeholder="98"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-mono"
+                    className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl px-2.5 py-2 text-xs font-mono text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">%</span>
+                  <span className="text-[9px] text-[#8C827A] block mt-0.5">%</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Visit Observations / Notes</label>
+                <label className="block text-xs font-semibold text-[#574F49] mb-1">Visit Observations / Notes</label>
                 <textarea
                   value={vitalNotes}
                   onChange={(e) => setVitalNotes(e.target.value)}
                   placeholder="e.g. Parents took morning medicine, in high spirits, resting comfortably."
                   rows={2}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800"
+                  className="w-full bg-[#FAF7F2] border border-[#E7DFD5] rounded-xl p-2.5 text-xs text-[#1C1917] focus:outline-none focus:border-[#C25E2E]"
                 />
               </div>
 
@@ -1540,16 +1562,16 @@ export default function PartnerApp() {
                 <button
                   type="button"
                   onClick={() => setShowPartnerVitalModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="flex-1 py-3 rounded-xl border border-[#E7DFD5] text-xs font-semibold text-[#574F49] hover:bg-[#FAF7F2] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingVital}
-                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+                  className="flex-1 py-3 bg-[#C25E2E] hover:bg-[#A3481D] text-white text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer"
                 >
-                  {isSubmittingVital ? 'Recording...' : 'Save Vitals'}
+                  {isSubmittingVital ? 'Recording...' : 'Transmit Vitals'}
                 </button>
               </div>
             </form>
@@ -1559,8 +1581,8 @@ export default function PartnerApp() {
 
       {/* ================= SUCCESS TOAST ================= */}
       {vitalSuccessToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in slide-in-from-bottom-5">
-          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1F5C42] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-300" />
           <span>{vitalSuccessToast}</span>
         </div>
       )}

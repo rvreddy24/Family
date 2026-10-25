@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T08:30:00Z",
+  "title": "Design System: FamilyHubs",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Heritage Terracotta",
+        "canonical": "#C25E2E",
+        "tonalRamp": ["#421A0A", "#6D2B10", "#9E3E17", "#C25E2E", "#D87B4E", "#E89F7C", "#F4C9B3", "#FAF0EA"]
+      },
+      "secondary": {
+        "role": "secondary",
+        "displayName": "Forest Emerald",
+        "canonical": "#1F5C42",
+        "tonalRamp": ["#0B261B", "#143F2D", "#1F5C42", "#2E7C5C", "#439E79", "#70C2A0", "#A8DDC5", "#E8F3EE"]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Calico Linen",
+        "canonical": "#FAF7F2",
+        "tonalRamp": ["#1A1715", "#2C2723", "#574F49", "#8C827A", "#C2B8AE", "#E7DFD5", "#F5F1EB", "#FAF7F2"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Eczar Display",
+        "purpose": "Major section headlines, welcome heroes, and emotional milestone anchors."
+      },
+      "body": {
+        "displayName": "Albert Sans",
+        "purpose": "High-clarity reading, instructions, parent profiles, and form inputs."
+      }
+    },
+    "shadows": [
+      {
+        "name": "surface-soft",
+        "value": "0 1px 3px rgba(28, 25, 23, 0.04), 0 1px 2px -1px rgba(28, 25, 23, 0.04)",
+        "purpose": "Resting cards and panels."
+      },
+      {
+        "name": "surface-hover",
+        "value": "0 4px 12px -2px rgba(194, 94, 46, 0.08), 0 2px 6px -1px rgba(28, 25, 23, 0.04)",
+        "purpose": "Interactive hover state for services and tasks."
+      },
+      {
+        "name": "overlay-modal",
+        "value": "0 20px 32px -8px rgba(28, 25, 23, 0.12), 0 8px 16px -4px rgba(28, 25, 23, 0.06)",
+        "purpose": "Verification modals, photo proof view, and emergency triggers."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-filial",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Calm, dignified state transitions."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Booking Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action button for booking tasks and confirming care.",
+      "html": "<button class=\"ds-btn-primary\">Book Care for Parents</button>",
+      "css": ".ds-btn-primary { background: #C25E2E; color: #FFFFFF; font-family: 'Albert Sans', sans-serif; font-size: 0.9375rem; font-weight: 600; padding: 10px 22px; border-radius: 10px; border: none; cursor: pointer; transition: background 0.2s ease, transform 0.15s ease; } .ds-btn-primary:hover { background: #A3481D; transform: translateY(-1px); }"
+    },
+    {
+      "name": "Verified Reassurance Chip",
+      "kind": "chip",
+      "refersTo": "chip-verified",
+      "description": "Indicates verified caregiver arrival or successfully verified photo proof.",
+      "html": "<span class=\"ds-chip-verified\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><path d=\"M20 6L9 17l-5-5\"/></svg> Verified with OTP</span>",
+      "css": ".ds-chip-verified { display: inline-flex; align-items: center; gap: 6px; background: #E8F3EE; color: #1F5C42; font-family: 'Albert Sans', sans-serif; font-size: 0.8125rem; font-weight: 600; padding: 4px 12px; border-radius: 9999px; border: 1px solid #C8E5D7; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Filial Sanctuary",
+    "overview": "FamilyHubs rejects the sterile, clinical aesthetic of emergency hospitals and the cold, transactional blue-and-gray grid of gig-worker apps. Instead, the interface draws inspiration from heirloom trust, warmth, and Indian family devotion (Seva).",
+    "keyCharacteristics": [
+      "Warm Textured Canvas (#FAF7F2, #F5F1EB)",
+      "Sculpted Heritage Typography: Eczar + Albert Sans",
+      "Sacred Emerald & Warm Terracotta Hierarchy",
+      "Zero AI-Kicker Soup",
+      "No Cards-in-Cards Habit"
+    ],
+    "rules": [
+      {
+        "name": "The Warm Harmony Rule",
+        "body": "Gray is never cold or blue-tinted. Every neutral surface, divider, and secondary text tone carries warm yellow/red undertones from the linen and terracotta world.",
+        "section": "colors"
+      },
+      {
+        "name": "The No-Kicker Rule",
+        "body": "Section headings speak for themselves. Never place a tiny uppercase tracked eyebrow or kicker above an Eczar headline.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do honor Indian cultural reverence for elders in copy, imagery, and respectful design details.",
+      "Do use Eczar for all major headings and modal titles with balanced sentence case.",
+      "Do ensure all text maintains strict WCAG AA/AAA compliance against warm linen grounds."
+    ],
+    "donts": [
+      "Don't use cold clinical hospital blues, generic slate #F8FAFC, or harsh pure grays.",
+      "Don't stack kicker/eyebrow pills on top of section headings.",
+      "Don't nest cards inside cards or construct 4-column metric boxes with identical numbers."
+    ]
+  }
+}

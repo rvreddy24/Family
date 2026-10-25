@@ -5,7 +5,7 @@ import {
   CheckCircle2,
   X,
   MessageSquare,
-  ThumbsUp
+  ThumbsUp,
 } from 'lucide-react';
 import type { Task } from '@shared/types';
 import { getApiBaseUrl, playNotificationChime } from '@shared/utils';
@@ -20,7 +20,7 @@ interface TaskReviewModalProps {
 const AVAILABLE_TAGS = [
   'Punctual & On Time',
   'Elderly Friendly & Gentle',
-  'Fluent in Local Language',
+  'Fluent in Regional Language',
   'Thorough & Professional',
   'Clean & Safe Work',
   'Went Above & Beyond',
@@ -77,35 +77,35 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1C1917]/50 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E7DFD5] animate-in zoom-in-95">
+        <div className="flex items-center justify-between border-b border-[#E7DFD5] pb-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
-              <Star className="w-5 h-5 fill-amber-400" />
+            <div className="w-9 h-9 rounded-xl bg-[#FEF3C7] text-[#B45309] flex items-center justify-center border border-[#FDE68A]">
+              <Star className="w-5 h-5 fill-[#B45309]" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Rate Service Experience</h3>
-              <p className="text-[11px] text-slate-500">Service for {task.parent?.parent_name}</p>
+              <h3 className="font-display font-bold text-[#1C1917] text-base">Rate Service Experience</h3>
+              <p className="text-[11px] text-[#574F49]">Care provided for {task.parent?.parent_name}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="text-[#8C827A] hover:text-[#1C1917] cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs">
-            <div className="text-slate-500">Service Task:</div>
-            <div className="font-bold text-slate-900 mt-0.5">{task.title}</div>
-            <div className="text-slate-600 text-[11px] mt-1">
-              Helper: <span className="font-semibold text-indigo-700">{task.assigned_partner?.full_name || 'Ground Partner'}</span>
+          <div className="bg-[#FAF7F2] p-3.5 rounded-xl border border-[#E7DFD5] text-xs">
+            <div className="text-[#8C827A] text-[11px]">Completed Task:</div>
+            <div className="font-bold text-[#1C1917] mt-0.5">{task.title}</div>
+            <div className="text-[#574F49] text-[11px] mt-1">
+              Caregiver: <span className="font-semibold text-[#C25E2E]">{task.assigned_partner?.full_name || 'Ground Partner'}</span>
             </div>
           </div>
 
           {/* Star Rating Selector */}
           <div className="text-center py-2">
-            <div className="text-xs font-bold text-slate-700 mb-2">How satisfied were you & your parents?</div>
+            <div className="text-xs font-semibold text-[#1C1917] mb-2">How satisfied were you &amp; your parents?</div>
             <div className="flex items-center justify-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -116,16 +116,16 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
                 >
                   <Star
                     className={`w-8 h-8 ${
-                      star <= rating ? 'text-amber-400 fill-amber-400 drop-shadow-xs' : 'text-slate-200'
+                      star <= rating ? 'text-[#B45309] fill-[#B45309] drop-shadow-xs' : 'text-[#E7DFD5]'
                     }`}
                   />
                 </button>
               ))}
             </div>
-            <div className="text-xs font-bold text-indigo-600 mt-1">
-              {rating === 5 && 'Outstanding (5/5) — Highly Satisfied'}
-              {rating === 4 && 'Very Good (4/5) — Smooth Care'}
-              {rating === 3 && 'Average (3/5) — Acceptable'}
+            <div className="text-xs font-semibold text-[#B45309] mt-1">
+              {rating === 5 && 'Outstanding (5/5) — Exemplary Care & Dignity'}
+              {rating === 4 && 'Very Good (4/5) — Smooth & Respectful'}
+              {rating === 3 && 'Average (3/5) — Acceptable Standard'}
               {rating === 2 && 'Below Expectations (2/5)'}
               {rating === 1 && 'Unsatisfactory (1/5)'}
             </div>
@@ -133,7 +133,7 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
 
           {/* Tags Selection */}
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-2">What went especially well?</label>
+            <label className="text-xs font-semibold text-[#1C1917] block mb-2">What went especially well?</label>
             <div className="flex flex-wrap gap-1.5">
               {AVAILABLE_TAGS.map((tag) => {
                 const isSelected = selectedTags.includes(tag);
@@ -144,8 +144,8 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
                     onClick={() => toggleTag(tag)}
                     className={`text-[11px] font-semibold px-3 py-1.5 rounded-xl border transition cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-[#FBECE5] border-[#F5D3C4] text-[#A3481D]'
+                        : 'bg-white border-[#E7DFD5] text-[#574F49] hover:bg-[#FAF7F2]'
                     }`}
                   >
                     {isSelected ? '✓ ' : '+ '}
@@ -158,13 +158,13 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
 
           {/* Feedback Notes */}
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Your Feedback & Parent Comments</label>
+            <label className="text-xs font-semibold text-[#1C1917] block mb-1">Your Feedback &amp; Parent Comments</label>
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs"
+              className="w-full filial-input text-xs"
               rows={3}
-              placeholder="e.g. The helper was so gentle with mother and explained the whole process clearly..."
+              placeholder="e.g. The helper was gentle with mother, arrived punctually, and sent clear photos..."
             />
           </div>
 
@@ -172,16 +172,16 @@ export const TaskReviewModal: React.FC<TaskReviewModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-[#574F49] hover:bg-[#F5F1EB] cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
+              className="filial-btn-primary text-xs py-2 px-5 cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'Submitting...' : `Submit ${rating}★ Review`}
+              {isSubmitting ? 'Submitting...' : 'Submit Review'}
             </button>
           </div>
         </form>

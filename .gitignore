@@ -45,3 +45,12 @@ scratch/
 *.sw?
 .DS_Store
 Thumbs.db
+
+# Agent harnesses & local caches
+.agent/
+.agents/
+.claude/
+.cursor/
+.gemini/
+.codex/
+
