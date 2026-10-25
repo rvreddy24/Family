@@ -297,7 +297,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-1.5 shadow-xs">
-              <img src="./logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -342,6 +342,9 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         <div className="w-full bg-[#FFFFFF] border border-[#E7DFD5] rounded-3xl p-6 sm:p-9 shadow-sm space-y-6">
           {/* Filial Seal & Brand Banner */}
           <div className="text-center space-y-3">
+            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-3 mx-auto shadow-md">
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+            </div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F3EE] border border-[#C8E5D7] text-[#1F5C42] text-xs font-semibold">
               <ShieldCheck className="w-3.5 h-3.5 text-[#1F5C42]" />
               <span>Aadhaar Verified Field Partner Network</span>

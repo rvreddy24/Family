@@ -484,8 +484,8 @@ export default function AdminApp() {
         <div className="w-full max-w-md bg-[#FFFFFF] border border-[#E7DFD5] p-8 sm:p-10 rounded-3xl shadow-sm space-y-6 z-10">
           {/* Brand Seal */}
           <div className="text-center space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-2 mx-auto shadow-xs">
-              <img src="./logo_icon.png" alt="FamilyHubs Operations" className="w-full h-full object-contain" />
+            <div className="w-20 h-20 rounded-3xl bg-[#FFFFFF] border border-[#E7DFD5] flex items-center justify-center p-3 mx-auto shadow-md">
+              <img src="/logo_icon.png" alt="FamilyHubs Operations" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#FBECE5] text-[#C25E2E] border border-[#F5D5C6] text-[10px] font-bold uppercase tracking-wider mb-1.5">
@@ -679,7 +679,7 @@ export default function AdminApp() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-1.5 shadow-xs shrink-0">
-              <img src="./logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">

@@ -167,8 +167,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-[#090D16]/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Heart className="w-4 h-4 fill-white" />
+            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center p-1 shadow-xs">
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
             </div>
             <span className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               FamilyHubs
@@ -209,10 +209,21 @@ export const AuthView: React.FC<AuthViewProps> = ({
       </header>
 
       {/* ================= HERO CONTENT ================= */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left Column: Mission & Trust */}
           <div className="lg:col-span-7 space-y-6 text-left">
+            {/* Prominent Official Brand Logo Display */}
+            <div className="flex items-center gap-4">
+              <div className="p-4 sm:p-6 bg-white dark:bg-white rounded-3xl border border-slate-200/90 dark:border-slate-300 shadow-xl inline-flex items-center justify-center transition-transform hover:scale-[1.02]">
+                <img
+                  src="/logo.png"
+                  alt="FamilyHubs - Care For Your Parent From Anywhere"
+                  className="h-36 sm:h-44 md:h-52 w-auto object-contain"
+                />
+              </div>
+            </div>
+
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-xs font-semibold">
               <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>100% Escrow-Protected Eldercare</span>
@@ -257,6 +268,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
           {/* Right Column: Authentication Form */}
           <div className="lg:col-span-5 w-full">
             <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-7 shadow-sm space-y-4">
+              {/* Form Logo Header */}
+              <div className="flex items-center justify-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-white p-1 border border-slate-200 shadow-xs flex items-center justify-center shrink-0">
+                  <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+                </div>
+                <div>
+                  <span className="font-display text-base font-bold text-slate-900 dark:text-white block leading-tight">FamilyHubs</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">NRI Family Sanctuary Portal</span>
+                </div>
+              </div>
+
               {/* Tab Selector */}
               <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 <button

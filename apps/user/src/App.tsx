@@ -603,8 +603,8 @@ export default function UserApp() {
             onClick={() => setActiveTab('services')}
             className="flex items-center gap-2.5 cursor-pointer shrink-0"
           >
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-xs">
-              <Heart className="w-4 h-4 fill-white" />
+            <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center p-1 shadow-xs shrink-0">
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
             </div>
             <span className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               FamilyHubs

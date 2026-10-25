@@ -785,7 +785,7 @@ export default function PartnerApp() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E7DFD5] flex items-center justify-center p-1.5 shadow-xs shrink-0">
-              <img src="./logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
+              <img src="/logo_icon.png" alt="FamilyHubs" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="text-base font-bold text-[#1C1917] flex items-center gap-2 flex-wrap">
