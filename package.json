@@ -10,7 +10,7 @@
     "start": "node server/server.js",
     "start:prod": "npm run build && node server/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/production_security.js",
+    "test": "node tests/production_security.js && node tests/google_auth.js",
     "test:cases": "node tests/case_studies_runner.js",
     "test:master": "node tests/master_functional_e2e.js",
     "test:domain": "node tests/test_domain_routing.js",
@@ -28,7 +28,8 @@
     "dev": "concurrently --kill-others \"npm run start\" \"npm run dev:user\" \"npm run dev:admin\" \"npm run dev:partner\"",
     "test:legacy": "node tests/test_suite.js",
     "test:ui": "node tests/run_ui.js",
-    "data:remove-demo": "node scripts/remove_demo_data.js"
+    "data:remove-demo": "node scripts/remove_demo_data.js",
+    "test:google": "node tests/google_auth.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

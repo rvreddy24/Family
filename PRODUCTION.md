@@ -35,3 +35,20 @@ Medical documents are references to HTTPS URLs, not an encrypted document vault.
 This is implementation and regression evidence, not a claim that every possible vulnerability has been eliminated. External configuration and live acceptance items above remain necessary.
 
 WhatsApp implementation follows Meta's Cloud API message-template contract: https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api
+
+## Google sign-in
+
+Continue with Google is available on the family, operations and partner sign-in screens. It signs into an existing FamilyHubs account with the same verified email and registered role. Create a family/partner account first if needed; Google login cannot create or elevate an administrator.
+
+The server uses Supabase PKCE, a ten-minute one-use database flow, an HTTP-only SameSite=Lax state cookie, verified Google identity and separate HTTP-only session cookies per portal. The browser never receives OAuth access/refresh tokens. Logging out of one portal preserves the others. Callback errors return to the originating portal with an actionable message.
+
+Google is already enabled in the connected Supabase project. Confirm Authentication > URL Configuration allows these callback URLs (the wildcard is needed for the one-use state query parameters):
+
+- `http://localhost:4000/api/auth/google/callback**`
+- `http://localhost:3001/api/auth/google/callback**`
+- `http://localhost:3002/api/auth/google/callback**`
+- `http://localhost:3003/api/auth/google/callback**`
+
+For production add each real portal origin with `/api/auth/google/callback**`, and include those exact origins in CORS_ORIGIN. Google Cloud's authorized redirect URI is the Supabase provider callback shown in Authentication > Sign In / Providers > Google, not the local app callback. Do not disable Google email verification or nonce checks.
+
+`npm run test:google` verifies all three roles, PKCE exchange, account restrictions, single-use/expired/state-mismatch callbacks, redirect allowlisting, disabled-provider handling and simultaneous portal sessions against a local mock provider. A real Google account selection/consent and redirect must still be exercised by the account owner before launch.

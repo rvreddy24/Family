@@ -10,6 +10,7 @@ For a single-port deployment, run `npm run build` then `npm start`. The three po
 
 ## Implemented flows
 
+- Google sign-in for existing accounts on all three portals with server-side PKCE and independent portal sessions.
 - Email-confirmed Supabase signup/password authentication, role separation and expiring server sessions with HTTP-only cookies. Local-storage login flags are not trusted. Public administrator signup is disabled.
 - Parent profiles with real address coordinates, care notes and WhatsApp consent.
 - Care requests, verified-partner dispatch, acceptance, geofenced arrival/completion photo proof, operations completion review and client feedback.

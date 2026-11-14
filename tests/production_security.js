@@ -72,6 +72,7 @@ const child = spawn(process.execPath, ["server/server.js"], {
   env: {
     ...process.env,
     PORT: String(port),
+    CORS_ORIGIN: base,
     UPLOAD_DIR: path.join(dir, "uploads"),
     SUPABASE_URL: "",
     SUPABASE_SERVICE_ROLE_KEY: "",

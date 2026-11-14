@@ -22,6 +22,16 @@ module.exports = async ({ base, tokens, admin, db }) => {
       await expect(
         page.getByRole("heading", { name: "Welcome back." }),
       ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Continue with Google" }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Continue with Google" }).click();
+      await expect(page.getByRole("alert")).toContainText(
+        "Authentication is not configured.",
+      );
+      await expect(
+        page.getByRole("button", { name: "Continue with Google" }),
+      ).toBeEnabled();
       await page.screenshot({
         path: path.join(out, `${name}-signin.png`),
         fullPage: true,

@@ -18,19 +18,42 @@ db.exec(
 );
 const digest = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
-function session(req) {
-  const token = (req.headers.cookie || "")
-    .split(";")
-    .map((x) => x.trim())
-    .find((x) => x.startsWith("fh_session="))
-    ?.slice(11);
-  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  const row = db
-    .prepare("SELECT user_id FROM sessions WHERE digest = ? AND expires > ?")
-    .get(digest(token), Date.now());
-  return row ? getUserById(row.user_id) : null;
+function roleHint(req) {
+  const value =
+    req.headers["x-familyhubs-portal"] ||
+    (req.url?.startsWith("/ws")
+      ? new URL(req.url, "http://localhost").searchParams.get("role")
+      : null);
+  return value && ["CLIENT", "ADMIN", "PARTNER"].includes(value) ? value : null;
 }
-function issue(req, res, user) {
+function sessionToken(req) {
+  const role = roleHint(req);
+  const names = role
+    ? [`fh_session_${role.toLowerCase()}`, "fh_session"]
+    : [
+        "fh_session_admin",
+        "fh_session_partner",
+        "fh_session_client",
+        "fh_session",
+      ];
+  const cookies = (req.headers.cookie || "").split(";").map((x) => x.trim());
+  for (const name of names) {
+    const token = cookies
+      .find((x) => x.startsWith(name + "="))
+      ?.slice(name.length + 1);
+    if (!token || !/^[a-f0-9]{64}$/.test(token)) continue;
+    const row = db
+      .prepare("SELECT user_id FROM sessions WHERE digest=? AND expires>?")
+      .get(digest(token), Date.now());
+    const user = row ? getUserById(row.user_id) : null;
+    if (user && (!role || user.role === role)) return { token, user, name };
+  }
+  return null;
+}
+function session(req) {
+  return sessionToken(req)?.user || null;
+}
+function issue(req, res, user, json = true) {
   const token = crypto.randomBytes(32).toString("hex");
   db.prepare("DELETE FROM sessions WHERE expires < ?").run(Date.now());
   db.prepare("INSERT INTO sessions VALUES (?, ?, ?)").run(
@@ -38,11 +61,11 @@ function issue(req, res, user) {
     user.id,
     Date.now() + 8 * 3600000,
   );
-  res.setHeader(
+  res.append(
     "Set-Cookie",
-    `fh_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${req.secure ? "; Secure" : ""}`,
+    `fh_session_${user.role.toLowerCase()}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${req.secure ? "; Secure" : ""}`,
   );
-  res.json({ success: true, user });
+  if (json) res.json({ success: true, user });
 }
 function install(app) {
   const attempts = new Map();
@@ -82,14 +105,19 @@ function install(app) {
     next();
   });
   app.post("/api/auth/logout", (req, res) => {
-    const token = (req.headers.cookie || "").match(
-      /(?:^|;\s*)fh_session=([a-f0-9]{64})/,
-    )?.[1];
-    if (token)
-      db.prepare("DELETE FROM sessions WHERE digest = ?").run(digest(token));
-    res.setHeader(
+    const current = sessionToken(req);
+    if (current)
+      db.prepare("DELETE FROM sessions WHERE digest=?").run(
+        digest(current.token),
+      );
+    const name =
+      current?.name ||
+      (roleHint(req)
+        ? `fh_session_${roleHint(req).toLowerCase()}`
+        : "fh_session");
+    res.append(
       "Set-Cookie",
-      "fh_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+      `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${req.secure ? "; Secure" : ""}`,
     );
     res.json({ success: true });
   });
@@ -99,15 +127,14 @@ function install(app) {
       ? res.json({ user })
       : res.status(401).json({ error: "Please sign in." });
   });
+  require("./google-auth").install(app, issue);
   app.use("/api/auth", async (req, res) => {
     try {
       if (!supabaseAdmin)
-        return res
-          .status(503)
-          .json({
-            error:
-              "Authentication is not configured. Contact the platform operator.",
-          });
+        return res.status(503).json({
+          error:
+            "Authentication is not configured. Contact the platform operator.",
+        });
       const provider = createClient(
         process.env.SUPABASE_URL,
         process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -138,12 +165,10 @@ function install(app) {
           typeof password !== "string" ||
           password.length < 12
         )
-          return res
-            .status(400)
-            .json({
-              error:
-                "Name, phone, email and a password of at least 12 characters are required.",
-            });
+          return res.status(400).json({
+            error:
+              "Name, phone, email and a password of at least 12 characters are required.",
+          });
         const { error } = await provider.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
@@ -188,12 +213,10 @@ function install(app) {
           password,
         });
         if (error)
-          return res
-            .status(401)
-            .json({
-              error:
-                "Email or password is incorrect, or email confirmation is pending.",
-            });
+          return res.status(401).json({
+            error:
+              "Email or password is incorrect, or email confirmation is pending.",
+          });
         identity = data.user;
       }
       if (!identity?.email_confirmed_at)
@@ -204,11 +227,9 @@ function install(app) {
       if (!user) {
         const meta = identity.user_metadata || {};
         if (requestedRole === "ADMIN")
-          return res
-            .status(403)
-            .json({
-              error: "Administrator must be provisioned by the operator.",
-            });
+          return res.status(403).json({
+            error: "Administrator must be provisioned by the operator.",
+          });
         const account = {
           email: identity.email.toLowerCase(),
           fullName: meta.full_name || identity.email,
@@ -329,12 +350,10 @@ function install(app) {
         !Number.isFinite(Date.parse(body.scheduledAt)) ||
         Date.parse(body.scheduledAt) < Date.now() - 60000
       )
-        return res
-          .status(400)
-          .json({
-            error:
-              "Provide a parent, service, description and a future visit time.",
-          });
+        return res.status(400).json({
+          error:
+            "Provide a parent, service, description and a future visit time.",
+        });
     }
     if (
       (p === "/parents" && req.method === "POST") ||
@@ -352,12 +371,10 @@ function install(app) {
         Math.abs(body.coordinatesLat) > 90 ||
         Math.abs(body.coordinatesLng) > 180
       )
-        return res
-          .status(400)
-          .json({
-            error:
-              "Provide contact details, a full address and valid home coordinates.",
-          });
+        return res.status(400).json({
+          error:
+            "Provide contact details, a full address and valid home coordinates.",
+        });
     }
     if (/\/assign$/.test(p)) {
       if (user.role !== "ADMIN") return deny();
@@ -389,11 +406,9 @@ function install(app) {
             value < min ||
             value > max)
         )
-          return res
-            .status(400)
-            .json({
-              error: "Health reading is outside the accepted input range.",
-            });
+          return res.status(400).json({
+            error: "Health reading is outside the accepted input range.",
+          });
       }
     }
     if (
@@ -411,11 +426,9 @@ function install(app) {
         !body.dosage?.trim() ||
         !body.frequency?.trim())
     )
-      return res
-        .status(400)
-        .json({
-          error: "Medicine, prescribed dose and frequency are required.",
-        });
+      return res.status(400).json({
+        error: "Medicine, prescribed dose and frequency are required.",
+      });
     if (
       /\/duty$/.test(p) &&
       req.method === "POST" &&
@@ -476,7 +489,20 @@ function install(app) {
       delete body.taskId;
       delete body.task_id;
       const suffix = p.split("/").pop();
-      if(suffix === "review" && req.method === "POST" && (task.status !== "COMPLETED" || !Number.isInteger(body.rating) || body.rating<1 || body.rating>5)) return res.status(400).json({error:"Only completed visits can be reviewed with a rating from one to five."});
+      if (
+        suffix === "review" &&
+        req.method === "POST" &&
+        (task.status !== "COMPLETED" ||
+          !Number.isInteger(body.rating) ||
+          body.rating < 1 ||
+          body.rating > 5)
+      )
+        return res
+          .status(400)
+          .json({
+            error:
+              "Only completed visits can be reviewed with a rating from one to five.",
+          });
       if (
         (suffix === "accept" && task.status !== "DISPATCHED") ||
         (suffix === "start" && task.status !== "ACCEPTED")

@@ -1175,3 +1175,33 @@
     height: 42px;
   }
 }
+
+.care-auth .google-signin {
+  width: 100%;
+  min-height: 46px;
+  background: #fff;
+  font-weight: 500;
+  gap: 12px;
+  margin-top: 22px;
+}
+.google-signin svg {
+  flex-shrink: 0;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0;
+  color: #66736b;
+  font-size: 11px;
+}
+.auth-divider:before,
+.auth-divider:after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e2e6dd;
+}
+.auth-form .auth-divider + form {
+  margin-top: 0;
+}

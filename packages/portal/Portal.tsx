@@ -23,11 +23,15 @@ import "./portal.css";
 import logo from "../shared/assets/logo_icon.png";
 
 type Role = "CLIENT" | "ADMIN" | "PARTNER";
+let portalRole: Role = "CLIENT";
 async function api(path: string, body?: any, method?: string) {
   const response = await fetch(`/api${path}`, {
     credentials: "same-origin",
     method: method || (body ? "POST" : "GET"),
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      "X-FamilyHubs-Portal": portalRole,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await response
@@ -65,6 +69,7 @@ function Empty({ title, children }: any) {
   );
 }
 export default function Portal({ role }: { role: Role }) {
+  portalRole = role;
   const [user, setUser] = useState<any>(null),
     [ready, setReady] = useState(false),
     [tab, setTab] = useState("overview"),
@@ -73,7 +78,9 @@ export default function Portal({ role }: { role: Role }) {
     [parents, setParents] = useState<any[]>([]),
     [partners, setPartners] = useState<any[]>([]),
     [emergencies, setEmergencies] = useState<any[]>([]);
-  const [error, setError] = useState(""),
+  const [error, setError] = useState(
+      () => new URLSearchParams(location.search).get("auth_error") || "",
+    ),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false),
@@ -87,6 +94,13 @@ export default function Portal({ role }: { role: Role }) {
     [documents, setDocuments] = useState<any[]>([]),
     [audit, setAudit] = useState<any[]>([]),
     [settings, setSettings] = useState<any>({});
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (url.searchParams.has("auth_error")) {
+      url.searchParams.delete("auth_error");
+      history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
   useEffect(() => {
     if (!modal) return;
     const before = document.activeElement as HTMLElement;
@@ -240,7 +254,7 @@ export default function Portal({ role }: { role: Role }) {
     let stopped = false;
     function connect() {
       socket = new WebSocket(
-        `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/events`,
+        `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/events?role=${role}`,
       );
       socket.onopen = () => setConnected(true);
       socket.onmessage = (e) => {
@@ -513,6 +527,40 @@ export default function Portal({ role }: { role: Role }) {
               {notice}
             </div>
           )}
+          <button
+            type="button"
+            className="google-signin"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              location.assign(
+                `/api/auth/google/start?${new URLSearchParams({ role, origin: location.origin })}`,
+              );
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="#4285F4"
+                d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.37Z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 22c2.7 0 4.96-.9 6.62-2.4l-3.24-2.52c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.6A10 10 0 0 0 12 22Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.32.31-1.92v-2.6H3.06A10 10 0 0 0 2 12c0 1.61.39 3.14 1.06 4.52l3.35-2.6Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.96c1.47 0 2.8.5 3.83 1.5l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.94 5.48l3.35 2.6C7.2 7.72 9.4 5.96 12 5.96Z"
+              />
+            </svg>
+            Continue with Google
+          </button>
+          <div className="auth-divider">
+            <span>or use your email</span>
+          </div>
           <form onSubmit={authenticate}>
             {signup && (
               <>
