@@ -5,7 +5,8 @@ const db = require('better-sqlite3')('./server/familyhubs.db');
 async function createSingleAdmin() {
   console.log('--- CREATING SINGLE OFFICIAL ADMIN ACCOUNT ---');
   const email = 'admin@familyhubs.in';
-  const password = 'Admin@FamilyHubs2026!';
+  const password = process.env.ADMIN_PASSWORD;
+  if(!password || password.length<16) throw new Error('Set ADMIN_PASSWORD to a unique password of at least 16 characters.');
   const fullName = 'Operations Administrator';
   const phone = '+91 90000 88888';
 
@@ -84,7 +85,6 @@ async function createSingleAdmin() {
 
   console.log('\n🎉 Single Admin Account successfully created and configured!');
   console.log(`   Email:    ${email}`);
-  console.log(`   Password: ${password}`);
   console.log(`   Role:     ADMIN`);
 }
 

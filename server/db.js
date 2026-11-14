@@ -9,6 +9,7 @@ const db = new Database(dbPath);
 // Enable WAL mode for high concurrency and sub-second writes
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 function initDatabase() {
   db.exec(`
@@ -233,7 +234,7 @@ function initDatabase() {
 
   // Ensure default security settings
   db.prepare(`
-    INSERT OR IGNORE INTO security_settings (key, value) VALUES ('escrow_release_pin', '849201')
+    INSERT OR IGNORE INTO security_settings (key, value) VALUES ('escrow_release_pin', '')
   `).run();
   db.prepare(`
     INSERT OR IGNORE INTO security_settings (key, value) VALUES ('geofence_tolerance_meters', '150')
@@ -261,10 +262,10 @@ function initDatabase() {
     db.prepare('ALTER TABLE partners_profile ADD COLUMN last_location_updated_at DATETIME').run();
   } catch {}
   try {
-    db.prepare('ALTER TABLE partners_profile ADD COLUMN rating REAL DEFAULT 4.95').run();
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN rating REAL DEFAULT 0').run();
   } catch {}
   try {
-    db.prepare('ALTER TABLE partners_profile ADD COLUMN total_reviews INTEGER DEFAULT 18').run();
+    db.prepare('ALTER TABLE partners_profile ADD COLUMN total_reviews INTEGER DEFAULT 0').run();
   } catch {}
 
   seedCleanCoreData();
@@ -295,7 +296,7 @@ function seedCleanCoreData() {
       INSERT OR REPLACE INTO security_settings (key, value, updated_at)
       VALUES (?, ?, datetime('now'))
     `);
-    insertSetting.run('escrow_release_pin', '849201');
+    insertSetting.run('escrow_release_pin', '');
     insertSetting.run('geofence_tolerance_meters', '150');
     insertSetting.run('emergency_escrow_freeze', '0');
   }
@@ -315,65 +316,6 @@ function seedCleanCoreData() {
     );
   }
 
-  // Ensure default verified Client exists for zero-friction demo access
-  const existingClient = db.prepare("SELECT * FROM users WHERE email = 'rajesh.reddy@gmail.com'").get();
-  const clientId = 'c11e4701-0000-4000-8000-000000000001';
-  if (!existingClient) {
-    db.prepare(`
-      INSERT OR IGNORE INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
-      VALUES (?, 'CLIENT', 'rajesh.reddy@gmail.com', '+1 408 555 0192', 'Rajesh Reddy (NRI Son)', ?, datetime('now'))
-    `).run(clientId, clientId);
-
-    db.prepare(`
-      INSERT OR IGNORE INTO clients_profile (user_id, country_residence, currency, subscription_tier)
-      VALUES (?, 'United States', 'USD', 'GOLD')
-    `).run(clientId);
-
-    const parentId = 'prt_lakshmi_ramana_hyd';
-    db.prepare(`
-      INSERT OR IGNORE INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
-      VALUES (?, ?, 'Lakshmi & Ramana Reddy', '+91 94401 23456', '+91 94401 23456', 'Banjara Hills, Hyderabad', 'Plot 42, Road No. 12, Banjara Hills, Hyderabad, Telangana 500034', 17.4156, 78.4357, 'Hypertension & Type 2 Diabetes. Preferred Hospital: Apollo Jubilee Hills.')
-    `).run(parentId, clientId);
-
-    // Baseline Vitals
-    try {
-      db.prepare(`
-        INSERT OR IGNORE INTO parent_vitals (id, parent_id, systolic, diastolic, blood_glucose_mg_dl, glucose_reading_type, pulse_bpm, spo2_pct, weight_kg, notes, recorded_at)
-        VALUES ('vtl_init_1', ?, 124, 82, 112, 'FASTING', 72, 98, 68.5, 'Normal morning vitals checkup.', datetime('now'))
-      `).run(parentId);
-    } catch {}
-
-    // Sample Medication
-    try {
-      db.prepare(`
-        INSERT OR IGNORE INTO parent_medications (id, parent_id, medicine_name, dosage, frequency, timing, current_stock_count, refill_threshold_count, special_instructions)
-        VALUES ('med_init_1', ?, 'Metformin 500mg', '500mg', 'DAILY', 'Morning (After Breakfast)', 24, 7, 'Take with water after breakfast')
-      `).run(parentId);
-    } catch {}
-
-    // Sibling member
-    try {
-      db.prepare(`
-        INSERT OR IGNORE INTO family_members (id, client_id, full_name, email, phone, relationship, access_level, notifications_enabled, created_at)
-        VALUES ('fam_init_1', ?, 'Pooja Reddy', 'pooja.reddy@london.co.uk', '+44 7700 900123', 'SIBLING', 'CAN_REQUEST', 1, datetime('now'))
-      `).run(clientId);
-    } catch {}
-  }
-
-  // Ensure default verified Field Partner exists for zero-friction demo access
-  const existingPartner = db.prepare("SELECT * FROM users WHERE email = 'partner@familyhubs.in'").get();
-  const partnerId = 'p11e4701-0000-4000-8000-000000000002';
-  if (!existingPartner) {
-    db.prepare(`
-      INSERT OR IGNORE INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
-      VALUES (?, 'PARTNER', 'partner@familyhubs.in', '+91 98765 43210', 'Ramesh Babu - Certified Companion', ?, datetime('now'))
-    `).run(partnerId, partnerId);
-
-    db.prepare(`
-      INSERT OR IGNORE INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance, rating, total_reviews)
-      VALUES (?, 'MEDICAL_TRANSPORT', 'Hyderabad & Telangana Central Hub', 1, 1, 3758.00, 5.0, 18)
-    `).run(partnerId);
-  }
 }
 
 // ----------------- SECURITY & AUDIT HELPERS -----------------
@@ -437,7 +379,7 @@ function calculateHaversine(lat1, lon1, lat2, lon2) {
 
 function getTasks(filter = {}) {
   let query = `
-    SELECT 
+    SELECT
       t.*,
       c.country_residence as client_country,
       u_client.full_name as client_name,
@@ -498,7 +440,7 @@ function getTasks(filter = {}) {
 
 function getTaskById(id) {
   const query = `
-    SELECT 
+    SELECT
       t.*,
       c.country_residence as client_country,
       u_client.full_name as client_name,
@@ -540,10 +482,10 @@ function getTaskById(id) {
 
 function formatTaskRow(r) {
   const verifications = db.prepare(`
-    SELECT v.*, u.full_name as reviewer_name 
-    FROM verification_logs v 
-    LEFT JOIN users u ON v.reviewed_by_admin = u.id 
-    WHERE v.task_id = ? 
+    SELECT v.*, u.full_name as reviewer_name
+    FROM verification_logs v
+    LEFT JOIN users u ON v.reviewed_by_admin = u.id
+    WHERE v.task_id = ?
     ORDER BY v.timestamp DESC
   `).all(r.id);
 
@@ -637,18 +579,12 @@ function createTask({ clientId, parentId, category, title, instructions, schedul
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING_OPS_REVIEW', ?, ?, ?)
     `).run(taskId, trackingCode, clientId, parentId, category, title, instructions, scheduledAt || now, now, now);
 
-    const escrowId = 'esc_' + Math.random().toString(36).substring(2, 9);
-    db.prepare(`
-      INSERT INTO escrow_transactions (id, task_id, amount, currency, payment_gateway_ref, status, escrow_locked_at)
-      VALUES (?, ?, ?, 'USD', ?, 'HOLD_IN_ESCROW', ?)
-    `).run(escrowId, taskId, escrowAmount, `pi_live_fh_${trackingCode}_sec`, now);
-
     // Initial WhatsApp message to parent
     const parent = db.prepare('SELECT primary_phone, parent_name FROM parents_profile WHERE id = ?').get(parentId);
     if (parent) {
       db.prepare(`
         INSERT INTO whatsapp_logs (id, task_id, recipient_phone, template_name, status, message_preview, sent_at)
-        VALUES (?, ?, ?, 'task_submitted_alert', 'SENT', ?, ?)
+        VALUES (?, ?, ?, 'task_submitted_alert', 'QUEUED', ?, ?)
       `).run(
         'wa_' + Math.random().toString(36).substring(2, 9),
         taskId,
@@ -659,7 +595,7 @@ function createTask({ clientId, parentId, category, title, instructions, schedul
     }
 
     addAuditLog({
-      eventType: 'TASK_CREATED_AND_ESCROW_LOCKED',
+      eventType: 'CARE_REQUEST_CREATED',
       actorId: clientId,
       actorRole: 'CLIENT',
       severity: 'LOW',
@@ -676,7 +612,7 @@ function assignPartner(taskId, partnerId, adminId = 'admin') {
   adminId = resolveUserId(adminId);
   const now = new Date().toISOString();
   db.prepare(`
-    UPDATE tasks 
+    UPDATE tasks
     SET assigned_partner_id = ?, status = 'DISPATCHED', updated_at = ?
     WHERE id = ?
   `).run(partnerId, now, taskId);
@@ -685,7 +621,7 @@ function assignPartner(taskId, partnerId, adminId = 'admin') {
   if (task && task.parent) {
     db.prepare(`
       INSERT INTO whatsapp_logs (id, task_id, recipient_phone, template_name, status, message_preview, sent_at)
-      VALUES (?, ?, ?, 'partner_assigned', 'DELIVERED', ?, ?)
+      VALUES (?, ?, ?, 'partner_assigned', 'QUEUED', ?, ?)
     `).run(
       'wa_' + Math.random().toString(36).substring(2, 9),
       taskId,
@@ -709,7 +645,7 @@ function assignPartner(taskId, partnerId, adminId = 'admin') {
 function partnerAcceptTask(taskId, partnerId) {
   const now = new Date().toISOString();
   db.prepare(`
-    UPDATE tasks 
+    UPDATE tasks
     SET status = 'ACCEPTED', updated_at = ?
     WHERE id = ?
   `).run(now, taskId);
@@ -728,7 +664,7 @@ function partnerAcceptTask(taskId, partnerId) {
 function partnerStartTask(taskId, partnerId) {
   const now = new Date().toISOString();
   db.prepare(`
-    UPDATE tasks 
+    UPDATE tasks
     SET status = 'IN_PROGRESS', updated_at = ?
     WHERE id = ?
   `).run(now, taskId);
@@ -753,8 +689,8 @@ function submitVerification({ taskId, partnerId, stage, selfieImageUrl, latitude
   const task = getTaskById(taskId);
   if (!task) throw new Error('Task not found');
 
-  const parentLat = task.parent?.coordinates_lat || 16.8724;
-  const parentLng = task.parent?.coordinates_lng || 79.5631;
+  const parentLat = task.parent.coordinates_lat;
+  const parentLng = task.parent.coordinates_lng;
 
   // 2. Server-Side Forensic Haversine Calculation
   const serverDistance = calculateHaversine(latitude, longitude, parentLat, parentLng);
@@ -771,9 +707,9 @@ function submitVerification({ taskId, partnerId, stage, selfieImageUrl, latitude
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(verId, taskId, partnerId, stage, selfieImageUrl, latitude, longitude, serverDistance, now, reviewStatus, geofencePassed);
 
-    const newStatus = stage === 'ARRIVAL_CHECKIN' ? 'IN_PROGRESS' : 'VERIFICATION_SUBMITTED';
+    const newStatus = !geofencePassed ? task.status : stage === 'ARRIVAL_CHECKIN' ? 'IN_PROGRESS' : 'VERIFICATION_SUBMITTED';
     db.prepare(`
-      UPDATE tasks 
+      UPDATE tasks
       SET status = ?, updated_at = ?
       WHERE id = ?
     `).run(newStatus, now, taskId);
@@ -787,7 +723,7 @@ function submitVerification({ taskId, partnerId, stage, selfieImageUrl, latitude
 
       db.prepare(`
         INSERT INTO whatsapp_logs (id, task_id, recipient_phone, template_name, status, message_preview, sent_at)
-        VALUES (?, ?, ?, ?, 'READ', ?, ?)
+        VALUES (?, ?, ?, ?, 'QUEUED', ?, ?)
       `).run('wa_' + Math.random().toString(36).substring(2, 9), taskId, task.parent.primary_phone, template, preview, now);
     }
 
@@ -828,7 +764,7 @@ function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
   }
 
   // 2. Validate Escrow PIN
-  const authorizedPin = settings.escrow_release_pin || '849201';
+  const authorizedPin = process.env.ESCROW_RELEASE_PIN || settings.escrow_release_pin;
   if (String(enteredPin).trim() !== String(authorizedPin).trim()) {
     addAuditLog({
       eventType: 'SECURITY_PIN_FAILURE',
@@ -846,21 +782,21 @@ function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
   const tx = db.transaction(() => {
     // 1. Mark verification approved
     db.prepare(`
-      UPDATE verification_logs 
+      UPDATE verification_logs
       SET review_status = 'APPROVED', reviewed_by_admin = ?
       WHERE task_id = ?
     `).run(adminId, taskId);
 
     // 2. Mark escrow released with audit digest
     db.prepare(`
-      UPDATE escrow_transactions 
+      UPDATE escrow_transactions
       SET status = 'RELEASED_TO_PARTNER', released_at = ?, tx_digest = ?
       WHERE task_id = ?
     `).run(now, txDigest, taskId);
 
     // 3. Mark task completed
     db.prepare(`
-      UPDATE tasks 
+      UPDATE tasks
       SET status = 'COMPLETED', updated_at = ?
       WHERE id = ?
     `).run(now, taskId);
@@ -871,8 +807,8 @@ function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
     if (task && task.assigned_partner_id && escrow) {
       const payoutInr = Math.round(escrow.amount * 83.5);
       db.prepare(`
-        UPDATE partners_profile 
-        SET wallet_balance = wallet_balance + ? 
+        UPDATE partners_profile
+        SET wallet_balance = wallet_balance + ?
         WHERE user_id = ?
       `).run(payoutInr, task.assigned_partner_id);
     }
@@ -882,7 +818,7 @@ function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
     if (fullTask && fullTask.parent) {
       db.prepare(`
         INSERT INTO whatsapp_logs (id, task_id, recipient_phone, template_name, status, message_preview, sent_at)
-        VALUES (?, ?, ?, 'task_completed_final', 'READ', ?, ?)
+        VALUES (?, ?, ?, 'task_completed_final', 'QUEUED', ?, ?)
       `).run(
         'wa_' + Math.random().toString(36).substring(2, 9),
         taskId,
@@ -912,14 +848,14 @@ function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
 
 function rejectVerification(taskId, logId, adminId, reason) {
   db.prepare(`
-    UPDATE verification_logs 
+    UPDATE verification_logs
     SET review_status = 'REJECTED', reviewed_by_admin = ?
     WHERE id = ?
   `).run(adminId, logId);
 
   db.prepare(`
-    UPDATE tasks 
-    SET status = 'IN_PROGRESS' 
+    UPDATE tasks
+    SET status = 'IN_PROGRESS'
     WHERE id = ?
   `).run(taskId);
 
@@ -952,8 +888,8 @@ function createParent(data) {
     data.whatsappPhone || data.primaryPhone,
     data.locality,
     data.fullAddress,
-    data.coordinatesLat || 20.5937,
-    data.coordinatesLng || 78.9629,
+    data.coordinatesLat,
+    data.coordinatesLng,
     data.medicalNotes || null
   );
 
@@ -1025,11 +961,11 @@ function deleteParent(id) {
 
 function getPartners(category, region) {
   let query = `
-    SELECT 
-      p.*, 
-      u.full_name, 
-      u.email, 
-      u.phone 
+    SELECT
+      p.*,
+      u.full_name,
+      u.email,
+      u.phone
     FROM partners_profile p
     JOIN users u ON p.user_id = u.id
     WHERE 1=1
@@ -1048,7 +984,7 @@ function getPartners(category, region) {
 
 function getPartnerProfile(userId) {
   return db.prepare(`
-    SELECT p.*, u.full_name, u.email, u.phone 
+    SELECT p.*, u.full_name, u.email, u.phone
     FROM partners_profile p
     JOIN users u ON p.user_id = u.id
     WHERE p.user_id = ?
@@ -1058,8 +994,8 @@ function getPartnerProfile(userId) {
 function updatePartnerDuty(userId, isActive) {
   const resolved = resolveUserId(userId);
   db.prepare(`
-    UPDATE partners_profile 
-    SET is_active = ? 
+    UPDATE partners_profile
+    SET is_active = ?
     WHERE user_id = ?
   `).run(isActive ? 1 : 0, resolved);
 
@@ -1077,7 +1013,7 @@ function updatePartnerDuty(userId, isActive) {
 function getClientProfile(userId) {
   const resolved = resolveUserId(userId);
   let profile = db.prepare(`
-    SELECT c.*, u.full_name, u.email, u.phone 
+    SELECT c.*, u.full_name, u.email, u.phone
     FROM clients_profile c
     JOIN users u ON c.user_id = u.id
     WHERE c.user_id = ?
@@ -1092,7 +1028,7 @@ function getClientProfile(userId) {
       `).run(user.id);
 
       profile = db.prepare(`
-        SELECT c.*, u.full_name, u.email, u.phone 
+        SELECT c.*, u.full_name, u.email, u.phone
         FROM clients_profile c
         JOIN users u ON c.user_id = u.id
         WHERE c.user_id = ?
@@ -1123,93 +1059,6 @@ function getUserById(id) {
   if (!id) return null;
   const resolved = resolveUserId(id);
   return db.prepare('SELECT * FROM users WHERE id = ?').get(resolved);
-}
-
-function syncUserFromCloud(user) {
-  if (!user || !user.email) return null;
-  const cleanEmail = user.email.trim().toLowerCase();
-  const existing = getUserByEmail(cleanEmail);
-  if (existing) {
-    db.prepare(`
-      UPDATE users SET role = ?, phone = ?, full_name = ?, auth_provider_id = ?
-      WHERE id = ?
-    `).run(
-      user.role || existing.role,
-      user.phone || existing.phone,
-      user.full_name || user.fullName || existing.full_name,
-      user.auth_provider_id || user.id || existing.auth_provider_id,
-      existing.id
-    );
-
-    const effRole = user.role || existing.role;
-    const effId = existing.id;
-    if (effRole === 'PARTNER') {
-      const existingPartner = db.prepare('SELECT * FROM partners_profile WHERE user_id = ?').get(effId);
-      if (!existingPartner) {
-        db.prepare(`
-          INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
-          VALUES (?, 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', 1, 1, 0.0)
-        `).run(effId);
-      }
-    } else if (effRole === 'CLIENT') {
-      const existingClient = db.prepare('SELECT * FROM clients_profile WHERE user_id = ?').get(effId);
-      if (!existingClient) {
-        db.prepare(`
-          INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
-          VALUES (?, 'United States', 'USD', 'GOLD')
-        `).run(effId);
-      }
-      const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').get(effId);
-      if (!existingParent) {
-        const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
-        db.prepare(`
-          INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng)
-          VALUES (?, ?, 'Aging Parents in India', '+91 94401 23456', '+91 94401 23456', 'Pan-India', 'India', 16.8724, 79.5631)
-        `).run(parentId, effId);
-      }
-    }
-
-    return getUserByEmail(cleanEmail);
-  }
-
-  const id = user.id || ('usr_' + Math.random().toString(36).substring(2, 9));
-  const role = user.role || 'CLIENT';
-  const fullName = user.full_name || user.fullName || (role === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
-  const phone = user.phone || '';
-  const now = user.created_at || new Date().toISOString();
-
-  db.prepare(`
-    INSERT INTO users (id, role, email, phone, full_name, auth_provider_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, role, cleanEmail, phone, fullName, user.auth_provider_id || id, now);
-
-  if (role === 'PARTNER') {
-    const existingPartner = db.prepare('SELECT * FROM partners_profile WHERE user_id = ?').get(id);
-    if (!existingPartner) {
-      db.prepare(`
-        INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
-        VALUES (?, 'MEDICAL_TRANSPORT', 'Miryalaguda Town & Rural Hub', 1, 1, 0.0)
-      `).run(id);
-    }
-  } else if (role === 'CLIENT') {
-    const existingClient = db.prepare('SELECT * FROM clients_profile WHERE user_id = ?').get(id);
-    if (!existingClient) {
-      db.prepare(`
-        INSERT INTO clients_profile (user_id, country_residence, currency, subscription_tier)
-        VALUES (?, 'United States', 'USD', 'GOLD')
-      `).run(id);
-    }
-    const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ?').get(id);
-    if (!existingParent) {
-      const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
-      db.prepare(`
-        INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng)
-        VALUES (?, ?, 'Aging Parents in India', '+91 94401 23456', '+91 94401 23456', 'Pan-India', 'India', 16.8724, 79.5631)
-      `).run(parentId, id);
-    }
-  }
-
-  return getUserByEmail(cleanEmail);
 }
 
 function registerClientAccount({
@@ -1305,7 +1154,7 @@ function updateClientProfile(userId, {
     // 1. Update user
     if (fullName || email || phone) {
       db.prepare(`
-        UPDATE users 
+        UPDATE users
         SET full_name = COALESCE(?, full_name),
             email = COALESCE(?, email),
             phone = COALESCE(?, phone)
@@ -1321,7 +1170,7 @@ function updateClientProfile(userId, {
     // 2. Update client profile
     if (countryResidence || currency) {
       db.prepare(`
-        UPDATE clients_profile 
+        UPDATE clients_profile
         SET country_residence = COALESCE(?, country_residence),
             currency = COALESCE(?, currency)
         WHERE user_id = ?
@@ -1337,7 +1186,7 @@ function updateClientProfile(userId, {
       const existingParent = db.prepare('SELECT * FROM parents_profile WHERE client_id = ? LIMIT 1').get(resolved);
       if (existingParent) {
         db.prepare(`
-          UPDATE parents_profile 
+          UPDATE parents_profile
           SET parent_name = COALESCE(?, parent_name),
               primary_phone = COALESCE(?, primary_phone),
               whatsapp_phone = COALESCE(?, whatsapp_phone),
@@ -1412,7 +1261,7 @@ function registerPartnerAccount({
 
     db.prepare(`
       INSERT INTO partners_profile (user_id, service_category, operating_region, kyc_verified, is_active, wallet_balance)
-      VALUES (?, ?, ?, 1, 1, 0.00)
+      VALUES (?, ?, ?, 0, 0, 0.00)
     `).run(userId, serviceCategory, operatingRegion);
 
     addAuditLog({
@@ -1430,7 +1279,7 @@ function registerPartnerAccount({
 
 function getEscrowSummary() {
   const totals = db.prepare(`
-    SELECT 
+    SELECT
       COALESCE(SUM(CASE WHEN status = 'HOLD_IN_ESCROW' THEN amount ELSE 0 END), 0) as locked_usd,
       COALESCE(SUM(CASE WHEN status = 'RELEASED_TO_PARTNER' THEN amount ELSE 0 END), 0) as released_usd,
       COUNT(*) as total_escrow_count
@@ -1451,9 +1300,10 @@ function getEscrowSummary() {
 
 function getWhatsAppAuditLog() {
   return db.prepare(`
-    SELECT w.*, t.tracking_code, t.title 
+    SELECT w.*, t.tracking_code, t.title, p.whatsapp_consent, p.whatsapp_phone
     FROM whatsapp_logs w
     JOIN tasks t ON w.task_id = t.id
+    JOIN parents_profile p ON p.id=t.parent_id
     ORDER BY w.sent_at DESC
     LIMIT 50
   `).all();
@@ -1464,8 +1314,8 @@ function resendWhatsApp(logId) {
   if (!log) return null;
   const now = new Date().toISOString();
   db.prepare(`
-    UPDATE whatsapp_logs 
-    SET status = 'SENT', sent_at = ? 
+    UPDATE whatsapp_logs
+    SET status = 'QUEUED', error_code = NULL, sent_at = ?
     WHERE id = ?
   `).run(now, logId);
   return db.prepare('SELECT * FROM whatsapp_logs WHERE id = ?').get(logId);
@@ -1641,7 +1491,7 @@ function createEmergencyEvent({ parentId, triggeredByUserId, latitude, longitude
   if (!userExists) {
     validActorId = parent?.client_id || (db.prepare('SELECT id FROM users LIMIT 1').get()?.id) || 'usr_client_nri';
   }
-  
+
   db.prepare(`
     INSERT INTO emergency_events (id, parent_id, triggered_by_user_id, status, latitude, longitude, notes, ambulance_dispatched, triggered_at)
     VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, 1, ?)
@@ -1704,13 +1554,13 @@ function createTaskReview({ taskId, clientId, partnerId, rating, tags = [], feed
   if (partnerId) {
     try {
       const stats = db.prepare(`
-        SELECT AVG(rating) as avg_rating, COUNT(*) as cnt 
-        FROM task_reviews 
+        SELECT AVG(rating) as avg_rating, COUNT(*) as cnt
+        FROM task_reviews
         WHERE partner_id = ?
       `).get(partnerId);
       if (stats && stats.cnt > 0) {
         db.prepare(`
-          UPDATE partners_profile 
+          UPDATE partners_profile
           SET rating = ?, total_reviews = ?
           WHERE user_id = ?
         `).run(Math.round(stats.avg_rating * 10) / 10, stats.cnt, partnerId);
@@ -1754,7 +1604,7 @@ function addFamilyMember({ clientId, invitedName, fullName, invitedEmail, email,
 function updatePartnerLocation(partnerId, latitude, longitude) {
   const now = new Date().toISOString();
   db.prepare(`
-    UPDATE partners_profile 
+    UPDATE partners_profile
     SET last_latitude = ?, last_longitude = ?, last_location_updated_at = ?
     WHERE user_id = ?
   `).run(Number(latitude), Number(longitude), now, partnerId);
@@ -1763,8 +1613,8 @@ function updatePartnerLocation(partnerId, latitude, longitude) {
 
 function getPartnerLocation(partnerId) {
   const row = db.prepare(`
-    SELECT last_latitude, last_longitude, last_location_updated_at 
-    FROM partners_profile 
+    SELECT last_latitude, last_longitude, last_location_updated_at
+    FROM partners_profile
     WHERE user_id = ?
   `).get(partnerId);
   if (!row) return null;
@@ -1811,7 +1661,7 @@ function verifyEmailOtp({ email, otpCode, role, action }) {
   const cleanAction = action ? action.toUpperCase() : 'LOGIN';
 
   const row = db.prepare(`
-    SELECT * FROM email_otps 
+    SELECT * FROM email_otps
     WHERE email = ? AND otp_code = ? AND action = ? AND used = 0
     ORDER BY created_at DESC LIMIT 1
   `).get(cleanEmail, cleanCode, cleanAction);
@@ -1866,7 +1716,6 @@ module.exports = {
   registerClientAccount,
   registerPartnerAccount,
   updateClientProfile,
-  syncUserFromCloud,
   // New features
   getVitals,
   addVital,

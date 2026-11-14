@@ -5,7 +5,6 @@ const { WebSocketServer, WebSocket } = require('ws');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const url = require('url');
 const {
   initDatabase,
   closeDatabase,
@@ -39,7 +38,6 @@ const {
   registerClientAccount,
   registerPartnerAccount,
   updateClientProfile,
-  syncUserFromCloud,
   // New features
   getVitals,
   addVital,
@@ -65,10 +63,7 @@ const {
 } = require('./db');
 
 const {
-  supabaseAdmin,
   checkSupabaseHealth,
-  uploadToSupabaseStorage,
-  isSupabaseConfigured,
 } = require('./supabase');
 
 const app = express();
@@ -77,25 +72,22 @@ const server = http.createServer(app);
 // Initialize DB schema
 initDatabase();
 
-// In production, only purge if explicitly requested via environment variable
-if (process.env.RESET_DB_ON_START === 'true') {
-  console.log('[WARN] RESET_DB_ON_START is enabled. Purging database tables...');
-  resetCleanDatabase();
-}
-
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 // Security & Production Middlewares for Domain Deployments
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // Trust reverse proxies (Cloudflare, Render, AWS ALB, Nginx) for HTTPS protocol, IP, and domain detection
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false); // Trust reverse proxies (Cloudflare, Render, AWS ALB, Nginx) for HTTPS protocol, IP, and domain detection
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ws: wss:; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
+  if(req.secure) res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
   next();
 });
 
@@ -118,7 +110,7 @@ let corsOptions = { credentials: true };
 if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.trim() === '*') {
   corsOptions.origin = (origin, callback) => {
     // Allow requests with no origin (e.g. curl, mobile apps) or any browser origin
-    callback(null, true);
+    callback(null, !origin || /^http:\/\/(localhost|127\.0\.0\.1):(3001|3002|3003|4000)$/.test(origin));
   };
 } else {
   const allowedList = process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
@@ -131,15 +123,32 @@ if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.trim() === '*') {
   };
 }
 app.use(cors(corsOptions));
-app.use(express.json({ limit: process.env.MAX_PAYLOAD_SIZE || '25mb' }));
-app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
+const whatsapp=require('./whatsapp');
+whatsapp.init();
+whatsapp.installWebhook(app,express);
+whatsapp.start();
+app.use(express.json({ limit: '8mb', inflate: false }));
+app.use('/api', (req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+const access = require('./access');
+access.install(app);
+app.use('/uploads', (req,res,next) => {
+  const user=access.session(req); if (!user) return res.sendStatus(401);
+  const {db}=require('./db'); const imagePath='/uploads'+req.path;
+  const owner=db.prepare('SELECT owner FROM private_uploads WHERE path=?').get(imagePath);
+  const shared=db.prepare('SELECT t.id FROM verification_logs v JOIN tasks t ON v.task_id=t.id WHERE v.selfie_image_url=? AND (t.client_id=? OR t.assigned_partner_id=?)').get(imagePath,user.id,user.id);
+  if (user.role!=='ADMIN' && owner?.owner!==user.id && !shared) return res.sendStatus(403);
+  res.setHeader('Cache-Control','private, no-store'); next();
+}, express.static(uploadsDir, { maxAge: 0 }));
 
 // WebSocket Gateway on /ws/events and /ws
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
 const activeClients = new Set();
 
 server.on('upgrade', (request, socket, head) => {
-  const pathname = url.parse(request.url).pathname;
+  const origin=request.headers.origin;
+  const allowed=(process.env.CORS_ORIGIN || '').split(',').map(x=>x.trim());
+  if (!access.session(request) || origin && !allowed.includes(origin) && origin !== `http://${request.headers.host}` && origin !== `https://${request.headers.host}`) { socket.destroy(); return; }
+  const pathname = new URL(request.url,'http://localhost').pathname;
   if (pathname === '/ws/events' || pathname === '/ws' || pathname?.startsWith('/ws')) {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
@@ -150,9 +159,10 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 wss.on('connection', (ws, req) => {
-  const parsedUrl = url.parse(req.url, true);
-  const role = parsedUrl.query.role || 'GUEST';
-  const userId = parsedUrl.query.userId || null;
+  const identity = access.session(req);
+  if (!identity) { ws.close(1008, 'Authentication required'); return; }
+  const role = identity.role;
+  const userId = identity.id;
 
   ws.role = role;
   ws.userId = userId;
@@ -218,12 +228,7 @@ function broadcastEvent(type, payload, options = {}) {
   let deliveredCount = 0;
   activeClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      if (options.targetRole && client.role !== options.targetRole && client.role !== 'ADMIN') {
-        return;
-      }
-      if (options.targetUserId && client.userId && client.userId !== options.targetUserId && client.role !== 'ADMIN') {
-        return;
-      }
+      if (client.role !== 'ADMIN') { client.send(JSON.stringify({type:'DATA_CHANGED'})); return; }
       client.send(message);
       deliveredCount++;
     }
@@ -262,952 +267,32 @@ app.get('/api/supabase/status', async (req, res) => {
 // 3. PARTNER - Ground Field Partner (Portals: partner.familyhubs.in, port 3003, /partner)
 // -------------------------------------------------------------
 
-function detectPortalRole(req) {
-  const host = ((req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0]).toLowerCase();
-  const origin = (req.headers.origin || req.headers.referer || '').toLowerCase();
-  const path = (req.path || '').toLowerCase();
-
-  // 1. Partner Portal / Domain
-  if (
-    host.startsWith('partner.') ||
-    host.startsWith('field.') ||
-    host.startsWith('partner-') ||
-    origin.includes('partner.') ||
-    origin.includes(':3003') ||
-    path.startsWith('/partner')
-  ) {
-    return 'PARTNER';
-  }
-
-  // 2. Operations Admin Portal / Domain
-  if (
-    host.startsWith('ops.') ||
-    host.startsWith('admin.') ||
-    host.startsWith('ops-') ||
-    host.startsWith('admin-') ||
-    origin.includes('ops.') ||
-    origin.includes('admin.') ||
-    origin.includes(':3002') ||
-    path.startsWith('/ops') ||
-    path.startsWith('/admin')
-  ) {
-    return 'ADMIN';
-  }
-
-  // 3. User / Client Portal (Default / Root Domain / Port 3001)
-  return 'CLIENT';
-}
-
-function normalizeUserRole(inputRole, defaultRole = 'CLIENT') {
-  if (!inputRole) return defaultRole;
-  const upper = String(inputRole).trim().toUpperCase();
-  if (upper === 'USER' || upper === 'CLIENT') return 'CLIENT';
-  if (upper === 'PARTNER') return 'PARTNER';
-  if (upper === 'ADMIN') return 'ADMIN';
-  return defaultRole;
-}
-
-// Unified Cloud & Local User Resolver
-async function resolveAndSyncUser(cleanEmailOrId, targetRole = 'CLIENT') {
-  if (!cleanEmailOrId) return null;
-  const clean = String(cleanEmailOrId).trim().toLowerCase();
-
-  let user = getUserByEmail(clean);
-  if (!user) {
-    user = getUserById(cleanEmailOrId);
-  }
-
-  if (!user && supabaseAdmin) {
-    try {
-      // 1. Check public.users in Supabase
-      const { data: cloudUser } = await supabaseAdmin
-        .from('users')
-        .select('*')
-        .ilike('email', clean)
-        .maybeSingle();
-
-      if (cloudUser) {
-        user = syncUserFromCloud(cloudUser);
-      } else {
-        // 2. Check Supabase Auth accounts (auth.users)
-        const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
-        const matchAuth = authList?.users?.find(
-          (u) => u.email && u.email.toLowerCase() === clean
-        );
-        if (matchAuth) {
-          const roleFromMeta = normalizeUserRole(
-            matchAuth.user_metadata?.role ||
-            (targetRole === 'ADMIN' || matchAuth.email.includes('admin') ? 'ADMIN' : targetRole)
-          );
-          const fullNameFromMeta =
-            matchAuth.user_metadata?.full_name ||
-            (roleFromMeta === 'ADMIN' ? 'Operations Admin' : 'FamilyHubs User');
-          user = syncUserFromCloud({
-            id: matchAuth.id,
-            role: roleFromMeta,
-            email: matchAuth.email,
-            phone: matchAuth.phone || matchAuth.user_metadata?.phone || '',
-            full_name: fullNameFromMeta,
-            auth_provider_id: matchAuth.id,
-            created_at: matchAuth.created_at || new Date().toISOString(),
-          });
-        }
-      }
-    } catch (cloudErr) {
-      console.warn('Supabase auto-sync check notice:', cloudErr.message);
-    }
-  }
-
-  return user;
-}
-
-// System Roles Introspection
-app.get('/api/auth/roles', (req, res) => {
-  res.json({
-    roles: ['CLIENT', 'PARTNER', 'ADMIN'],
-    totalRoles: 3,
-    singleAdminEmail: 'admin@familyhubs.in',
-    domainSeparation: {
-      CLIENT: 'FamilyHubs NRI Client Portal (familyhubs.in / port 3001)',
-      PARTNER: 'Field Partner Portal (partner.familyhubs.in / port 3003 / /partner)',
-      ADMIN: 'Operations Admin Console (ops.familyhubs.in / admin.familyhubs.in / port 3002 / /ops / /admin)',
-    },
-  });
-});
-
-// Auth profiles (/api/auth/profile and /api/auth/me)
-const handleAuthProfile = (req, res) => {
-  const portalRole = detectPortalRole(req);
-  const role = req.query.role ? normalizeUserRole(req.query.role, portalRole) : portalRole;
-  const userId = req.query.userId || req.headers['x-user-id'];
-  if (!userId) {
-    return res.status(400).json({ error: 'userId query parameter is required' });
-  }
-
-  if (role === 'CLIENT') {
-    const profile = getClientProfile(userId);
-    return res.json(profile || { user_id: userId, country_residence: 'United States', currency: 'USD' });
-  }
-  if (role === 'PARTNER') {
-    const profile = getPartnerProfile(userId);
-    return res.json(profile || { user_id: userId, operating_region: 'Miryalaguda & Nalgonda Hub' });
-  }
-  const user = getUserById(userId);
-  return res.json(user || { id: userId, role: 'ADMIN' });
-};
-
-app.get('/api/auth/profile', handleAuthProfile);
-app.get('/api/auth/me', handleAuthProfile);
-
-// User Login (Client, Partner, Admin separated by domain and role)
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password, role } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email or mobile is required.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const portalRole = detectPortalRole(req);
-    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
-
-    // 0. Auto-sync from Supabase Cloud if user not yet in local SQLite
-    let user = await resolveAndSyncUser(cleanEmail, targetRole);
-
-    // 1. Admin Verification (Strict Single Official Admin)
-    if (targetRole === 'ADMIN' || portalRole === 'ADMIN') {
-      if (!user || user.role !== 'ADMIN' || user.email !== 'admin@familyhubs.in') {
-        return res.status(403).json({
-          error: 'Access denied. The Operations Console is strictly restricted to the official Operations Administrator.',
-        });
-      }
-
-      if (password) {
-        let passwordValid = false;
-        if (password === 'Admin@FamilyHubs2026!') {
-          passwordValid = true;
-        } else if (supabaseAdmin) {
-          try {
-            const { error: authErr } = await supabaseAdmin.auth.signInWithPassword({
-              email: cleanEmail,
-              password,
-            });
-            if (!authErr) passwordValid = true;
-          } catch (pErr) {
-            console.warn('Supabase password verification check error:', pErr.message);
-          }
-        }
-
-        if (!passwordValid) {
-          return res.status(401).json({ error: 'Incorrect admin password.' });
-        }
-      }
-
-      return res.json({ success: true, user });
-    }
-
-    // 2. Client & Partner Verification
-    if (!user) {
-      const portalLabel = targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client';
-      return res.status(404).json({
-        error: `No registered ${portalLabel} account found with this email. Please complete sign-up to continue.`,
-      });
-    }
-
-    // Strict Domain & Role Separation:
-    if (user.role === 'ADMIN') {
-      return res.status(403).json({
-        error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
-      });
-    }
-
-    if (targetRole === 'PARTNER' && user.role !== 'PARTNER') {
-      return res.status(403).json({
-        error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
-      });
-    }
-
-    if (targetRole === 'CLIENT' && user.role !== 'CLIENT') {
-      return res.status(403).json({
-        error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
-      });
-    }
-
-    let profile = null;
-    if (user.role === 'CLIENT') {
-      profile = getClientProfile(user.id);
-    } else if (user.role === 'PARTNER') {
-      profile = getPartnerProfile(user.id);
-    }
-
-    return res.json({
-      success: true,
-      user: {
-        id: user.id,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        profile,
-      },
-    });
-  } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Google OAuth Check & Login (Domain & Role separated)
-app.post('/api/auth/google', async (req, res) => {
-  try {
-    const { id, email, full_name, role } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required for Google authentication.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const portalRole = detectPortalRole(req);
-    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
-
-    // 1. Check existing user in local DB
-    let user = getUserByEmail(cleanEmail);
-    if (!user) {
-      // If no account exists with that Google email, redirect to sign-up for the current domain role!
-      return res.status(404).json({
-        success: false,
-        noAccount: true,
-        error: 'NO_ACCOUNT_FOUND',
-        message: `No registered FamilyHubs ${targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client'} account found with this Google email. Please complete your registration.`,
-        email: cleanEmail,
-        fullName: full_name || '',
-        authProviderId: id || null,
-        suggestedRole: targetRole,
-      });
-    }
-
-    // Role & Domain Separation
-    if (user.role === 'ADMIN') {
-      return res.status(403).json({
-        error: 'Administrator accounts must log in with secure password at the Operations Console.',
-      });
-    }
-
-    if (targetRole === 'PARTNER' && user.role !== 'PARTNER') {
-      return res.status(403).json({
-        error: 'This Google account is registered as a Family Client. Please log in at the Client Portal (familyhubs.in).',
-      });
-    }
-
-    if (targetRole === 'CLIENT' && user.role !== 'CLIENT') {
-      return res.status(403).json({
-        error: 'This Google account is registered as a Field Partner. Please log in at the Partner Portal (partner.familyhubs.in).',
-      });
-    }
-
-    let profile = null;
-    if (user.role === 'CLIENT') {
-      profile = getClientProfile(user.id);
-    } else if (user.role === 'PARTNER') {
-      profile = getPartnerProfile(user.id);
-    }
-
-    return res.json({
-      success: true,
-      exists: true,
-      user: {
-        id: user.id,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        profile,
-      },
-    });
-  } catch (err) {
-    console.error('Google auth error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// -------------------------------------------------------------
-// EMAIL OTP AUTHENTICATION (FOR SIGNUP AND LOGIN)
-// -------------------------------------------------------------
-
-// 1. Send OTP to Email
-app.post('/api/auth/otp/send', async (req, res) => {
-  try {
-    const { email, role, action = 'LOGIN' } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email address is required.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const normalizedAction = String(action).trim().toUpperCase();
-    if (normalizedAction !== 'LOGIN' && normalizedAction !== 'SIGNUP') {
-      return res.status(400).json({ error: "Invalid action specified. Must be 'LOGIN' or 'SIGNUP'." });
-    }
-
-    const portalRole = detectPortalRole(req);
-    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
-
-    // Strict constraint: Admin self-registration is permanently disabled
-    if (normalizedAction === 'SIGNUP' && (targetRole === 'ADMIN' || portalRole === 'ADMIN')) {
-      return res.status(403).json({
-        error: 'Admin self-registration is disabled. The single platform Operations Administrator is provisioned directly by the platform owner.',
-      });
-    }
-
-    // Enforce strict domain & role alignment:
-    if (portalRole === 'CLIENT' && targetRole !== 'CLIENT') {
-      return res.status(403).json({
-        error: 'This domain (familyhubs.in) is dedicated to Family Clients. Field Partners must use partner.familyhubs.in.',
-      });
-    }
-
-    if (portalRole === 'PARTNER' && targetRole !== 'PARTNER') {
-      return res.status(403).json({
-        error: 'This domain (partner.familyhubs.in) is dedicated to Field Partners. Family Clients must use familyhubs.in.',
-      });
-    }
-
-    // On LOGIN: ensure account exists and verify portal domain match
-    let existingUser = await resolveAndSyncUser(cleanEmail, targetRole);
-
-    if (normalizedAction === 'LOGIN') {
-      if (!existingUser) {
-        const portalLabel = targetRole === 'PARTNER' ? 'Field Partner' : 'Family Client';
-        return res.status(404).json({
-          error: `No registered ${portalLabel} account found with this email. Please complete sign-up to continue.`,
-          noAccount: true,
-          email: cleanEmail,
-        });
-      }
-
-      // Check Domain & Role Separation
-      if (existingUser.role === 'ADMIN' && (targetRole !== 'ADMIN' || portalRole !== 'ADMIN')) {
-        return res.status(403).json({
-          error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
-        });
-      }
-
-      if ((targetRole === 'PARTNER' || portalRole === 'PARTNER') && existingUser.role !== 'PARTNER') {
-        return res.status(403).json({
-          error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
-        });
-      }
-
-      if ((targetRole === 'CLIENT' || portalRole === 'CLIENT') && existingUser.role !== 'CLIENT') {
-        return res.status(403).json({
-          error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
-        });
-      }
-    } else if (normalizedAction === 'SIGNUP') {
-      if (existingUser) {
-        return res.status(409).json({
-          error: 'An account with this email address already exists. Please switch to Sign In.',
-          alreadyExists: true,
-          email: cleanEmail,
-        });
-      }
-    }
-
-    // Generate 6-digit OTP code (10-minute expiration)
-    const { otpCode, expiresAt } = createEmailOtp({
-      email: cleanEmail,
-      role: targetRole,
-      action: normalizedAction,
-      expiresInMinutes: 10,
-    });
-
-    console.log('===============================================================');
-    console.log(`📧 [EMAIL OTP DISPATCH] To: ${cleanEmail}`);
-    console.log(`🔑 Verification Code: [ ${otpCode} ]`);
-    console.log(`🏷️ Role: ${targetRole} | Action: ${normalizedAction} | Expires: ${expiresAt}`);
-    console.log('===============================================================');
-
-    addAuditLog({
-      eventType: 'EMAIL_OTP_DISPATCHED',
-      actorId: cleanEmail,
-      actorRole: targetRole,
-      severity: 'LOW',
-      details: {
-        email: cleanEmail,
-        role: targetRole,
-        action: normalizedAction,
-      },
-    });
-
-    const isAutomatedTest = Boolean(
-      req.headers['x-test-suite'] === 'true' ||
-      process.env.TEST_API_URL ||
-      cleanEmail.endsWith('@example.com') ||
-      cleanEmail.startsWith('test.')
-    );
-
-    return res.json({
-      success: true,
-      message: `A 6-digit verification code has been dispatched to ${cleanEmail}. Valid for 10 minutes.`,
-      email: cleanEmail,
-      action: normalizedAction,
-      role: targetRole,
-      expiresAt,
-      debugOtp: isAutomatedTest ? otpCode : undefined,
-    });
-  } catch (err) {
-    console.error('OTP Send Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 2. Verify OTP (for Login or Signup completion)
-app.post('/api/auth/otp/verify', async (req, res) => {
-  try {
-    const {
-      email,
-      otp,
-      role,
-      action = 'LOGIN',
-      fullName,
-      phone,
-      password,
-      countryResidence,
-      currency,
-      subscriptionTier,
-      parentName,
-      parentPhone,
-      parentWhatsappPhone,
-      parentLocality,
-      parentAddress,
-      parentNotes,
-      serviceCategory,
-      operatingRegion,
-    } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({ error: 'Email and 6-digit verification code are required.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = String(otp).trim();
-    const portalRole = detectPortalRole(req);
-    const targetRole = role ? normalizeUserRole(role, portalRole) : portalRole;
-    const normalizedAction = String(action).trim().toUpperCase();
-
-    // Verify OTP code in SQLite (or fallback to Supabase if live token)
-    let otpVerification = verifyEmailOtp({
-      email: cleanEmail,
-      otpCode: cleanOtp,
-      role: targetRole,
-      action: normalizedAction,
-    });
-
-    if (!otpVerification.valid && supabaseAdmin) {
-      try {
-        const { error: sbVerifyErr } = await supabaseAdmin.auth.verifyOtp({
-          email: cleanEmail,
-          token: cleanOtp,
-          type: 'email',
-        });
-        if (!sbVerifyErr) {
-          otpVerification = { valid: true };
-        }
-      } catch (sbErr) {
-        // Fallback check error
-      }
-    }
-
-    if (!otpVerification.valid) {
-      return res.status(400).json({ error: otpVerification.reason || 'Invalid or expired 6-digit verification code.' });
-    }
-
-    // --- CASE A: LOGIN VERIFICATION ---
-    if (normalizedAction === 'LOGIN') {
-      let user = await resolveAndSyncUser(cleanEmail, targetRole);
-
-      if (!user) {
-        return res.status(404).json({ error: 'No user account found. Please register first.' });
-      }
-
-      // Check Domain & Role Separation
-      if (user.role === 'ADMIN' && (targetRole !== 'ADMIN' || portalRole !== 'ADMIN')) {
-        return res.status(403).json({
-          error: 'Administrator accounts cannot log in on client or partner portals. Please access the Operations Console.',
-        });
-      }
-
-      if ((targetRole === 'PARTNER' || portalRole === 'PARTNER') && user.role !== 'PARTNER') {
-        return res.status(403).json({
-          error: 'This account is registered as a Family Client. Please log in on the Client Portal (familyhubs.in).',
-        });
-      }
-
-      if ((targetRole === 'CLIENT' || portalRole === 'CLIENT') && user.role !== 'CLIENT') {
-        return res.status(403).json({
-          error: 'This account is registered as a Field Partner. Please log in on the Partner Portal (partner.familyhubs.in).',
-        });
-      }
-
-      let profile = null;
-      if (user.role === 'CLIENT') {
-        profile = getClientProfile(user.id);
-      } else if (user.role === 'PARTNER') {
-        profile = getPartnerProfile(user.id);
-      }
-
-      addAuditLog({
-        eventType: 'LOGIN_OTP_VERIFIED',
-        actorId: user.id,
-        actorRole: user.role,
-        severity: 'LOW',
-        details: { email: cleanEmail, method: 'EMAIL_OTP' },
-      });
-
-      return res.json({
-        success: true,
-        message: 'Email OTP verified successfully. Logged in.',
-        user: {
-          id: user.id,
-          role: user.role,
-          email: user.email,
-          phone: user.phone,
-          full_name: user.full_name,
-          profile,
-        },
-      });
-    }
-
-    // --- CASE B: SIGNUP VERIFICATION ---
-    if (normalizedAction === 'SIGNUP') {
-      if (targetRole === 'ADMIN' || portalRole === 'ADMIN') {
-        return res.status(403).json({
-          error: 'Admin self-registration is permanently disabled.',
-        });
-      }
-
-      if (!fullName) {
-        return res.status(400).json({ error: 'Full name is required to complete registration.' });
-      }
-
-      const cleanPhone = phone ? phone.trim() : '';
-
-      if (targetRole === 'CLIENT') {
-        if (!cleanPhone) {
-          return res.status(400).json({ error: 'Your mobile / WhatsApp phone number is required.' });
-        }
-        const clientProfile = registerClientAccount({
-          email: cleanEmail,
-          fullName: fullName.trim(),
-          phone: cleanPhone,
-          countryResidence: countryResidence || 'United States',
-          currency: currency || 'USD',
-          subscriptionTier: subscriptionTier || 'GOLD',
-          parentName: parentName ? parentName.trim() : null,
-          parentPhone: parentPhone ? parentPhone.trim() : null,
-          parentWhatsappPhone: parentWhatsappPhone ? parentWhatsappPhone.trim() : (parentPhone ? parentPhone.trim() : null),
-          locality: parentLocality ? parentLocality.trim() : 'Pan-India',
-          fullAddress: parentAddress ? parentAddress.trim() : 'India',
-          medicalNotes: parentNotes ? parentNotes.trim() : null,
-          authProviderId: null,
-        });
-
-        if (supabaseAdmin && clientProfile) {
-          try {
-            await supabaseAdmin.from('users').upsert([
-              {
-                id: clientProfile.user_id,
-                role: 'CLIENT',
-                email: cleanEmail,
-                phone: cleanPhone,
-                full_name: fullName.trim(),
-              },
-            ]);
-            await supabaseAdmin.from('clients_profile').upsert([
-              {
-                user_id: clientProfile.user_id,
-                country_residence: countryResidence || 'United States',
-                currency: currency || 'USD',
-                subscription_tier: subscriptionTier || 'GOLD',
-              },
-            ]);
-            const parents = getParents(clientProfile.user_id);
-            if (parents && parents.length > 0) {
-              await supabaseAdmin.from('parents_profile').upsert([parents[0]]);
-            }
-          } catch {}
-        }
-
-        addAuditLog({
-          eventType: 'SIGNUP_OTP_VERIFIED',
-          actorId: clientProfile.user_id,
-          actorRole: 'CLIENT',
-          severity: 'LOW',
-          details: { email: cleanEmail, method: 'EMAIL_OTP' },
-        });
-
-        return res.status(201).json({
-          success: true,
-          message: 'Account registered and email verified successfully via OTP.',
-          user: {
-            id: clientProfile.user_id,
-            role: 'CLIENT',
-            email: cleanEmail,
-            phone: cleanPhone,
-            full_name: fullName.trim(),
-            profile: clientProfile,
-          },
-        });
-      }
-
-      if (targetRole === 'PARTNER') {
-        const partnerProfile = registerPartnerAccount({
-          email: cleanEmail,
-          fullName: fullName.trim(),
-          phone: cleanPhone,
-          serviceCategory: serviceCategory || 'MEDICAL_TRANSPORT',
-          operatingRegion: operatingRegion || 'Pan-India Verified Network',
-        });
-
-        if (supabaseAdmin && partnerProfile) {
-          try {
-            await supabaseAdmin.from('users').upsert([
-              {
-                id: partnerProfile.user_id,
-                role: 'PARTNER',
-                email: cleanEmail,
-                phone: cleanPhone,
-                full_name: fullName.trim(),
-              },
-            ]);
-            await supabaseAdmin.from('partners_profile').upsert([
-              {
-                user_id: partnerProfile.user_id,
-                service_category: serviceCategory || 'MEDICAL_TRANSPORT',
-                operating_region: operatingRegion || 'Pan-India Verified Network',
-                kyc_verified: true,
-                is_active: true,
-                wallet_balance: 0.0,
-              },
-            ]);
-          } catch {}
-        }
-
-        addAuditLog({
-          eventType: 'SIGNUP_OTP_VERIFIED',
-          actorId: partnerProfile.user_id,
-          actorRole: 'PARTNER',
-          severity: 'LOW',
-          details: { email: cleanEmail, method: 'EMAIL_OTP' },
-        });
-
-        return res.status(201).json({
-          success: true,
-          message: 'Field partner registered and email verified successfully via OTP.',
-          user: {
-            id: partnerProfile.user_id,
-            role: 'PARTNER',
-            email: cleanEmail,
-            phone: cleanPhone,
-            full_name: fullName.trim(),
-            profile: partnerProfile,
-          },
-        });
-      }
-    }
-
-    return res.status(400).json({ error: 'Invalid verification request.' });
-  } catch (err) {
-    console.error('OTP Verify Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// User Editable Settings & Profile Update (Pan-India)
-app.put('/api/client/profile', async (req, res) => {
-  try {
-    const {
-      userId,
-      fullName,
-      email,
-      phone,
-      countryResidence,
-      currency,
-      parentName,
-      parentPrimaryPhone,
-      parentWhatsappPhone,
-      parentLocality,
-      parentAddress,
-      parentNotes,
-    } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-
-    const updated = updateClientProfile(userId, {
-      fullName,
-      email,
-      phone,
-      countryResidence,
-      currency,
-      parentName,
-      parentPrimaryPhone,
-      parentWhatsappPhone,
-      parentLocality,
-      parentAddress,
-      parentNotes,
-    });
-
-    res.json({
-      success: true,
-      message: 'Account settings and parents care details updated successfully.',
-      ...updated,
-    });
-  } catch (err) {
-    console.error('Update client profile error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// User Registration (Client & Partner ONLY - Admin sign-up is disabled by design)
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const portalRole = detectPortalRole(req);
-    const rawRole = req.body.role;
-    // Derive role from input or portal domain (partner domain defaults to PARTNER, user domain defaults to CLIENT)
-    const role = rawRole ? normalizeUserRole(rawRole, portalRole) : (portalRole === 'PARTNER' ? 'PARTNER' : 'CLIENT');
-
-    const {
-      email,
-      password,
-      fullName,
-      phone,
-      countryResidence,
-      currency,
-      subscriptionTier,
-      parentName,
-      parentPhone,
-      parentWhatsappPhone,
-      parentLocality,
-      parentAddress,
-      parentNotes,
-      serviceCategory,
-      operatingRegion,
-    } = req.body;
-
-    // Strict constraint: Admin self-registration is permanently disabled
-    if (role === 'ADMIN' || (rawRole && String(rawRole).trim().toUpperCase() === 'ADMIN')) {
-      return res.status(403).json({
-        error: 'Admin self-registration is disabled. The single platform Operations Administrator is provisioned directly by the platform owner.',
-      });
-    }
-
-    if (portalRole === 'ADMIN') {
-      return res.status(403).json({
-        error: 'Public user registration is disabled on the Operations Admin console.',
-      });
-    }
-
-    if (!email || !fullName) {
-      return res.status(400).json({ error: 'Full name and email are required for registration.' });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone ? phone.trim() : '';
-
-    if (role === 'CLIENT') {
-      if (!cleanPhone) {
-        return res.status(400).json({ error: 'Your mobile / WhatsApp phone number is required.' });
-      }
-    }
-
-    let authProviderId = null;
-
-    // Provision in Supabase Auth (auth.users) if configured
-    if (supabaseAdmin) {
-      try {
-        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-          email: cleanEmail,
-          password: password || 'FamilyHubs2026!',
-          email_confirm: true,
-          user_metadata: {
-            role,
-            full_name: fullName,
-            phone: cleanPhone,
-          },
-        });
-        if (!authErr && authData?.user) {
-          authProviderId = authData.user.id;
-        } else if (authErr && !authErr.message.includes('already been registered')) {
-          console.warn('[SUPABASE AUTH REGISTER WARN]', authErr.message);
-        }
-      } catch (sbAuthErr) {
-        console.warn('[SUPABASE AUTH ERROR]', sbAuthErr.message);
-      }
-    }
-
-    // 1. Client Registration
-    if (role === 'CLIENT') {
-      const clientProfile = registerClientAccount({
-        email: cleanEmail,
-        fullName: fullName.trim(),
-        phone: cleanPhone,
-        countryResidence: countryResidence || 'United States',
-        currency: currency || 'USD',
-        subscriptionTier: subscriptionTier || 'GOLD',
-        parentName: parentName ? parentName.trim() : null,
-        parentPhone: parentPhone ? parentPhone.trim() : null,
-        parentWhatsappPhone: parentWhatsappPhone ? parentWhatsappPhone.trim() : (parentPhone ? parentPhone.trim() : null),
-        locality: parentLocality || 'Pan-India',
-        fullAddress: parentAddress || 'India',
-        medicalNotes: parentNotes || null,
-        authProviderId,
-      });
-
-      if (supabaseAdmin && clientProfile) {
-        try {
-          await supabaseAdmin.from('users').upsert([
-            {
-              id: clientProfile.user_id,
-              role: 'CLIENT',
-              email: cleanEmail,
-              phone: cleanPhone,
-              full_name: fullName.trim(),
-              auth_provider_id: authProviderId,
-            },
-          ]);
-          await supabaseAdmin.from('clients_profile').upsert([
-            {
-              user_id: clientProfile.user_id,
-              country_residence: countryResidence || 'United States',
-              currency: currency || 'USD',
-              subscription_tier: subscriptionTier || 'GOLD',
-            },
-          ]);
-          if (parentName) {
-            const parents = getParents(clientProfile.user_id);
-            if (parents && parents.length > 0) {
-              await supabaseAdmin.from('parents_profile').upsert([parents[0]]);
-            }
-          }
-        } catch (syncErr) {
-          console.warn('[SUPABASE SYNC WARN]', syncErr.message);
-        }
-      }
-
-      return res.status(201).json({
-        success: true,
-        message: 'NRI Client account successfully created.',
-        user: {
-          id: clientProfile.user_id,
-          role: 'CLIENT',
-          email: cleanEmail,
-          phone: cleanPhone,
-          full_name: fullName.trim(),
-          profile: clientProfile,
-        },
-      });
-    }
-
-    // 2. Partner Registration
-    if (role === 'PARTNER') {
-      const partnerProfile = registerPartnerAccount({
-        email: cleanEmail,
-        fullName: fullName.trim(),
-        phone: cleanPhone,
-        serviceCategory: serviceCategory || 'MEDICAL_TRANSPORT',
-        operatingRegion: operatingRegion || 'Miryalaguda Town & Rural Hub',
-        authProviderId,
-      });
-
-      if (supabaseAdmin && partnerProfile) {
-        try {
-          await supabaseAdmin.from('users').upsert([
-            {
-              id: partnerProfile.user_id,
-              role: 'PARTNER',
-              email: cleanEmail,
-              phone: cleanPhone,
-              full_name: fullName.trim(),
-              auth_provider_id: authProviderId,
-            },
-          ]);
-          await supabaseAdmin.from('partners_profile').upsert([
-            {
-              user_id: partnerProfile.user_id,
-              service_category: serviceCategory || 'MEDICAL_TRANSPORT',
-              operating_region: operatingRegion || 'Miryalaguda Town & Rural Hub',
-              kyc_verified: true,
-              is_active: true,
-              wallet_balance: 0.0,
-            },
-          ]);
-        } catch (syncErr) {
-          console.warn('[SUPABASE SYNC WARN]', syncErr.message);
-        }
-      }
-
-      return res.status(201).json({
-        success: true,
-        message: 'Field partner registered successfully.',
-        user: {
-          id: partnerProfile.user_id,
-          role: 'PARTNER',
-          email: cleanEmail,
-          phone: cleanPhone,
-          full_name: fullName.trim(),
-          profile: partnerProfile,
-        },
-      });
-    }
-
-    return res.status(400).json({ error: 'Invalid account role specified.' });
-  } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+app.get('/api/integrations/status',(req,res)=>{if(req.user.role!=='ADMIN')return res.sendStatus(403);res.json({whatsapp:whatsapp.configured(),payments:false});});
 
 // Task Management Endpoints
+app.post('/api/tasks/:id/complete', (req,res)=>{
+  const {db}=require('./db');
+  if(req.user.role!=='ADMIN') return res.sendStatus(403);
+  const task=getTaskById(req.params.id);
+  if(!task || task.status!=='VERIFICATION_SUBMITTED') return res.status(409).json({error:'Completion proof is required.'});
+  const proof=db.prepare("SELECT id FROM verification_logs WHERE task_id=? AND stage='TASK_COMPLETION' AND geofence_passed=1 ORDER BY timestamp DESC LIMIT 1").get(task.id);
+  if(!proof) return res.status(409).json({error:'A completion proof within the home geofence is required.'});
+  db.transaction(()=>{
+    db.prepare("UPDATE tasks SET status='COMPLETED', updated_at=? WHERE id=?").run(new Date().toISOString(),task.id);
+    db.prepare("UPDATE verification_logs SET review_status='APPROVED', reviewed_by_admin=? WHERE task_id=? AND geofence_passed=1").run(req.user.id,task.id);
+    addAuditLog({eventType:'CARE_VISIT_COMPLETED',actorId:req.user.id,actorRole:'ADMIN',severity:'LOW',details:{taskId:task.id,paymentTransferred:false}});
+  })();
+  broadcastEvent('TASK_UPDATED',getTaskById(task.id)); res.json(getTaskById(task.id));
+});
+app.post('/api/partners/:id/verification', (req,res)=>{
+  if(req.user.role!=='ADMIN') return res.sendStatus(403);
+  if(typeof req.body.verified!=='boolean' || !req.body.notes?.trim()) return res.status(400).json({error:'A verification decision and review notes are required.'});
+  const {db}=require('./db');
+  if(!db.prepare('SELECT user_id FROM partners_profile WHERE user_id=?').get(req.params.id)) return res.sendStatus(404);
+  db.prepare('UPDATE partners_profile SET kyc_verified=? WHERE user_id=?').run(req.body.verified?1:0,req.params.id);
+  addAuditLog({eventType:'PARTNER_VERIFICATION_REVIEWED',actorId:req.user.id,actorRole:'ADMIN',severity:'HIGH',details:{partnerId:req.params.id,verified:req.body.verified,notes:req.body.notes}});
+  res.json({success:true});
+});
 app.get('/api/tasks', (req, res) => {
   const { clientId, partnerId, status, locality } = req.query;
   const tasks = getTasks({ clientId, partnerId, status, locality });
@@ -1234,14 +319,14 @@ app.post('/api/tasks', (req, res) => {
       title,
       instructions,
       scheduledAt,
-      escrowAmount: parseFloat(escrowAmount) || 50.0,
+      escrowAmount: 0,
     });
 
     broadcastEvent('TASK_CREATED', task);
     res.status(201).json(task);
   } catch (err) {
     console.error('Error creating task:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1259,7 +344,7 @@ app.post('/api/tasks/:id/assign', (req, res) => {
     res.json(updatedTask);
   } catch (err) {
     console.error('Error assigning partner:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1272,7 +357,7 @@ app.post('/api/tasks/:id/accept', (req, res) => {
     broadcastEvent('TASK_ACCEPTED', updatedTask);
     res.json(updatedTask);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1285,7 +370,7 @@ app.post('/api/tasks/:id/start', (req, res) => {
     broadcastEvent('TASK_IN_PROGRESS', updatedTask);
     res.json(updatedTask);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1293,7 +378,7 @@ app.post('/api/tasks/:id/start', (req, res) => {
 app.post('/api/tasks/:id/verify', (req, res) => {
   try {
     const { partnerId, stage, selfieImageUrl, latitude, longitude } = req.body;
-    if (!partnerId || !selfieImageUrl) {
+    if (!partnerId || !selfieImageUrl || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180) {
       return res.status(400).json({ error: 'partnerId and selfieImageUrl are required' });
     }
 
@@ -1302,8 +387,8 @@ app.post('/api/tasks/:id/verify', (req, res) => {
       partnerId,
       stage: stage || 'ARRIVAL_CHECKIN',
       selfieImageUrl,
-      latitude: parseFloat(latitude) || 16.8724,
-      longitude: parseFloat(longitude) || 79.5631,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
     });
 
     const eventType = stage === 'ARRIVAL_CHECKIN' ? 'PARTNER_CHECKED_IN' : 'VERIFICATION_SUBMITTED';
@@ -1312,7 +397,7 @@ app.post('/api/tasks/:id/verify', (req, res) => {
     res.json(updatedTask);
   } catch (err) {
     console.error('Error submitting verification:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1322,7 +407,7 @@ app.post('/api/tasks/:id/escrow/approve', (req, res) => {
     const adminId = req.body.adminId || 'admin';
     const escrowPin = req.body.escrowPin || req.body.adminPin || req.body.pin || '';
 
-    const updatedTask = approveEscrow(req.params.id, adminId, escrowPin);
+    return res.status(503).json({error:'Payout provider is not configured. No money has been transferred.'});
 
     broadcastEvent('ESCROW_RELEASED', updatedTask);
     res.json(updatedTask);
@@ -1331,7 +416,7 @@ app.post('/api/tasks/:id/escrow/approve', (req, res) => {
     if (err.message.includes('INVALID_SECURITY_PIN') || err.message.includes('EMERGENCY_FREEZE_ACTIVE')) {
       return res.status(403).json({ error: err.message });
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1348,7 +433,7 @@ app.post('/api/tasks/:id/verify/reject', (req, res) => {
 
     res.json(updatedTask);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1365,21 +450,23 @@ app.get('/api/parents', (req, res) => {
 app.post('/api/parents', (req, res) => {
   try {
     const newParent = createParent(req.body);
+    require('./db').db.prepare('UPDATE parents_profile SET whatsapp_consent=? WHERE id=?').run(req.body.whatsappConsent===true?1:0,newParent.id);
     res.status(201).json(newParent);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
 app.put('/api/parents/:id', (req, res) => {
   try {
     const updated = updateParent(req.params.id, req.body);
+    if(updated) require('./db').db.prepare('UPDATE parents_profile SET whatsapp_consent=? WHERE id=?').run(req.body.whatsappConsent===true?1:0,req.params.id);
     if (!updated) {
       return res.status(404).json({ error: 'Parent residence not found.' });
     }
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1391,7 +478,7 @@ app.delete('/api/parents/:id', (req, res) => {
     }
     res.json({ success: true, message: 'Parent residence removed successfully.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1416,7 +503,7 @@ app.post('/api/partners/:id/duty', (req, res) => {
     broadcastEvent('PARTNER_AVAILABILITY_CHANGED', updated);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1440,7 +527,7 @@ app.post('/api/whatsapp/resend/:id', (req, res) => {
     broadcastEvent('WHATSAPP_STATUS_UPDATED', log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1452,7 +539,7 @@ app.get('/api/security/audit-logs', (req, res) => {
     const logs = getAuditLogs(req.query.limit ? parseInt(req.query.limit) : 50);
     res.json(logs);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1460,21 +547,24 @@ app.get('/api/security/audit-logs', (req, res) => {
 app.get('/api/security/settings', (req, res) => {
   try {
     const settings = getSecuritySettings();
+    delete settings.escrow_release_pin;
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
 app.post('/api/security/settings', (req, res) => {
   try {
     const { key, value, actorId } = req.body;
+    if (!['escrow_release_pin','geofence_tolerance_meters','emergency_escrow_freeze'].includes(key)) return res.status(400).json({error:'Invalid setting.'});
+    if (key === 'escrow_release_pin' && !/^\d{6}$/.test(value)) return res.status(400).json({error:'PIN must contain six digits.'});
     if (!key) return res.status(400).json({ error: 'Setting key is required' });
     const updated = updateSecuritySetting(key, value, actorId || 'admin');
     broadcastEvent('SECURITY_SETTINGS_UPDATED', updated);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1498,7 +588,7 @@ app.post(['/api/security/freeze', '/api/security/panic-freeze', '/api/security/s
       settings: updated,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1509,37 +599,30 @@ app.post('/api/security/reset-clean', (req, res) => {
     broadcastEvent('DATABASE_PURGED', { message: 'Database purged clean.' });
     res.json({ success: true, message: 'All preloaded tasks and logs purged.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
 // Camera / Image Upload Endpoint
 app.post('/api/upload', async (req, res) => {
   try {
-    const { imageBase64, filename } = req.body;
+    const { imageBase64 } = req.body;
+    if (typeof imageBase64 !== 'string' || !/^data:image\/(jpeg|png);base64,/.test(imageBase64) || imageBase64.length > 8000000) return res.status(400).json({error:'A JPEG or PNG image under 6 MB is required.'});
     if (!imageBase64) {
       return res.status(400).json({ error: 'imageBase64 is required' });
     }
 
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
-    const safeName = (filename || `selfie_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '') + '.jpg';
+    const jpeg=buffer[0]===255 && buffer[1]===216 && buffer[2]===255;
+    const png=buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    if(!jpeg && !png) return res.status(400).json({error:'The file must contain a valid JPEG or PNG image.'});
+    const safeName = require('crypto').randomUUID() + (png ? '.png' : '.jpg');
     const filePath = path.join(uploadsDir, safeName);
 
     fs.writeFileSync(filePath, buffer);
     let imageUrl = `/uploads/${safeName}`;
-
-    // Cloud upload if Supabase Storage is active
-    if (isSupabaseConfigured()) {
-      try {
-        const cloudUrl = await uploadToSupabaseStorage(buffer, safeName, 'image/jpeg');
-        if (cloudUrl) {
-          imageUrl = cloudUrl;
-        }
-      } catch (storageErr) {
-        console.warn('[STORAGE] Falling back to local upload:', storageErr.message);
-      }
-    }
+    require('./db').db.prepare('INSERT INTO private_uploads VALUES (?,?)').run(imageUrl,req.user.id);
 
     res.json({
       success: true,
@@ -1549,7 +632,7 @@ app.post('/api/upload', async (req, res) => {
     });
   } catch (err) {
     console.error('Upload failed:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1559,7 +642,7 @@ app.get('/api/parents/:id/vitals', (req, res) => {
     const vitals = getVitals(req.params.id);
     res.json(vitals);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1569,7 +652,7 @@ app.post('/api/parents/:id/vitals', (req, res) => {
     broadcastEvent('VITALS_RECORDED', vital);
     res.status(201).json(vital);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1579,7 +662,7 @@ app.get('/api/parents/:id/medications', (req, res) => {
     const meds = getMedications(req.params.id);
     res.json(meds);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1589,7 +672,7 @@ app.post('/api/parents/:id/medications', (req, res) => {
     broadcastEvent('MEDICATION_UPDATED', med);
     res.status(201).json(med);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1599,7 +682,7 @@ app.delete('/api/parents/:id/medications/:medId', (req, res) => {
     broadcastEvent('MEDICATION_UPDATED', { id: req.params.medId, deleted: true });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1626,7 +709,7 @@ app.post('/api/parents/:id/medications/:medId/refill', (req, res) => {
     broadcastEvent('TASK_CREATED', task);
     res.status(201).json({ success: true, task });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1636,7 +719,7 @@ app.get('/api/parents/:id/documents', (req, res) => {
     const docs = getVaultDocuments(req.params.id);
     res.json(docs);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1645,7 +728,7 @@ app.post('/api/parents/:id/documents', (req, res) => {
     const doc = addVaultDocument({ parentId: req.params.id, ...req.body });
     res.status(201).json(doc);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1667,7 +750,7 @@ app.post('/api/emergency/sos', (req, res) => {
     res.status(201).json(sosEvent);
   } catch (err) {
     console.error('SOS Trigger Error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1676,7 +759,7 @@ app.get('/api/emergency/active', (req, res) => {
     const emergencies = getActiveEmergencies();
     res.json(emergencies);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1686,7 +769,7 @@ app.post('/api/emergency/:id/resolve', (req, res) => {
     broadcastEvent('EMERGENCY_SOS_RESOLVED', resolved);
     res.json(resolved);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1697,7 +780,7 @@ app.post('/api/tasks/:id/review', (req, res) => {
     broadcastEvent('TASK_REVIEW_SUBMITTED', review);
     res.status(201).json(review);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1706,7 +789,7 @@ app.get('/api/tasks/:id/review', (req, res) => {
     const review = getTaskReview(req.params.id);
     res.json(review || null);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1715,7 +798,7 @@ app.get('/api/partners/:id/reviews', (req, res) => {
     const reviews = getPartnerReviews(req.params.id);
     res.json(reviews);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1725,7 +808,7 @@ app.get('/api/clients/:id/family', (req, res) => {
     const members = getFamilyMembers(req.params.id);
     res.json(members);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1734,7 +817,7 @@ app.post('/api/clients/:id/family', (req, res) => {
     const member = addFamilyMember({ clientId: req.params.id, ...req.body });
     res.status(201).json(member);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1754,7 +837,7 @@ app.post('/api/partners/:id/location', (req, res) => {
     });
     res.json({ success: true, location });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1763,7 +846,7 @@ app.get('/api/partners/:id/location', (req, res) => {
     const loc = getPartnerLocation(req.params.id);
     res.json(loc || null);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'The request could not be completed. Please try again or contact support.' });
   }
 });
 
@@ -1848,6 +931,8 @@ app.use((req, res, next) => {
 
   next();
 });
+
+app.use((error,req,res,next)=>{if(res.headersSent)return next(error);const status=error.status===413?413:error instanceof SyntaxError?400:500;res.status(status).json({error:status===413?'The upload is too large.':status===400?'Invalid request body.':'The request could not be completed.'});});
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, '0.0.0.0', () => {

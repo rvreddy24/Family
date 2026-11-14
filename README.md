@@ -1,135 +1,39 @@
 # FamilyHubs
 
-> Enterprise-Grade Real-Time Managed Concierge Platform for Aging Parents in India.
+A family care workspace with separate family, operations and care partner portals.
 
-FamilyHubs bridges the gap for Non-Resident Indians (NRIs) and children living away from home, ensuring their aging parents receive reliable, verified, and compassionate assistance for healthcare, home maintenance, emergency response, and daily errands.
+## Run
 
----
+Node 20 or newer is required. Install dependencies with `npm ci`, configure `.env` using `.env.example`, then run `npm run dev`. Family: http://localhost:3001, operations: http://localhost:3002/ops/, partners: http://localhost:3003/partner/.
 
-## 🏗 System Architecture
+For a single-port deployment, run `npm run build` then `npm start`. The three portals are served at `/`, `/ops/` and `/partner/` on port 4000. Vite proxies API, uploads and authenticated WebSocket requests during development. All new UI requests use the same origin.
 
-The project is structured as a monorepo containing three frontend applications, a shared types package, and a centralized Express + WebSocket backend engine:
+## Implemented flows
 
-```
-Family/
-├── apps/
-│   ├── user/        # Client Web Application (NRI / Adult Children) (Port 3001)
-│   ├── admin/       # Operations & Support Management Console (Port 3002)
-│   └── partner/     # Ground Partner & Service Provider App (Port 3003)
-├── packages/
-│   └── shared/      # Shared TypeScript types, contracts & utilities
-├── server/          # Express REST API, SQLite (better-sqlite3) & WebSocket Gateway (Port 4000)
-├── .env.example     # Production & development configuration blueprint
-├── tsconfig.json    # TypeScript root configuration with path mappings
-└── package.json     # Workspace management and orchestrator scripts
-```
+- Email-confirmed Supabase signup/password authentication, role separation and expiring server sessions with HTTP-only cookies. Local-storage login flags are not trusted. Public administrator signup is disabled.
+- Parent profiles with real address coordinates, care notes and WhatsApp consent.
+- Care requests, verified-partner dispatch, acceptance, geofenced arrival/completion photo proof, operations completion review and client feedback.
+- Health readings, prescribed medication records and secure document references.
+- Care alerts to operations with explicit notice that this does not dispatch emergency services.
+- Optional device location sharing and timestamped partner location views.
+- WhatsApp queue, approved-template delivery, signed status webhooks, explicit consent, manual click-to-chat links and operations delivery history.
 
----
+Operational data is stored in SQLite with WAL. Supabase supplies authentication. The app does not claim that local records are synchronized to cloud tables. Private proof files are served only to operations, their uploader and the assigned family. Persist both the database and upload directory.
 
-## ⚡ Quick Start
+## Verification
 
-### 1. Installation
+`npm run typecheck`, `npm test`, `npm run build`, `npm run test:ui`, `npm audit`.
 
-Ensure you have [Node.js](https://nodejs.org/) installed (v18+ recommended):
+The security suite uses a temporary database, session fixtures and a local server; it never changes real accounts or sends real WhatsApp messages. Browser tests use Playwright Chromium (`npx playwright install chromium`), exercise all three portals at desktop/mobile sizes, and save screenshots under `artifacts/ui/`. These tests do not establish live email delivery or a real WhatsApp account's approval status.
 
-```bash
-npm install
-```
+The old test scripts target the retired insecure demo authentication contract. They are retained as historical files and are not launch acceptance checks.
 
-### 2. Environment Setup
+## Launch requirements
 
-Copy `.env.example` to `.env`:
+See [PRODUCTION.md](PRODUCTION.md). Do not deploy until its open blockers are resolved. The Supabase lockdown SQL must be applied to the existing project; changing source files alone cannot revoke cloud permissions.
 
-```bash
-cp .env.example .env
-```
+Payments are deliberately disabled. No escrow hold, bank payout or currency conversion is simulated. A payment provider, verified webhooks, reconciliation and financial testing are required before taking money.
 
-### 3. Running in Development
+## Demo cleanup
 
-To start the backend and all 3 web applications concurrently:
-
-```bash
-npm run dev
-```
-
-### 4. Application Endpoints
-
-| Application / Service | Port / Path | Local URL | Description |
-| :--- | :--- | :--- | :--- |
-| **Backend Engine** | `4000` | [http://localhost:4000](http://localhost:4000) | REST API (`/api/*`) & WebSocket (`/ws/events`) |
-| **User Portal** | `3001` | [http://localhost:3001](http://localhost:3001) | Booking tasks, live tracking, escrow management |
-| **Operations Console** | `3002` | [http://localhost:3002](http://localhost:3002) | Admin dispatch, KYC oversight, audit & escrow release |
-| **Partner Portal** | `3003` | [http://localhost:3003](http://localhost:3003) | Ground partner check-in, OTP verification, photo proof |
-
----
-
-## 🚀 Production Readiness & Enterprise Features
-
-1. **Persistent SQLite Database with WAL Mode**:
-   - High-concurrency write-ahead logging (WAL).
-   - Server reboots preserve existing tasks, escrows, and balances (`RESET_DB_ON_START=false`).
-   - Clean shutdown handlers (`SIGTERM`, `SIGINT`) that safely flush and close WAL journals without corruption.
-
-2. **Network & Cloud Agnostic Resolution**:
-   - Zero hardcoded `localhost` endpoints in frontend bundles.
-   - Dynamic API and WebSocket protocol detection (`ws:` / `wss:`), allowing flawless deployment behind Nginx, Caddy, Cloudflare, Docker, or LAN IP access from mobile devices.
-
-3. **Vite Development Reverse Proxies**:
-   - Each frontend application proxies `/api`, `/uploads`, and `/ws` directly to the backend engine on port 4000, eliminating CORS friction in development.
-
-4. **Security & Audit Hardening**:
-   - Standard security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`).
-   - Audit trail stream logging all security and operational actions.
-   - 6-digit authorized escrow PIN release and platform-wide emergency freeze.
-
-5. **Type Safety & Build Verification**:
-   - Run typecheck across the entire monorepo:
-     ```bash
-     npm run typecheck
-     ```
-   - Build all applications for production:
-     ```bash
-     npm run build
-     ```
-   - Run production single-port deployment:
-     ```bash
-     npm run start:prod
-     ```
-
----
-
-## 🛡️ Role Architecture & Email OTP Authentication
-
-### 1. Strictly 3 Roles & Domain Isolation
-The platform enforces exactly 3 distinct user roles segregated by origin domain and portal:
-- **`CLIENT`** (Family User): Sign-up and login on `familyhubs.in` (port 3001). Lean registration collecting user full name, email, phone, and country of residence (parent residences are managed post-signup directly in the Parents tab).
-- **`PARTNER`** (Ground Field Partner): Sign-up and login on `partner.familyhubs.in` (port 3003, `/partner`). Multilingual interface in English, Telugu, Hindi, Tamil, and Kannada.
-- **`ADMIN`** (Platform Operations Admin): Exclusively restricted to the single official admin account: `admin@familyhubs.in`. Public self-registration is permanently disabled. Access only via `ops.familyhubs.in` (port 3002).
-
-### 2. Multi-Factor OTP Verification (Signup, Password Login & Google OAuth)
-Authentication incorporates a strict 6-digit email OTP security challenge:
-- **Password Sign In**: Enter email & password $\rightarrow$ Validates password $\rightarrow$ Automatically challenges with 6-digit OTP sent to registered email $\rightarrow$ User submits OTP to start session.
-- **Google OAuth Sign In / Sign Up**: Authenticating with Google dispatches a 6-digit OTP challenge to that Google email before access is granted.
-- **Lean Sign Up**: Fill name, email, phone, country $\rightarrow$ Dispatch 6-digit verification code to email $\rightarrow$ Verify code to activate account.
-- **Parents Tab Residence Management**: Parents' residences, phone numbers, WhatsApp details, and medical care notes are added, edited, and deleted directly from the **Parents** tab in the dashboard.
-- **Silent Experience**: All audio chime tones and audio effects have been permanently silenced across the application.
-- **Automated Test Suites**:
-  ```bash
-  # Test 3-role and domain separation
-  npm run test:roles
-
-  # Test Email OTP signup and login lifecycle
-  npm run test:otp
-
-  # Test Parent CRUD and Two-Step Password + OTP Login flow
-  npm run test:crud
-  ```
-
----
-
-## 🛠 Tech Stack
-
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Lucide React, Leaflet
-- **Backend**: Node.js, Express, WebSocket (`ws`), better-sqlite3 (WAL mode), Supabase Auth / Database
-- **Tooling**: Concurrently, TypeScript 5.8
-
+`npm run data:remove-demo` backs up SQLite locally and removes known fixture accounts and records. It preserves real accounts. The local cleanup has been run. Backups may contain personal data and must be protected. It does not delete cloud authentication accounts.

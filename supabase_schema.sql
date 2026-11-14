@@ -6,16 +6,16 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. Drop existing tables if re-running (safe cascade)
-DROP TABLE IF EXISTS audit_logs CASCADE;
-DROP TABLE IF EXISTS whatsapp_logs CASCADE;
-DROP TABLE IF EXISTS verification_logs CASCADE;
-DROP TABLE IF EXISTS escrow_transactions CASCADE;
-DROP TABLE IF EXISTS tasks CASCADE;
-DROP TABLE IF EXISTS parents_profile CASCADE;
-DROP TABLE IF EXISTS partners_profile CASCADE;
-DROP TABLE IF EXISTS clients_profile CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS security_settings CASCADE;
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
+-- Existing tables must be migrated, never dropped.
 
 -- 3. Core Users Table
 CREATE TABLE users (
@@ -226,12 +226,12 @@ CREATE TABLE family_members (
 
 -- Security Defaults (PIN: 849201, Geofence: 150m)
 INSERT INTO security_settings (key, value) VALUES 
-  ('escrow_release_pin', '849201'),
+  ('escrow_release_pin', ''),
   ('geofence_tolerance_meters', '150'),
   ('emergency_escrow_freeze', '0');
 
 -- ========================================================
--- ENABLE ROW LEVEL SECURITY (RLS) WITH OPEN ACCESS POLICIES
+-- ENABLE ROW LEVEL SECURITY (RLS) FOR SERVER-ONLY ACCESS
 -- ========================================================
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients_profile ENABLE ROW LEVEL SECURITY;
@@ -251,20 +251,20 @@ ALTER TABLE task_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE family_members ENABLE ROW LEVEL SECURITY;
 
 -- Allow full access for anon key and authenticated users
-CREATE POLICY "Allow public read/write on users" ON users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on clients_profile" ON clients_profile FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on parents_profile" ON parents_profile FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on partners_profile" ON partners_profile FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on tasks" ON tasks FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on escrow_transactions" ON escrow_transactions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on verification_logs" ON verification_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on whatsapp_logs" ON whatsapp_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on security_settings" ON security_settings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on parent_vitals" ON parent_vitals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on parent_medications" ON parent_medications FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on medical_vault_documents" ON medical_vault_documents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on emergency_events" ON emergency_events FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on task_reviews" ON task_reviews FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read/write on family_members" ON family_members FOR ALL USING (true) WITH CHECK (true);
+REVOKE ALL ON TABLE users FROM anon, authenticated;
+REVOKE ALL ON TABLE clients_profile FROM anon, authenticated;
+REVOKE ALL ON TABLE parents_profile FROM anon, authenticated;
+REVOKE ALL ON TABLE partners_profile FROM anon, authenticated;
+REVOKE ALL ON TABLE tasks FROM anon, authenticated;
+REVOKE ALL ON TABLE escrow_transactions FROM anon, authenticated;
+REVOKE ALL ON TABLE verification_logs FROM anon, authenticated;
+REVOKE ALL ON TABLE whatsapp_logs FROM anon, authenticated;
+REVOKE ALL ON TABLE audit_logs FROM anon, authenticated;
+REVOKE ALL ON TABLE security_settings FROM anon, authenticated;
+REVOKE ALL ON TABLE parent_vitals FROM anon, authenticated;
+REVOKE ALL ON TABLE parent_medications FROM anon, authenticated;
+REVOKE ALL ON TABLE medical_vault_documents FROM anon, authenticated;
+REVOKE ALL ON TABLE emergency_events FROM anon, authenticated;
+REVOKE ALL ON TABLE task_reviews FROM anon, authenticated;
+REVOKE ALL ON TABLE family_members FROM anon, authenticated;
 

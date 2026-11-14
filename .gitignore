@@ -54,3 +54,7 @@ Thumbs.db
 .gemini/
 .codex/
 
+
+# Local backups and verification artifacts (may contain private records)
+backups/
+artifacts/

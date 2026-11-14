@@ -42,49 +42,10 @@ async function checkSupabaseHealth() {
       }
       return { connected: false, error: error.message };
     }
-    return { connected: true, tablesReady: true, message: 'Supabase cloud database fully connected and synchronized.' };
+    return { connected: true, tablesReady: true, message: 'Supabase connection and core tables verified. Operational records are stored in local SQLite.' };
   } catch (err) {
     return { connected: false, error: err.message };
   }
 }
 
-// Upload forensic proof to Supabase Storage Bucket
-async function uploadToSupabaseStorage(buffer, filename, contentType = 'image/jpeg') {
-  if (!supabaseAdmin) return null;
-
-  try {
-    const bucketName = 'verification-proofs';
-    
-    // Ensure bucket exists (public read)
-    const { data: buckets } = await supabaseAdmin.storage.listBuckets();
-    const bucketExists = buckets?.some((b) => b.name === bucketName);
-    if (!bucketExists) {
-      await supabaseAdmin.storage.createBucket(bucketName, { public: true });
-    }
-
-    const { data, error } = await supabaseAdmin.storage
-      .from(bucketName)
-      .upload(filename, buffer, { contentType, upsert: true });
-
-    if (error) {
-      console.warn('[SUPABASE STORAGE WARN]', error.message);
-      return null;
-    }
-
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from(bucketName)
-      .getPublicUrl(filename);
-
-    return publicUrlData.publicUrl;
-  } catch (err) {
-    console.warn('[SUPABASE STORAGE FAILED]', err.message);
-    return null;
-  }
-}
-
-module.exports = {
-  supabaseAdmin,
-  isSupabaseConfigured,
-  checkSupabaseHealth,
-  uploadToSupabaseStorage,
-};
+module.exports = {supabaseAdmin, isSupabaseConfigured, checkSupabaseHealth};

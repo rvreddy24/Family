@@ -81,23 +81,6 @@ export function getApiBaseUrl(): string {
         // DOM query fallback
       }
 
-      // 4. Query param & sessionStorage override for staging / QA testing across domains
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const queryApi = params.get('apiUrl') || params.get('api_base');
-        if (queryApi && queryApi.trim() !== '') {
-          const cleanQuery = queryApi.trim().replace(/\/+$/, '');
-          sessionStorage.setItem('FAMILYHUBS_API_OVERRIDE', cleanQuery);
-          return cleanQuery;
-        }
-        const sessionApi = sessionStorage.getItem('FAMILYHUBS_API_OVERRIDE');
-        if (sessionApi && sessionApi.trim() !== '') {
-          return sessionApi.trim().replace(/\/+$/, '');
-        }
-      } catch {
-        // sessionStorage fallback
-      }
-
       const { protocol, hostname, port, host } = window.location;
       const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname === '::1';
 
@@ -112,7 +95,7 @@ export function getApiBaseUrl(): string {
       }
       // Running through Vite dev servers on port 3001, 3002, 3003 -> target backend on port 4000
       if (port === '3001' || port === '3002' || port === '3003') {
-        return `${protocol}//${hostname}:4000`;
+        return `${protocol}//${host}`;
       }
 
       return `${protocol}//${host}`;
