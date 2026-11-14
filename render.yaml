@@ -1,0 +1,39 @@
+# Review the Render sync plan before approval: this uses paid compute + persistent storage.
+services:
+  - type: web
+    name: familyhubs
+    runtime: node
+    repo: https://github.com/rvreddy24/Family
+    branch: main
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run typecheck
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: 'off'
+    disk:
+      name: familyhubs-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: 'true'
+      - key: DB_PATH
+        value: /var/data/familyhubs.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: CORS_ORIGIN
+        value: https://familyhubs.in,https://www.familyhubs.in
+      - key: WHATSAPP_AUTOMATIC_ENABLED
+        value: 'false'
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

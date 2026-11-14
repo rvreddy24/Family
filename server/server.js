@@ -240,15 +240,19 @@ function broadcastEvent(type, payload, options = {}) {
 // ---------------- REST API ROUTES ----------------
 
 // Health check
-app.get('/api/health', async (req, res) => {
-  const supabaseStatus = await checkSupabaseHealth();
-  res.json({
+app.get('/api/health', (req, res) => {
+  try {
+    require('./db').db.prepare('SELECT 1').get();
+    res.json({
     status: 'ONLINE',
     uptime: process.uptime(),
     activeSockets: activeClients.size,
-    supabase: supabaseStatus,
+    database: 'connected',
     timestamp: new Date().toISOString(),
-  });
+    });
+  } catch {
+    res.status(503).json({status:'UNAVAILABLE'});
+  }
 });
 
 // Supabase Connection Status
