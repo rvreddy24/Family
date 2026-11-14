@@ -1126,7 +1126,7 @@ export default function Portal({ role }: { role: Role }) {
                   <p>
                     {integrations.whatsapp
                       ? "Provider connected. Status updates come from signed delivery webhooks."
-                      : "Setup needed: add WhatsApp Business credentials and an approved template."}
+                      : "Manual mode: open WhatsApp to review and send each care update yourself."}
                   </p>
                 </div>
                 <Phone size={20} />
@@ -1140,7 +1140,7 @@ export default function Portal({ role }: { role: Role }) {
                     <span>{w.recipient_phone}</span>
                     <span className="status">
                       {!integrations.whatsapp && w.status === "QUEUED"
-                        ? "Pending provider setup"
+                        ? "Manual send available"
                         : label(w.status)}
                     </span>
                     {w.error_code && <small>{label(w.error_code)}</small>}

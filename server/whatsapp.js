@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { db } = require("./db");
 function configured() {
   return Boolean(
+    process.env.WHATSAPP_AUTOMATIC_ENABLED === "true" &&
     process.env.WHATSAPP_ACCESS_TOKEN &&
     process.env.WHATSAPP_PHONE_NUMBER_ID &&
     process.env.WHATSAPP_TEMPLATE_NAME &&

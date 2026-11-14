@@ -6,6 +6,7 @@ module.exports = async ({ db, parent, base }) => {
   const original = global.fetch;
   let sent = 0;
   try {
+    process.env.WHATSAPP_AUTOMATIC_ENABLED = "true";
     process.env.WHATSAPP_ACCESS_TOKEN = "test-token";
     process.env.WHATSAPP_PHONE_NUMBER_ID = "12345";
     process.env.WHATSAPP_TEMPLATE_NAME = "care_update";
@@ -24,6 +25,10 @@ module.exports = async ({ db, parent, base }) => {
         json: async () => ({ messages: [{ id: `test-message-${++sent}` }] }),
       };
     };
+    process.env.WHATSAPP_AUTOMATIC_ENABLED = "false";
+    await wa.deliverQueued();
+    assert.equal(sent, 0, "manual mode never calls the provider");
+    process.env.WHATSAPP_AUTOMATIC_ENABLED = "true";
     await wa.deliverQueued();
     assert.equal(sent, 0, "no message sent without consent");
     db.prepare(
