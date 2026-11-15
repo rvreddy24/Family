@@ -119,14 +119,15 @@ const listen = (server) =>
     process.env.SUPABASE_SERVICE_ROLE_KEY = "fixture-service";
     const data = require("../server/db");
     db = data.db;
-    data.initDatabase();
-    data.registerClientAccount({
+    await data.initDatabase();
+    await db.prepare("INSERT INTO users (id,role,email,phone,full_name) VALUES ('admin-fixture','ADMIN','admin@familyhubs.in','1234567890','Operations fixture')").run();
+    await data.registerClientAccount({
       email: "client@example.com",
       fullName: "Client fixture",
       phone: "1234567890",
       countryResidence: "India",
     });
-    data.registerPartnerAccount({
+    await data.registerPartnerAccount({
       email: "partner@example.com",
       fullName: "Partner fixture",
       phone: "1234567890",
@@ -135,7 +136,7 @@ const listen = (server) =>
     const app = express();
     app.set("trust proxy", "loopback");
     app.use(express.json());
-    require("../server/access").install(app);
+    await require("../server/access").install(app);
     server = http.createServer(app);
     await listen(server);
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -253,7 +254,7 @@ const listen = (server) =>
     const flow = await begin("CLIENT");
     const csrf = await request(flow.callback + "&code=forged");
     check(csrf.status, 403, "callback requires same-browser state cookie");
-    db.prepare("UPDATE google_oauth_flows SET expires=0").run();
+    await db.prepare("UPDATE google_oauth_flows SET expires=0").run();
     const expired = await request(flow.callback + "&code=expired", {
       headers: { Cookie: flow.cookie },
     });
@@ -292,6 +293,6 @@ const listen = (server) =>
   } finally {
     if (server) await new Promise((resolve) => server.close(resolve));
     await new Promise((resolve) => mock.close(resolve));
-    db?.close();
+    await db?.close();
   }
 })();

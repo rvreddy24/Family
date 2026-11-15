@@ -10,15 +10,15 @@
 
 ## Prepared deployment
 
-render.yaml defines one new Node web service in Singapore, with a 1 GB persistent disk for SQLite and private uploads. It uses the smallest paid compute plan compatible with an attached disk. Paid provisioning requires the owner's approval of the actual Render plan. No infrastructure is created by committing the YAML alone; the initial Blueprint sync must be approved.
+render.yaml defines one new Free Node web service in Singapore. Operational records and sessions use Supabase PostgreSQL (`DATA_BACKEND=postgres`); proof photos use a private Supabase Storage bucket. There is no Render disk or paid database. Free compute sleeps when idle and shares the workspace's free-hour allowance; it is unsuitable for guaranteed emergency response. No infrastructure is created by committing the YAML alone; the initial Blueprint sync must be approved.
 
 Automatic infrastructure sync and automatic application deploys should remain disabled during initial setup. Create the Blueprint with existingResources=create_new, never adopt the old services. No domains are attached in the first plan: verify the new onrender.com service before changing DNS or any existing domain association.
 
-Supply SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in Render's secret environment configuration. Do not commit .env or expose values in chat. No payment or automatic WhatsApp credentials are needed. The health check reads local SQLite without waiting for Supabase's network response.
+Supply DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in Render's secret environment configuration. Do not commit .env or expose values in chat. No payment or automatic WhatsApp credentials are needed. PostgreSQL TLS verifies the server using the official Supabase CA in server/certs/supabase-ca.crt; an alternative CA can be supplied in DATABASE_CA_CERT.
 
 ## Domain cutover after service verification
 
-1. Verify the new service's build is live, all three portal paths render, anonymous APIs reject access, and data uses /var/data.
+1. Verify the new service's build is live, all three portal paths render, anonymous APIs reject access, and records/photos persist in Supabase across restarts.
 2. In the new service's Custom Domains, add familyhubs.in. If it is attached to the suspended legacy service, review that exact domain association before moving it. Render also creates the www association.
 3. In Cloudflare DNS, replace the apex A record with a flattened CNAME @ pointing to the new service's actual Render hostname. Point www to that same hostname. Use DNS only while Render verifies the records and provisions its certificate. Preserve unrelated records, especially email MX/TXT.
 4. Verify the domain and certificate in Render; then confirm HTTPS works before enabling Cloudflare proxying. Use Full (strict) with a valid Render origin certificate. Never use Flexible mode.
@@ -28,4 +28,4 @@ Supply SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in Render's
 
 ## Data and backups
 
-The local SQLite database contains the owner's real account and is not included in Git. New hosting initially has a fresh database. Decide whether to migrate real local records before accepting production writes; use a database-native backup and a secure transfer, not a public download route. Keep an application-consistent backup off the Render disk. Disk-backed deployment is single-instance and redeploys briefly interrupt service.
+Local development defaults to SQLite. Before cloud migration, create a SQLite-native backup and pause local writes. Run scripts/migrate_local_to_postgres.js only with the verified DATABASE_URL and private storage configured. It copies records into separate fh_ tables, preserves local records, skips existing remote keys and checks photo contents before publishing metadata. Review counts and permissions before accepting cloud writes. Keep protected off-site database and private-object backups; free hosting is not a backup policy. Use one application instance because throttling remains in memory.

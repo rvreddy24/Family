@@ -9,6 +9,7 @@ process.env.DB_PATH = path.join(dir, "test.db");
 const data = require("../server/db");
 data.initDatabase();
 const db = data.db;
+db.prepare("INSERT INTO users (id,role,email,phone,full_name) VALUES ('admin-fixture','ADMIN','admin@familyhubs.in','1234567890','Operations fixture')").run();
 const tokens = {};
 for (const [id, role] of [
   ["client-a", "CLIENT"],

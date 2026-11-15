@@ -10,7 +10,7 @@
     "start": "node server/server.js",
     "start:prod": "npm run build && node server/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/production_security.js && node tests/google_auth.js",
+    "test": "node tests/production_security.js && node tests/google_auth.js && node tests/postgres_backend.js && node tests/google_auth_postgres.js && node tests/private_storage.js",
     "test:cases": "node tests/case_studies_runner.js",
     "test:master": "node tests/master_functional_e2e.js",
     "test:domain": "node tests/test_domain_routing.js",
@@ -29,7 +29,9 @@
     "test:legacy": "node tests/test_suite.js",
     "test:ui": "node tests/run_ui.js",
     "data:remove-demo": "node scripts/remove_demo_data.js",
-    "test:google": "node tests/google_auth.js"
+    "test:google": "node tests/google_auth.js",
+    "test:postgres": "node tests/postgres_backend.js",
+    "db:generate-postgres": "node scripts/async_backend.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -42,6 +44,7 @@
     "framer-motion": "^12.4.10",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
@@ -50,6 +53,11 @@
     "ws": "^8.18.1"
   },
   "devDependencies": {
+    "@babel/generator": "^7.29.14",
+    "@babel/parser": "^7.29.14",
+    "@babel/traverse": "^7.29.14",
+    "@babel/types": "^7.29.14",
+    "@electric-sql/pglite": "^0.5.16",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.0.9",
     "@types/canvas-confetti": "^1.9.0",

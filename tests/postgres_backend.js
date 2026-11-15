@@ -1,0 +1,47 @@
+const assert=require('node:assert/strict');
+const {PGlite}=require('@electric-sql/pglite');
+const adapter=require('../server/postgres-db');
+(async()=>{
+ assert.equal(adapter.sqlForPostgres("SELECT * FROM users WHERE full_name='users' AND email=?"),"SELECT * FROM fh_users WHERE full_name='users' AND email=$1");
+ const pg=new PGlite();
+ try{
+  await pg.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
+  const query=async(sql,params)=>{
+   const result=(!params && sql.includes(';')) ? (await pg.exec(sql)).at(-1) : await pg.query(sql,params);
+   return {...result,rowCount:result.affectedRows||0};
+  };
+  const client={query,release(){}};
+  adapter.connect=()=>adapter.createDatabase({query,connect:async()=>client,end:()=>pg.close()});
+  const data=require('../server/db-postgres');
+  await data.initDatabase();
+  const account=await data.registerClientAccount({email:'fixture@example.com',fullName:'Fixture',phone:'123',countryResidence:'India'});
+  const user=await data.getUserByEmail('fixture@example.com');
+  assert.equal(user.role,'CLIENT');
+  const parent=await data.createParent({clientId:user.id,parentName:'Fixture parent',primaryPhone:'123',locality:'Fixture',fullAddress:'Fixture',coordinatesLat:17,coordinatesLng:78});
+  const task=await data.createTask({clientId:user.id,parentId:parent.id,category:'ERRANDS',title:'Cloud fixture',instructions:'Test',scheduledAt:new Date().toISOString(),escrowAmount:0});
+  assert.equal((await data.getTasks({clientId:user.id})).length,1);
+  const partner=await data.registerPartnerAccount({email:'partner@example.com',fullName:'Partner',phone:'123',operatingRegion:'Fixture'});
+  const partnerUser=await data.getUserByEmail('partner@example.com');
+  await data.assignPartner(task.id,partnerUser.id,'admin');
+  assert.equal((await data.partnerAcceptTask(task.id,partnerUser.id)).status,'ACCEPTED');
+  await assert.rejects(()=>data.partnerAcceptTask(task.id,partnerUser.id),{code:'TASK_CONFLICT'});
+  await assert.rejects(()=>data.assignPartner(task.id,partnerUser.id,'admin'),{code:'TASK_CONFLICT'});
+  assert.equal((await data.submitVerification({taskId:task.id,partnerId:partnerUser.id,stage:'ARRIVAL_CHECKIN',selfieImageUrl:'/uploads/fixture.jpg',latitude:17,longitude:78})).status,'IN_PROGRESS');
+  await assert.rejects(()=>data.submitVerification({taskId:task.id,partnerId:partnerUser.id,stage:'ARRIVAL_CHECKIN',selfieImageUrl:'/uploads/fixture.jpg',latitude:17,longitude:78}),{code:'TASK_CONFLICT'});
+  assert.equal((await data.db.prepare('SELECT COUNT(*) AS count FROM verification_logs WHERE task_id=?').get(task.id)).count,1);
+  assert.equal((await data.submitVerification({taskId:task.id,partnerId:partnerUser.id,stage:'TASK_COMPLETION',selfieImageUrl:'/uploads/fixture.jpg',latitude:17,longitude:78})).status,'VERIFICATION_SUBMITTED');
+  await data.addVital({parentId:parent.id,recordedBy:user.id,bloodPressureSys:120,bloodPressureDia:80});
+  assert.equal((await data.getVitals(parent.id)).length,1);
+  await data.addMedication({parentId:parent.id,medicineName:'Prescribed fixture',dosage:'As prescribed',frequency:'Daily'});
+  assert.equal((await data.getMedications(parent.id)).length,1);
+  await data.addVaultDocument({parentId:parent.id,title:'Fixture',fileUrl:'https://example.com/private',category:'OTHER',uploadedBy:user.id});
+  assert.equal((await data.getVaultDocuments(parent.id)).length,1);
+  const alert=await data.createEmergencyEvent({parentId:parent.id,triggeredByUserId:user.id,notes:'Fixture'});
+  assert.equal((await data.resolveEmergencyEvent(alert.id,{resolvedBy:'admin',resolutionNotes:'Fixture'})).status,'RESOLVED');
+  const before=(await data.getTasks({clientId:user.id})).length;
+  await assert.rejects(()=>data.db.transaction(async()=>{await data.db.prepare('DELETE FROM tasks WHERE id=?').run(task.id);throw Error('Rollback fixture')})());
+  assert.equal((await data.getTasks({clientId:user.id})).length,before);
+  const rights=await pg.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'fh_%' AND rowsecurity=false");assert.equal(rights.rows.length,0);
+  console.log('PASS PostgreSQL: registration, parents, booking, dispatch, verified visit, health records, documents, emergencies, transaction rollback and private table RLS.');
+ }catch(error){console.error(error);process.exitCode=1}finally{await pg.close()}
+})();

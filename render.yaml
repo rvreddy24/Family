@@ -1,4 +1,4 @@
-# Review the Render sync plan before approval: this uses paid compute + persistent storage.
+# Free compute. Database and private photos persist in Supabase, not on Render.
 services:
   - type: web
     name: familyhubs
@@ -6,16 +6,12 @@ services:
     repo: https://github.com/rvreddy24/Family
     branch: main
     region: singapore
-    plan: 0.5c-512mb
+    plan: free
     numInstances: 1
     buildCommand: npm ci --include=dev && npm run typecheck
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: 'off'
-    disk:
-      name: familyhubs-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: '24'
@@ -23,10 +19,12 @@ services:
         value: production
       - key: TRUST_PROXY
         value: 'true'
-      - key: DB_PATH
-        value: /var/data/familyhubs.db
-      - key: UPLOAD_DIR
-        value: /var/data/uploads
+      - key: DATA_BACKEND
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: PRIVATE_STORAGE_BUCKET
+        value: familyhubs-proofs
       - key: CORS_ORIGIN
         value: https://familyhubs.in,https://www.familyhubs.in
       - key: WHATSAPP_AUTOMATIC_ENABLED

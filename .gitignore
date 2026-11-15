@@ -33,6 +33,7 @@ scratch/
 .env
 .env.local
 .env.*.local
+.env.*.tmp
 
 # Editor directories and files
 .vscode/*

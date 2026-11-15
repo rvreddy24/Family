@@ -19,7 +19,7 @@ For a single-port deployment, run `npm run build` then `npm start`. The three po
 - Optional device location sharing and timestamped partner location views.
 - WhatsApp queue, approved-template delivery, signed status webhooks, explicit consent, manual click-to-chat links and operations delivery history.
 
-Operational data is stored in SQLite with WAL. Supabase supplies authentication. The app does not claim that local records are synchronized to cloud tables. Private proof files are served only to operations, their uploader and the assigned family. Persist both the database and upload directory.
+Local development stores operational data in SQLite with WAL. Free Render hosting uses `DATA_BACKEND=postgres`, a Supabase transaction-pooler `DATABASE_URL`, and private Supabase Storage for proof photos. Supabase supplies authentication. Private proofs are served only after ownership checks. Follow DEPLOYMENT.md to migrate local records and configure durable cloud storage before deployment.
 
 ## Verification
 
