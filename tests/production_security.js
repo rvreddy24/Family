@@ -446,6 +446,11 @@ function check(actual, expected, message) {
     let meStatus=200;
     for(let i=0;i<24;i++) meStatus=(await request('/api/auth/me',tokens['client-a'])).status;
     check(meStatus,200,'session checks do not exhaust login rate limits');
+    const consentParent=await request('/api/parents',tokens['client-a'],{parentName:'Consent fixture',primaryPhone:'0000000000',locality:'Test',fullAddress:'Synthetic test address',coordinatesLat:17,coordinatesLng:78,whatsappConsent:true});
+    check(consentParent.data.whatsapp_consent,1,'parent save returns the actual WhatsApp consent');
+    const consentEdit=await request('/api/parents/'+consentParent.data.id,tokens['client-a'],{parentName:'Consent fixture',primaryPhone:'0000000000',locality:'Test',fullAddress:'Synthetic test address',coordinatesLat:17,coordinatesLng:78,whatsappConsent:false},'PUT');
+    check(consentEdit.data.whatsapp_consent,0,'parent edit returns revoked WhatsApp consent');
+    await request('/api/parents/'+consentParent.data.id,tokens['client-a'],{},'DELETE');
     check(before.data.user.id, "client-a", "session resolves server identity");
     await request("/api/auth/logout", tokens["client-a"], {});
     check(

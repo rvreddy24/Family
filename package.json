@@ -34,6 +34,7 @@
     "db:generate-postgres": "node scripts/async_backend.js",
     "qa:provision": "node scripts/provision_qa_accounts.js",
     "qa:live": "node tests/live_production_qa.js",
+    "qa:ui": "node tests/live_ui_qa.js",
     "qa:cleanup": "node scripts/cleanup_qa_accounts.js"
   },
   "dependencies": {

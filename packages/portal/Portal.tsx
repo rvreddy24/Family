@@ -1899,14 +1899,16 @@ function TaskList({ tasks, role, busy, action, open }: any) {
             </p>
             <p>{t.instructions}</p>
             {t.verification_logs?.map((v: any) => (
+              <React.Fragment key={v.id}>
               <a
-                key={v.id}
                 href={v.selfie_image_url}
                 target="_blank"
                 rel="noreferrer"
               >
                 {label(v.stage)} photo · {distance(v.distance_from_target_meters)} · {v.geofence_passed === 0 ? "Outside home area" : label(v.review_status || "PENDING")}
               </a>
+              {v.review_status === "REJECTED" && v.rejection_reason && <p>Requested change: {v.rejection_reason}</p>}
+              </React.Fragment>
             ))}
           </div>
           <div className="task-state">

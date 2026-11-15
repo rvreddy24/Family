@@ -175,6 +175,7 @@ module.exports = async ({ base, tokens, admin, db }) => {
         await expect(page.getByRole('dialog')).toHaveCount(0);
         await expect(review.locator('.status')).toHaveText('In progress');
         expect(db.prepare('SELECT review_status FROM verification_logs WHERE id=?').get(proofId).review_status).toBe('REJECTED');
+        await expect(review.getByText('Requested change: UI QA: completion photo is unclear; please retake it.',{exact:true})).toBeVisible();
         await page
           .getByRole("button", { name: "Care partners", exact: true })
           .click();

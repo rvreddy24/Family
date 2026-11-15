@@ -89,6 +89,7 @@ async function initDatabase() {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       reviewed_by_admin TEXT,
       review_status TEXT NOT NULL DEFAULT 'PENDING' CHECK(review_status IN ('PENDING', 'APPROVED', 'REJECTED', 'FLAGGED_OUT_OF_BOUNDS')),
+      rejection_reason TEXT,
       geofence_passed INTEGER DEFAULT 1,
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (partner_id) REFERENCES partners_profile(user_id),
@@ -236,6 +237,11 @@ async function initDatabase() {
   `).run();
 
   // Ensure whatsapp_phone exists in parents_profile
+  try {
+    await db.prepare('ALTER TABLE verification_logs ADD COLUMN rejection_reason TEXT').run();
+  } catch (error) {
+    if (error.code !== '42701' && !/duplicate column name/i.test(error.message)) throw error;
+  }
   try {
     await db.prepare('ALTER TABLE parents_profile ADD COLUMN whatsapp_phone TEXT').run();
   } catch {}
@@ -828,9 +834,9 @@ async function rejectVerification(taskId, logId, adminId, reason) {
       code: 'TASK_CONFLICT'
     });
     const reviewed = await db.prepare(`
-      UPDATE verification_logs SET review_status = 'REJECTED', reviewed_by_admin = ?
+      UPDATE verification_logs SET review_status = 'REJECTED', reviewed_by_admin = ?, rejection_reason = ?
       WHERE id = ? AND task_id = ? AND review_status IN ('PENDING','FLAGGED_OUT_OF_BOUNDS')
-    `).run(adminId, logId, taskId);
+    `).run(adminId, reason.trim(), logId, taskId);
     if (!reviewed.changes) throw Object.assign(new Error('Proof review changed.'), {
       code: 'TASK_CONFLICT'
     });

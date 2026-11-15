@@ -568,7 +568,7 @@
     try {
       const newParent = await createParent(req.body);
       await require('./db').db.prepare('UPDATE parents_profile SET whatsapp_consent=? WHERE id=?').run(req.body.whatsappConsent === true ? 1 : 0, newParent.id);
-      res.status(201).json(newParent);
+      res.status(201).json({...newParent,whatsapp_consent:req.body.whatsappConsent === true ? 1 : 0});
     } catch (err) {
       res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
@@ -584,7 +584,7 @@
           error: 'Parent residence not found.'
         });
       }
-      res.json(updated);
+      res.json({...updated,whatsapp_consent:req.body.whatsappConsent === true ? 1 : 0});
     } catch (err) {
       res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
