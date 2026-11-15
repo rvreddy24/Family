@@ -5,7 +5,7 @@ const parser=require('@babel/parser');
 const traverse=require('@babel/traverse').default;
 const generate=require('@babel/generator').default;
 const t=require('@babel/types');
-const pure=new Set(['calculateHaversine','formatTaskRow']);
+const pure=new Set(['calculateHaversine']);
 const business=parser.parse(fs.readFileSync('server/db-sqlite.js','utf8'));
 const names=new Set();
 traverse(business,{FunctionDeclaration(p){if(!pure.has(p.node.id.name))names.add(p.node.id.name)}});
@@ -17,6 +17,12 @@ function transform(source){
  traverse(ast,{CallExpression:{exit(p){
   if(t.isAwaitExpression(p.parent))return;
   const c=p.node.callee;
+  // Array.map does not resolve async mappers. Resolve the complete list before
+  // returning it, otherwise Express serializes each pending task as {}.
+  if(t.isMemberExpression(c)&&c.property.name==='map'&&p.node.arguments.length===1&&t.isIdentifier(p.node.arguments[0])&&names.has(p.node.arguments[0].name)){
+   const owner=p.getFunctionParent();if(!owner)throw Error('Async mapping requires a function.');
+   owner.node.async=true;p.replaceWith(t.awaitExpression(t.callExpression(t.memberExpression(t.identifier('Promise'),t.identifier('all')),[p.node])));p.skip();return;
+  }
   const direct=t.isIdentifier(c)&&(names.has(c.name)||transactional.has(c.name));
   const member=t.isMemberExpression(c)&&(c.property.name==='exec'&&t.isIdentifier(c.object,{name:'db'})||c.property.name==='close'&&t.isIdentifier(c.object,{name:'db'})||['get','all','run'].includes(c.property.name)&&t.isCallExpression(c.object)&&t.isMemberExpression(c.object.callee)&&c.object.callee.property.name==='prepare'||t.isIdentifier(c.object,{name:'access'})&&c.property.name==='session'||t.isIdentifier(c.object,{name:'whatsapp'})&&['init','start'].includes(c.property.name)||t.isCallExpression(c.object)&&c.property.name==='install');
   if(!direct&&!member)return;

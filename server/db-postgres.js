@@ -406,7 +406,7 @@ async function getTasks(filter = {}) {
   }
   query += ` ORDER BY t.created_at DESC`;
   const rows = await db.prepare(query).all(...params);
-  return rows.map(formatTaskRow);
+  return await Promise.all(rows.map(formatTaskRow));
 }
 async function getTaskById(id) {
   const query = `
@@ -446,7 +446,7 @@ async function getTaskById(id) {
   `;
   const row = await db.prepare(query).get(id, id);
   if (!row) return null;
-  return formatTaskRow(row);
+  return await formatTaskRow(row);
 }
 async function formatTaskRow(r) {
   const verifications = await db.prepare(`
@@ -538,20 +538,22 @@ async function createTask({
   title,
   instructions,
   scheduledAt,
-  escrowAmount = 50.0
+  escrowAmount = 0
 }) {
   const taskId = 'tsk_' + Math.random().toString(36).substring(2, 9);
-  const randNum = Math.floor(10000 + Math.random() * 90000);
-  const trackingCode = `FH-${randNum}`;
+  const trackingCode = `FH-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
   const now = new Date().toISOString();
   const insert = db.transaction(async () => {
+    const parent = await db.prepare('SELECT client_id, primary_phone, parent_name FROM parents_profile WHERE id = ?').get(parentId);
+    if (!parent || parent.client_id !== clientId) throw Object.assign(new Error('Choose a parent belonging to this family.'), {
+      code: 'INVALID_INPUT'
+    });
     await db.prepare(`
       INSERT INTO tasks (id, tracking_code, client_id, parent_id, category, title, instructions, status, scheduled_at, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING_OPS_REVIEW', ?, ?, ?)
     `).run(taskId, trackingCode, clientId, parentId, category, title, instructions, scheduledAt || now, now, now);
 
     // Initial WhatsApp message to parent
-    const parent = await db.prepare('SELECT primary_phone, parent_name FROM parents_profile WHERE id = ?').get(parentId);
     if (parent) {
       await db.prepare(`
         INSERT INTO whatsapp_logs (id, task_id, recipient_phone, template_name, status, message_preview, sent_at)
@@ -809,27 +811,42 @@ async function approveEscrow(taskId, adminId = 'admin', enteredPin = '') {
   return await getTaskById(taskId);
 }
 async function rejectVerification(taskId, logId, adminId, reason) {
-  await db.prepare(`
-    UPDATE verification_logs
-    SET review_status = 'REJECTED', reviewed_by_admin = ?
-    WHERE id = ?
-  `).run(adminId, logId);
-  await db.prepare(`
-    UPDATE tasks
-    SET status = 'IN_PROGRESS'
-    WHERE id = ?
-  `).run(taskId);
-  await addAuditLog({
-    eventType: 'VERIFICATION_REJECTED_RETAKE_REQUESTED',
-    actorId: adminId,
-    actorRole: 'ADMIN',
-    severity: 'MEDIUM',
-    details: {
-      taskId,
-      logId,
-      reason
-    }
+  if (typeof reason !== 'string' || !reason.trim()) throw Object.assign(new Error('A review reason is required.'), {
+    code: 'INVALID_INPUT'
   });
+  const task = await db.prepare('SELECT status FROM tasks WHERE id = ?').get(taskId);
+  const proof = await db.prepare('SELECT stage, review_status FROM verification_logs WHERE id = ? AND task_id = ?').get(logId, taskId);
+  const allowed = proof?.stage === 'ARRIVAL_CHECKIN' ? ['ACCEPTED', 'IN_PROGRESS'] : ['IN_PROGRESS', 'VERIFICATION_SUBMITTED'];
+  if (!task || !proof || !allowed.includes(task.status) || !['PENDING', 'FLAGGED_OUT_OF_BOUNDS'].includes(proof.review_status)) throw Object.assign(new Error('This proof is no longer awaiting review.'), {
+    code: 'TASK_CONFLICT'
+  });
+  const tx = db.transaction(async () => {
+    const changed = await db.prepare(`
+      UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = ?
+    `).run(proof.stage === 'ARRIVAL_CHECKIN' ? 'ACCEPTED' : 'IN_PROGRESS', new Date().toISOString(), taskId, task.status);
+    if (!changed.changes) throw Object.assign(new Error('Task stage changed.'), {
+      code: 'TASK_CONFLICT'
+    });
+    const reviewed = await db.prepare(`
+      UPDATE verification_logs SET review_status = 'REJECTED', reviewed_by_admin = ?
+      WHERE id = ? AND task_id = ? AND review_status IN ('PENDING','FLAGGED_OUT_OF_BOUNDS')
+    `).run(adminId, logId, taskId);
+    if (!reviewed.changes) throw Object.assign(new Error('Proof review changed.'), {
+      code: 'TASK_CONFLICT'
+    });
+    await addAuditLog({
+      eventType: 'VERIFICATION_REJECTED_RETAKE_REQUESTED',
+      actorId: adminId,
+      actorRole: 'ADMIN',
+      severity: 'MEDIUM',
+      details: {
+        taskId,
+        logId,
+        reason: reason.trim()
+      }
+    });
+  });
+  await tx();
   return await getTaskById(taskId);
 }
 async function getParents(clientId) {
@@ -957,10 +974,10 @@ async function getClientProfile(userId) {
   `).get(resolved);
   if (!profile) {
     const user = await getUserById(resolved);
-    if (user) {
+    if (user?.role === 'CLIENT') {
       await db.prepare(`
         INSERT OR IGNORE INTO clients_profile (user_id, country_residence, currency, subscription_tier)
-        VALUES (?, 'United States', 'USD', 'GOLD')
+        VALUES (?, '', 'USD', 'NONE')
       `).run(user.id);
       profile = await db.prepare(`
         SELECT c.*, u.full_name, u.email, u.phone
@@ -995,26 +1012,28 @@ async function getUserById(id) {
 async function registerClientAccount({
   email,
   fullName,
-  phone = '+1 408 555 0100',
-  countryResidence = 'United States',
+  phone = '',
+  countryResidence = '',
   currency = 'USD',
-  subscriptionTier = 'GOLD',
+  subscriptionTier = 'NONE',
   parentName,
   parentPhone,
   parentWhatsappPhone,
-  locality = 'Pan-India',
-  fullAddress = 'India',
-  coordinatesLat = 16.8724,
-  coordinatesLng = 79.5631,
+  locality,
+  fullAddress,
+  coordinatesLat,
+  coordinatesLng,
   medicalNotes = null,
   authProviderId = null
 }) {
-  if (locality.toLowerCase().includes('miryalaguda') || fullAddress.toLowerCase().includes('miryalaguda')) {
-    coordinatesLat = 16.8724;
-    coordinatesLng = 79.5631;
-  }
+  if (parentName && (!parentName.trim() || !parentPhone?.trim() || !locality?.trim() || !fullAddress?.trim() || !Number.isFinite(coordinatesLat) || !Number.isFinite(coordinatesLng) || Math.abs(coordinatesLat) > 90 || Math.abs(coordinatesLng) > 180)) throw Object.assign(new Error('Provide parent contact, address and real home coordinates.'), {
+    code: 'INVALID_INPUT'
+  });
   const existing = await getUserByEmail(email);
   if (existing) {
+    if (existing.role !== 'CLIENT') throw Object.assign(new Error('This email belongs to a different portal.'), {
+      code: 'INVALID_INPUT'
+    });
     return await getClientProfile(existing.id);
   }
   const userId = 'usr_' + Math.random().toString(36).substring(2, 9);
@@ -1106,11 +1125,9 @@ async function updateClientProfile(userId, {
           WHERE id = ?
         `).run(parentName ? parentName.trim() : null, parentPrimaryPhone ? parentPrimaryPhone.trim() : null, parentWhatsappPhone ? parentWhatsappPhone.trim() : null, parentLocality ? parentLocality.trim() : null, parentAddress ? parentAddress.trim() : null, parentNotes !== undefined ? parentNotes : null, existingParent.id);
       } else {
-        const parentId = 'prt_' + Math.random().toString(36).substring(2, 9);
-        await db.prepare(`
-          INSERT INTO parents_profile (id, client_id, parent_name, primary_phone, whatsapp_phone, locality, full_address, coordinates_lat, coordinates_lng, medical_notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 20.5937, 78.9629, ?)
-        `).run(parentId, resolved, parentName ? parentName.trim() : 'Parents in India', parentPrimaryPhone ? parentPrimaryPhone.trim() : phone || '+91 94400 00000', parentWhatsappPhone ? parentWhatsappPhone.trim() : parentPrimaryPhone || phone || '+91 94400 00000', parentLocality ? parentLocality.trim() : 'Pan-India', parentAddress ? parentAddress.trim() : 'Home Residence, India', parentNotes || null);
+        throw Object.assign(new Error('Add a parent with contact, address and home coordinates through the parent form.'), {
+          code: 'INVALID_INPUT'
+        });
       }
     }
     await addAuditLog({
@@ -1136,13 +1153,16 @@ async function updateClientProfile(userId, {
 async function registerPartnerAccount({
   email,
   fullName,
-  phone = '+91 94401 00000',
+  phone = '',
   serviceCategory = 'MEDICAL_TRANSPORT',
-  operatingRegion = 'Miryalaguda Town & Rural Hub',
+  operatingRegion = '',
   authProviderId = null
 }) {
   const existing = await getUserByEmail(email);
   if (existing) {
+    if (existing.role !== 'PARTNER') throw Object.assign(new Error('This email belongs to a different portal.'), {
+      code: 'INVALID_INPUT'
+    });
     return await getPartnerProfile(existing.id);
   }
   const userId = 'usr_' + Math.random().toString(36).substring(2, 9);
@@ -1269,14 +1289,22 @@ async function getMedications(parentId) {
 async function addMedication(data) {
   const id = 'med_' + Math.random().toString(36).substring(2, 9);
   const now = new Date().toISOString();
-  const name = data.medicineName || data.medicine_name || 'Prescription';
-  const time = data.timeOfDay || data.time_of_day || 'Morning (After Breakfast)';
+  const name = data.medicineName || data.medicine_name;
+  if (!name?.trim() || !data.dosage?.trim() || !data.frequency?.trim()) throw Object.assign(new Error('Medicine, prescribed dose and frequency are required.'), {
+    code: 'INVALID_INPUT'
+  });
+  const time = data.timeOfDay || data.time_of_day || null;
   const stock = data.stockRemaining !== undefined ? data.stockRemaining : data.current_stock !== undefined ? data.current_stock : data.stock_remaining;
   const thresh = data.lowStockThreshold !== undefined ? data.lowStockThreshold : data.refill_threshold !== undefined ? data.refill_threshold : data.low_stock_threshold;
+  const quantity = stock === undefined || stock === null ? 0 : Number(stock);
+  const threshold = thresh === undefined || thresh === null ? 7 : Number(thresh);
+  if (!Number.isSafeInteger(quantity) || quantity < 0 || !Number.isSafeInteger(threshold) || threshold < 0) throw Object.assign(new Error('Medication quantities must be non-negative whole numbers.'), {
+    code: 'INVALID_INPUT'
+  });
   await db.prepare(`
     INSERT INTO parent_medications (id, parent_id, medicine_name, dosage, frequency, time_of_day, stock_remaining, low_stock_threshold, instructions, is_active, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-  `).run(id, data.parentId, name, data.dosage || '500mg', data.frequency || 'DAILY', time, Number(stock) || 30, Number(thresh) || 7, data.instructions || null, now);
+  `).run(id, data.parentId, name, data.dosage.trim(), data.frequency.trim(), time, quantity, threshold, data.instructions || null, now);
   return await db.prepare('SELECT * FROM parent_medications WHERE id = ?').get(id);
 }
 async function deleteMedication(medId) {
@@ -1286,7 +1314,11 @@ async function deleteMedication(medId) {
   };
 }
 async function updateMedicationStock(medId, stockRemaining) {
-  await db.prepare('UPDATE parent_medications SET stock_remaining = ? WHERE id = ?').run(Number(stockRemaining), medId);
+  const quantity = Number(stockRemaining);
+  if (!Number.isSafeInteger(quantity) || quantity < 0) throw Object.assign(new Error('Medication quantity must be a non-negative whole number.'), {
+    code: 'INVALID_INPUT'
+  });
+  await db.prepare('UPDATE parent_medications SET stock_remaining = ? WHERE id = ?').run(quantity, medId);
   return await db.prepare('SELECT * FROM parent_medications WHERE id = ?').get(medId);
 }
 
@@ -1341,15 +1373,18 @@ async function createEmergencyEvent({
   const id = 'sos_' + Math.random().toString(36).substring(2, 9);
   const now = new Date().toISOString();
   const parent = await db.prepare('SELECT * FROM parents_profile WHERE id = ?').get(parentId);
+  if (!parent) throw Object.assign(new Error('Parent not found.'), {
+    code: 'INVALID_INPUT'
+  });
   let validActorId = triggeredByUserId;
   const userExists = validActorId ? await db.prepare('SELECT id FROM users WHERE id = ?').get(validActorId) : null;
   if (!userExists) {
-    validActorId = parent?.client_id || (await db.prepare('SELECT id FROM users LIMIT 1').get())?.id || 'usr_client_nri';
+    validActorId = parent.client_id;
   }
   await db.prepare(`
     INSERT INTO emergency_events (id, parent_id, triggered_by_user_id, status, latitude, longitude, notes, ambulance_dispatched, triggered_at)
-    VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, 1, ?)
-  `).run(id, parentId, validActorId, latitude || parent?.coordinates_lat || 16.8724, longitude || parent?.coordinates_lng || 79.5631, notes || 'Emergency SOS initiated by client/parent', now);
+    VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, 0, ?)
+  `).run(id, parentId, validActorId, latitude ?? parent.coordinates_lat, longitude ?? parent.coordinates_lng, notes || 'Emergency SOS initiated by client/parent', now);
   await addAuditLog({
     eventType: 'EMERGENCY_SOS_INITIATED',
     actorId: triggeredByUserId || 'client',

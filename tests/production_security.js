@@ -432,6 +432,20 @@ function check(actual, expected, message) {
       "unconfigured money transfers cannot be reported as successful",
     );
     const before = await request("/api/auth/me", tokens["client-a"]);
+    check((await request('/api/partners/partner-a/location',tokens['client-a'])).status,403,'completed visits do not expose ongoing partner GPS');
+    check((await request('/api/not-a-real-endpoint', tokens['client-a'])).status,404,'unknown API endpoints return 404');
+    check((await request(`/api/parents/${parent.id}`,tokens['client-a'],{},'DELETE')).status,409,'parent visit history produces a useful conflict');
+    check((await request(`/api/parents/${parent.id}/vitals`,tokens['client-a'],{})).status,400,'empty health readings rejected');
+    check((await request(`/api/parents/${parent.id}/vitals`,tokens['client-a'],{bloodSugar:-1})).status,400,'invalid blood sugar rejected');
+    check((await request(`/api/parents/${parent.id}/medications`,tokens['client-a'],{medicineName:'Fixture',dosage:'As prescribed',frequency:'Daily',stockRemaining:-1})).status,400,'negative medication stock rejected');
+    check((await request(`/api/parents/${parent.id}/documents`,tokens['client-a'],{title:'Fixture',fileUrl:'https://example.com/private',category:'INVALID'})).status,400,'invalid document categories rejected');
+    check((await request(`/api/parents/${parent.id}/medications/missing/refill`,admin,{})).status,404,'missing medication cannot create a fabricated refill');
+    const adminReading=await request(`/api/parents/${parent.id}/vitals`,admin,{pulse:70,recordedBy:'client-b'});
+    check(adminReading.status,201,'operations can record a real measurement');
+    check(db.prepare('SELECT recorded_by FROM parent_vitals WHERE id=?').get(adminReading.data.id).recorded_by,db.prepare("SELECT id FROM users WHERE role='ADMIN'").get().id,'operations health attribution uses the signed-in account');
+    let meStatus=200;
+    for(let i=0;i<24;i++) meStatus=(await request('/api/auth/me',tokens['client-a'])).status;
+    check(meStatus,200,'session checks do not exhaust login rate limits');
     check(before.data.user.id, "client-a", "session resolves server identity");
     await request("/api/auth/logout", tokens["client-a"], {});
     check(

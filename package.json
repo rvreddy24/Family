@@ -10,7 +10,7 @@
     "start": "node server/server.js",
     "start:prod": "npm run build && node server/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/production_security.js && node tests/google_auth.js && node tests/postgres_backend.js && node tests/google_auth_postgres.js && node tests/private_storage.js",
+    "test": "node tests/production_security.js && node tests/google_auth.js && node tests/postgres_backend.js && node tests/google_auth_postgres.js && node tests/private_storage.js && node tests/supabase_status.js",
     "test:cases": "node tests/case_studies_runner.js",
     "test:master": "node tests/master_functional_e2e.js",
     "test:domain": "node tests/test_domain_routing.js",
@@ -31,7 +31,10 @@
     "data:remove-demo": "node scripts/remove_demo_data.js",
     "test:google": "node tests/google_auth.js",
     "test:postgres": "node tests/postgres_backend.js",
-    "db:generate-postgres": "node scripts/async_backend.js"
+    "db:generate-postgres": "node scripts/async_backend.js",
+    "qa:provision": "node scripts/provision_qa_accounts.js",
+    "qa:live": "node tests/live_production_qa.js",
+    "qa:cleanup": "node scripts/cleanup_qa_accounts.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

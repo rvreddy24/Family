@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   HeartHandshake,
   LayoutDashboard,
@@ -25,7 +25,9 @@ import logo from "../shared/assets/logo_icon.png";
 type Role = "CLIENT" | "ADMIN" | "PARTNER";
 let portalRole: Role = "CLIENT";
 async function api(path: string, body?: any, method?: string) {
-  const response = await fetch(`/api${path}`, {
+  let response: Response;
+  try { response = await fetch(`/api${path}`, {
+    signal: AbortSignal.timeout(30000),
     credentials: "same-origin",
     method: method || (body ? "POST" : "GET"),
     headers: {
@@ -33,12 +35,14 @@ async function api(path: string, body?: any, method?: string) {
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }); } catch (error: any) {
+    throw Error(error?.name === "TimeoutError" ? "The request timed out. Check your connection and try again." : "Unable to reach FamilyHubs. Check your connection and try again.");
+  }
   const data = await response
     .json()
     .catch(() => ({ error: "The service returned an invalid response." }));
   if (!response.ok)
-    throw Error(data.error || "Unable to complete this request.");
+    throw Object.assign(Error(data.error || "Unable to complete this request."), { status: response.status });
   return data;
 }
 const label = (value: string = "") =>
@@ -47,10 +51,21 @@ const label = (value: string = "") =>
     .replaceAll("_", " ")
     .replace(/^./, (x) => x.toUpperCase());
 const date = (value: string) =>
-  new Date(value).toLocaleString(undefined, {
+  !value || !Number.isFinite(Date.parse(value)) ? "Date unavailable" : new Date(value).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });
+const distance = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "Distance unavailable";
+  const meters = Number(value);
+  if (!Number.isFinite(meters) || meters < 0) return "Distance unavailable";
+  return meters < 1000
+    ? `${Math.round(meters).toLocaleString()} m from home`
+    : `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km from home`;
+};
+const pendingCompletionProof = (task: any) => (task.verification_logs || [])
+  .filter((proof: any) => proof.stage === "TASK_COMPLETION" && ["PENDING", "FLAGGED_OUT_OF_BOUNDS"].includes(proof.review_status))
+  .sort((a: any, b: any) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
 function Field({ name, label: caption, type = "text", ...props }: any) {
   return (
     <label className="field">
@@ -74,6 +89,14 @@ export default function Portal({ role }: { role: Role }) {
     [ready, setReady] = useState(false),
     [tab, setTab] = useState("overview"),
     [menu, setMenu] = useState(false);
+  const [mobile, setMobile] = useState(() => matchMedia("(max-width: 760px)").matches);
+  const mutationPending = useRef(false);
+  const proofPending = useRef(false);
+  const busyRef = useRef(false);
+  const healthRequest = useRef(0);
+  const [healthLoading, setHealthLoading] = useState(false),
+    [healthError, setHealthError] = useState(""),
+    [healthRevision, setHealthRevision] = useState(0);
   const [tasks, setTasks] = useState<any[]>([]),
     [parents, setParents] = useState<any[]>([]),
     [partners, setPartners] = useState<any[]>([]),
@@ -85,6 +108,7 @@ export default function Portal({ role }: { role: Role }) {
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false),
     [connected, setConnected] = useState(false);
+  busyRef.current = busy;
   const [modal, setModal] = useState(""),
     [editing, setEditing] = useState<any>(null),
     [signup, setSignup] = useState(false),
@@ -94,6 +118,31 @@ export default function Portal({ role }: { role: Role }) {
     [documents, setDocuments] = useState<any[]>([]),
     [audit, setAudit] = useState<any[]>([]),
     [settings, setSettings] = useState<any>({});
+  useEffect(() => {
+    const query = matchMedia("(max-width: 760px)");
+    const update = () => { setMobile(query.matches); if (!query.matches) setMenu(false); };
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!menu || !mobile) return;
+    const before = document.activeElement as HTMLElement;
+    const sidebar = document.querySelector(".sidebar") as HTMLElement;
+    const focusable = () => Array.from(sidebar.querySelectorAll<HTMLElement>("a[href], button:not(:disabled)"));
+    focusable()[0]?.focus();
+    const handle = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(false);
+      if (event.key === "Tab") {
+        const items = focusable(), first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener("keydown", handle);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", handle); document.body.style.overflow = overflow; (document.querySelector<HTMLElement>(".topbar .mobile-menu") || before)?.focus(); };
+  }, [menu, mobile]);
   useEffect(() => {
     const url = new URL(location.href);
     if (url.searchParams.has("auth_error")) {
@@ -108,12 +157,12 @@ export default function Portal({ role }: { role: Role }) {
     const focusable = () =>
       Array.from(
         dialog?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input, select, a[href]",
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]",
         ) || [],
       );
     focusable()[0]?.focus();
     const handle = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) setModal("");
+      if (e.key === "Escape" && !busyRef.current) setModal("");
       if (e.key === "Tab") {
         const items = focusable();
         const first = items[0],
@@ -135,11 +184,12 @@ export default function Portal({ role }: { role: Role }) {
       document.body.style.overflow = overflow;
       before?.focus();
     };
-  }, [modal, busy]);
+  }, [modal]);
   const [waLogs, setWaLogs] = useState<any[]>([]),
     [integrations, setIntegrations] = useState<any>({});
   const [sharingLocation, setSharingLocation] = useState(false),
-    [tracked, setTracked] = useState<any>(null);
+    [tracked, setTracked] = useState<any>(null),
+    [trackingLoading, setTrackingLoading] = useState(false);
   useEffect(() => {
     if (!sharingLocation || !user || role !== "PARTNER") return;
     if (!navigator.geolocation) {
@@ -165,12 +215,15 @@ export default function Portal({ role }: { role: Role }) {
   useEffect(() => {
     if (modal !== "track" || !editing?.assigned_partner_id) return;
     let stopped = false;
+    setTracked(null);
+    setTrackingLoading(true);
     const load = () =>
       api(`/partners/${editing.assigned_partner_id}/location`)
         .then((d) => {
           if (!stopped) setTracked(d);
         })
-        .catch((e) => setError(e.message));
+        .catch((e) => { if (!stopped) setError(e.message); })
+        .finally(() => { if (!stopped) setTrackingLoading(false); });
     load();
     const timer = setInterval(load, 15000);
     return () => {
@@ -215,6 +268,7 @@ export default function Portal({ role }: { role: Role }) {
   }, [role]);
   async function refresh() {
     if (!user) return;
+    setHealthRevision((value) => value + 1);
     setLoading(true);
     try {
       const t = await api("/tasks");
@@ -222,7 +276,7 @@ export default function Portal({ role }: { role: Role }) {
       if (role === "CLIENT") {
         const p = await api("/parents");
         setParents(p);
-        setSelectedParent((old) => old || p[0]?.id || "");
+        setSelectedParent((old) => p.some((parent: any) => parent.id === old) ? old : p[0]?.id || "");
       }
       if (role === "ADMIN") {
         const [p, e, a, s, w, i] = await Promise.all([
@@ -242,6 +296,7 @@ export default function Portal({ role }: { role: Role }) {
       }
     } catch (e: any) {
       setError(e.message);
+      if (e.status === 401) { setUser(null); setSharingLocation(false); setNotice("Your session has expired. Please sign in again."); }
     } finally {
       setLoading(false);
     }
@@ -258,7 +313,7 @@ export default function Portal({ role }: { role: Role }) {
       );
       socket.onopen = () => setConnected(true);
       socket.onmessage = (e) => {
-        if (JSON.parse(e.data).type !== "CONNECTED") refresh();
+        try { if (JSON.parse(e.data).type !== "CONNECTED") refresh(); } catch { /* Ignore an invalid refresh signal. */ }
       };
       socket.onclose = () => {
         setConnected(false);
@@ -275,25 +330,34 @@ export default function Portal({ role }: { role: Role }) {
     };
   }, [user]);
   useEffect(() => {
-    if (tab !== "health" || !selectedParent) return;
+    const request = ++healthRequest.current;
+    setVitals([]); setMedications([]); setDocuments([]); setHealthError("");
+    if (tab !== "health" || !selectedParent) { setHealthLoading(false); return; }
+    let stopped = false;
+    setHealthLoading(true);
     Promise.all([
       api(`/parents/${selectedParent}/vitals`),
       api(`/parents/${selectedParent}/medications`),
       api(`/parents/${selectedParent}/documents`),
     ])
       .then(([v, m, d]) => {
+        if (stopped || request !== healthRequest.current) return;
         setVitals(v);
         setMedications(m);
         setDocuments(d);
       })
-      .catch((e) => setError(e.message));
-  }, [tab, selectedParent, notice]);
+      .catch((e) => { if (!stopped) setHealthError(e.message); })
+      .finally(() => { if (!stopped) setHealthLoading(false); });
+    return () => { stopped = true; };
+  }, [tab, selectedParent, healthRevision]);
   async function action(
     path: string,
     body: any,
     success: string,
     method?: string,
   ) {
+    if (mutationPending.current) return;
+    mutationPending.current = true;
     setBusy(true);
     setError("");
     try {
@@ -305,11 +369,14 @@ export default function Portal({ role }: { role: Role }) {
     } catch (e: any) {
       setError(e.message);
     } finally {
+      mutationPending.current = false;
       setBusy(false);
     }
   }
   async function authenticate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (mutationPending.current) return;
+    mutationPending.current = true;
     setBusy(true);
     setError("");
     const f = Object.fromEntries(new FormData(e.currentTarget));
@@ -325,6 +392,7 @@ export default function Portal({ role }: { role: Role }) {
     } catch (e: any) {
       setError(e.message);
     } finally {
+      mutationPending.current = false;
       setBusy(false);
     }
   }
@@ -387,6 +455,8 @@ export default function Portal({ role }: { role: Role }) {
       );
     if (modal === "assign")
       await action(`/tasks/${editing.id}/assign`, f, "Partner assigned.");
+    if (modal === "rejectProof")
+      await action(`/tasks/${editing.id}/verify/reject`, {logId: editing.proofLogId, reason: f.reason.trim()}, "New completion proof requested. The partner can resubmit the visit photo.");
     if (modal === "resolve")
       await action(
         `/emergency/${editing.id}/resolve`,
@@ -402,14 +472,18 @@ export default function Portal({ role }: { role: Role }) {
   }
   async function proof(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (proofPending.current) return;
     const form = new FormData(e.currentTarget);
     const file = form.get("photo") as File;
-    if (!file || file.size > 6000000) {
+    if (!file || !file.size || file.size > 6000000 || !["image/jpeg", "image/png"].includes(file.type)) {
       setError("Choose an image under 6 MB.");
       return;
     }
+    proofPending.current = true;
     setBusy(true);
+    setError("");
     try {
+      if (!navigator.geolocation) throw Error("This browser cannot access your location. Use a supported browser on your phone.");
       const position = await new Promise<GeolocationPosition>(
         (resolve, reject) =>
           navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -442,11 +516,19 @@ export default function Portal({ role }: { role: Role }) {
     } catch (e: any) {
       setError(e.message || "Camera and precise location access are required.");
     } finally {
+      proofPending.current = false;
       setBusy(false);
     }
   }
   function open(type: string, item?: any) {
     setError("");
+    setNotice("");
+    setTracked(null);
+    if ((type === "booking" || type === "sos") && !parents.length) {
+      setTab("parents");
+      setNotice("Add a parent’s contact details and home location before requesting care.");
+      type = "parent";
+    }
     setEditing(item || null);
     setModal(type);
   }
@@ -647,7 +729,9 @@ export default function Portal({ role }: { role: Role }) {
   );
   return (
     <div className="care-app">
-      <aside className={menu ? "sidebar show" : "sidebar"}>
+      {menu && mobile && <button className="navigation-scrim" tabIndex={-1} aria-label="Close navigation" onClick={() => setMenu(false)} />}
+      <aside id="workspace-navigation" className={menu ? "sidebar show" : "sidebar"} inert={mobile && !menu} aria-hidden={mobile && !menu ? true : undefined}>
+        <button className="mobile-menu navigation-close icon-button" aria-label="Close navigation" onClick={() => setMenu(false)}><X size={20} /></button>
         <a className="brand" href="/">
           <img src={logo} alt="" />
           FamilyHubs
@@ -659,11 +743,12 @@ export default function Portal({ role }: { role: Role }) {
               ? "OPERATIONS"
               : "CARE PARTNER"}
         </span>
-        <nav>
+        <nav aria-label="Workspace navigation">
           {nav.map(([id, text, Icon]: any) => (
             <button
               className={tab === id ? "selected" : ""}
               key={id}
+              aria-current={tab === id ? "page" : undefined}
               onClick={() => {
                 setTab(id);
                 setMenu(false);
@@ -685,10 +770,14 @@ export default function Portal({ role }: { role: Role }) {
         </div>
         <button
           className="account"
+          disabled={busy}
           onClick={async () => {
-            await api("/auth/logout", {});
-            setUser(null);
-            setTab("overview");
+            setBusy(true);
+            try {
+              await api("/auth/logout", {});
+              setSharingLocation(false); setUser(null); setTab("overview"); setMenu(false); setNotice(""); setError("");
+            } catch (e: any) { setError(e.message || "Sign out failed. Please try again."); }
+            finally { setBusy(false); }
           }}
         >
           <span className="avatar">{user.full_name?.[0] || "F"}</span>
@@ -699,11 +788,13 @@ export default function Portal({ role }: { role: Role }) {
           <LogOut size={17} />
         </button>
       </aside>
-      <div className="workspace">
+      <div className="workspace" inert={mobile && menu}>
         <header className="topbar">
           <button
             className="mobile-menu icon-button"
             aria-label="Toggle navigation"
+            aria-expanded={menu}
+            aria-controls="workspace-navigation"
             onClick={() => setMenu(!menu)}
           >
             <Menu />
@@ -725,7 +816,7 @@ export default function Portal({ role }: { role: Role }) {
             <span className="avatar small">{user.full_name?.[0]}</span>
           </div>
         </header>
-        <main className="content">
+        <main className="content" id="main-content" aria-busy={loading}>
           <div className="page-heading">
             <div>
               <p className="greeting">
@@ -779,6 +870,7 @@ export default function Portal({ role }: { role: Role }) {
               </button>
             </div>
           )}
+          {loading && <div className="loading-records" role="status"><RefreshCw size={16} className="spin" />Refreshing care records…</div>}
           {tab === "overview" && (
             <>
               <section className="overview-grid">
@@ -1010,6 +1102,7 @@ export default function Portal({ role }: { role: Role }) {
                 <label>
                   Parent{" "}
                   <select
+                    aria-label="Parent"
                     value={selectedParent}
                     onChange={(e) => setSelectedParent(e.target.value)}
                   >
@@ -1037,6 +1130,10 @@ export default function Portal({ role }: { role: Role }) {
                 <Empty title="Choose a parent">
                   Add a parent profile to manage their health records.
                 </Empty>
+              ) : healthLoading ? (
+                <div className="panel"><div className="empty" role="status">Loading this parent’s health records…</div></div>
+              ) : healthError ? (
+                <div className="message error" role="alert">{healthError}<button onClick={() => setHealthRevision((value) => value + 1)}>Try again</button></div>
               ) : (
                 <div className="health-sections">
                   <section className="panel">
@@ -1080,6 +1177,7 @@ export default function Portal({ role }: { role: Role }) {
                           <small>{m.instructions}</small>
                           <button
                             className="text-button danger-text"
+                            disabled={busy}
                             onClick={() =>
                               action(
                                 `/parents/${selectedParent}/medications/${m.id}`,
@@ -1183,7 +1281,7 @@ export default function Portal({ role }: { role: Role }) {
                 waLogs.map((w) => (
                   <div className="record" key={w.id}>
                     <strong>
-                      {w.tracking_code} ? {label(w.template_name)}
+                      {w.tracking_code} · {label(w.template_name)}
                     </strong>
                     <span>{w.recipient_phone}</span>
                     <span className="status">
@@ -1245,6 +1343,7 @@ export default function Portal({ role }: { role: Role }) {
                   </span>
                   <button
                     className="danger-outline"
+                    disabled={busy}
                     onClick={() =>
                       action(
                         "/security/freeze",
@@ -1295,13 +1394,14 @@ export default function Portal({ role }: { role: Role }) {
                   Partner verification is reviewed by operations before
                   assignments can be dispatched.
                 </p>
-                <button onClick={() => setSharingLocation(!sharingLocation)}>
+                <button disabled={busy} onClick={() => setSharingLocation(!sharingLocation)}>
                   {sharingLocation
                     ? "Stop sharing location"
                     : "Share live location"}
                 </button>
                 <button
                   className="primary"
+                  disabled={busy}
                   onClick={() =>
                     action(
                       `/partners/${user.id}/duty`,
@@ -1313,6 +1413,7 @@ export default function Portal({ role }: { role: Role }) {
                   Go on duty
                 </button>
                 <button
+                  disabled={busy}
                   onClick={() =>
                     action(
                       `/partners/${user.id}/duty`,
@@ -1359,6 +1460,7 @@ export default function Portal({ role }: { role: Role }) {
                     verifyPartner: "Review partner verification",
                     assign: "Assign a care partner",
                     proof: "Submit visit proof",
+                    rejectProof: "Request new completion proof",
                     sos: "Send a care alert",
                     resolve: "Resolve care alert",
                     delete: "Remove parent profile",
@@ -1404,7 +1506,7 @@ export default function Portal({ role }: { role: Role }) {
               <form onSubmit={modal === "proof" ? proof : save}>
                 {modal === "track" && (
                   <div className="record">
-                    {tracked?.updated_at && tracked?.latitude !== null ? (
+                    {trackingLoading ? <p role="status">Loading the partner’s latest location…</p> : tracked?.updated_at && tracked?.latitude != null && tracked?.longitude != null ? (
                       <>
                         <strong>Last location shared</strong>
                         <span>
@@ -1422,7 +1524,7 @@ export default function Portal({ role }: { role: Role }) {
                         </a>
                         <p>
                           This is the last reported position. A timestamp older
-                          than a few minutes may no longer reflect the partner?s
+                          than a few minutes may no longer reflect the partner’s
                           current location.
                         </p>
                       </>
@@ -1716,15 +1818,21 @@ export default function Portal({ role }: { role: Role }) {
                     required
                   />
                 )}
+                {modal === "rejectProof" && (
+                  <>
+                    <p className="form-note">Explain what needs to change for {editing.title}. The visit will return to in progress so the assigned partner can submit a new completion photo.</p>
+                    <Field name="reason" label="Reason for requesting new proof" required maxLength={2000} />
+                  </>
+                )}
                 {modal === "proof" && (
                   <>
                     <label className="field">
                       <span>Visit stage</span>
-                      <select name="stage">
-                        <option value="ARRIVAL_CHECKIN">
+                      <select name="stage" defaultValue={editing?.status === "IN_PROGRESS" ? "TASK_COMPLETION" : "ARRIVAL_CHECKIN"}>
+                        {editing?.status === "ACCEPTED" && <option value="ARRIVAL_CHECKIN">
                           Arrival check-in
-                        </option>
-                        <option value="TASK_COMPLETION">Task completion</option>
+                        </option>}
+                        {editing?.status === "IN_PROGRESS" && <option value="TASK_COMPLETION">Task completion</option>}
                       </select>
                     </label>
                     <label className="field">
@@ -1749,18 +1857,20 @@ export default function Portal({ role }: { role: Role }) {
                     onClick={() => setModal("")}
                     disabled={busy}
                   >
-                    Cancel
+                    {modal === "track" ? "Close" : "Cancel"}
                   </button>
-                  <button className="primary" disabled={busy}>
+                  {modal !== "track" && <button className="primary" disabled={busy || (modal === "assign" && !partners.some((p) => p.kyc_verified && p.is_active))}>
                     {busy
                       ? "Saving…"
                       : modal === "booking"
                         ? "Send care request"
+                        : modal === "rejectProof"
+                          ? "Request new proof"
                         : modal === "proof"
                           ? "Submit proof"
                           : "Save & continue"}
                     <ArrowUpRight size={17} />
-                  </button>
+                  </button>}
                 </div>
               </form>
             )}
@@ -1795,8 +1905,7 @@ function TaskList({ tasks, role, busy, action, open }: any) {
                 target="_blank"
                 rel="noreferrer"
               >
-                {label(v.stage)} photo · {v.distance_from_target_meters}m from
-                home
+                {label(v.stage)} photo · {distance(v.distance_from_target_meters)} · {v.geofence_passed === 0 ? "Outside home area" : label(v.review_status || "PENDING")}
               </a>
             ))}
           </div>
@@ -1807,7 +1916,6 @@ function TaskList({ tasks, role, busy, action, open }: any) {
             {role === "CLIENT" &&
               t.assigned_partner_id &&
               [
-                "DISPATCHED",
                 "ACCEPTED",
                 "IN_PROGRESS",
                 "VERIFICATION_SUBMITTED",
@@ -1827,6 +1935,7 @@ function TaskList({ tasks, role, busy, action, open }: any) {
               </button>
             )}
             {role === "ADMIN" && t.status === "VERIFICATION_SUBMITTED" && (
+              <>
               <button
                 disabled={busy}
                 onClick={() =>
@@ -1839,6 +1948,8 @@ function TaskList({ tasks, role, busy, action, open }: any) {
               >
                 Approve visit
               </button>
+              {pendingCompletionProof(t) && <button disabled={busy} onClick={() => open("rejectProof", {...t, proofLogId: pendingCompletionProof(t).id})}>Request new proof</button>}
+              </>
             )}
             {role === "PARTNER" && t.status === "DISPATCHED" && (
               <button

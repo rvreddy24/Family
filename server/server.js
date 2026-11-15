@@ -70,6 +70,7 @@
   } = require('./supabase');
   const app = express();
   const server = http.createServer(app);
+  const requestErrorStatus = error => error.code === 'TASK_CONFLICT' || error.code === '23503' || error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' ? 409 : error.code === 'INVALID_INPUT' ? 400 : 500;
 
   // Initialize DB schema
   await initDatabase();
@@ -91,6 +92,7 @@
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+    if (req.path.startsWith('/api/')) res.setHeader('Cache-Control','no-store');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ws: wss:; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
     if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
@@ -102,7 +104,7 @@
       const start = Date.now();
       res.on('finish', () => {
         const duration = Date.now() - start;
-        console.log(`[API] ${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms)`);
+        console.log(`[API] ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`);
       });
     }
     next();
@@ -172,6 +174,7 @@
   });
   const activeClients = new Set();
   server.on('upgrade', async (request, socket, head) => {
+    try {
     const origin = request.headers.origin;
     const allowed = (process.env.CORS_ORIGIN || '').split(',').map(x => x.trim());
     if (!(await access.session(request)) || origin && !allowed.includes(origin) && origin !== `http://${request.headers.host}` && origin !== `https://${request.headers.host}`) {
@@ -179,15 +182,17 @@
       return;
     }
     const pathname = new URL(request.url, 'http://localhost').pathname;
-    if (pathname === '/ws/events' || pathname === '/ws' || pathname?.startsWith('/ws')) {
+    if (pathname === '/ws/events' || pathname === '/ws') {
       wss.handleUpgrade(request, socket, head, ws => {
         wss.emit('connection', ws, request);
       });
     } else {
       socket.destroy();
     }
+    } catch { socket.destroy(); }
   });
   wss.on('connection', async (ws, req) => {
+    try {
     const identity = await access.session(req);
     if (!identity) {
       ws.close(1008, 'Authentication required');
@@ -199,6 +204,7 @@
     ws.userId = userId;
     ws.isAlive = true;
     activeClients.add(ws);
+    ws.on('error', () => { activeClients.delete(ws); ws.terminate(); });
     ws.on('pong', () => {
       ws.isAlive = true;
     });
@@ -229,6 +235,7 @@
         message: 'FamilyHubs Enterprise Ultra-Fast Real-Time Gateway Connected'
       }
     }));
+    } catch { ws.close(1011,'Connection unavailable. Please reconnect.'); }
   });
 
   // Periodic ping
@@ -321,14 +328,14 @@
     if (!task || task.status !== 'VERIFICATION_SUBMITTED') return res.status(409).json({
       error: 'Completion proof is required.'
     });
-    const proof = await db.prepare("SELECT id FROM verification_logs WHERE task_id=? AND stage='TASK_COMPLETION' AND geofence_passed=1 ORDER BY timestamp DESC LIMIT 1").get(task.id);
+    const proof = await db.prepare("SELECT id FROM verification_logs WHERE task_id=? AND stage='TASK_COMPLETION' AND geofence_passed=1 AND review_status='PENDING' ORDER BY timestamp DESC LIMIT 1").get(task.id);
     if (!proof) return res.status(409).json({
       error: 'A completion proof within the home geofence is required.'
     });
     await require('./db').transact(async () => {
       const changed = await db.prepare("UPDATE tasks SET status='COMPLETED', updated_at=? WHERE id=? AND status='VERIFICATION_SUBMITTED'").run(new Date().toISOString(), task.id);
       if (!changed.changes) throw Object.assign(new Error('Task stage changed.'), {code:'TASK_CONFLICT'});
-      await db.prepare("UPDATE verification_logs SET review_status='APPROVED', reviewed_by_admin=? WHERE task_id=? AND geofence_passed=1").run(req.user.id, task.id);
+      await db.prepare("UPDATE verification_logs SET review_status='APPROVED', reviewed_by_admin=? WHERE task_id=? AND geofence_passed=1 AND review_status='PENDING'").run(req.user.id, task.id);
       await addAuditLog({
         eventType: 'CARE_VISIT_COMPLETED',
         actorId: req.user.id,
@@ -419,7 +426,7 @@
       res.status(201).json(task);
     } catch (err) {
       console.error('Error creating task:', err);
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -443,7 +450,7 @@
       res.json(updatedTask);
     } catch (err) {
       console.error('Error assigning partner:', err);
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -459,7 +466,7 @@
       broadcastEvent('TASK_ACCEPTED', updatedTask);
       res.json(updatedTask);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -498,7 +505,7 @@
       res.json(updatedTask);
     } catch (err) {
       console.error('Error submitting verification:', err);
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -521,7 +528,7 @@
           error: err.message
         });
       }
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -542,7 +549,7 @@
       });
       res.json(updatedTask);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -563,7 +570,7 @@
       await require('./db').db.prepare('UPDATE parents_profile SET whatsapp_consent=? WHERE id=?').run(req.body.whatsappConsent === true ? 1 : 0, newParent.id);
       res.status(201).json(newParent);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -579,13 +586,15 @@
       }
       res.json(updated);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
   });
   app.delete('/api/parents/:id', async (req, res) => {
     try {
+      const history = await require('./db').db.prepare('SELECT id FROM tasks WHERE parent_id=? LIMIT 1').get(req.params.id);
+      if (history) return res.status(409).json({error:'This parent has visit history and cannot be removed. Contact operations for help.'});
       const success = await deleteParent(req.params.id);
       if (!success) {
         return res.status(404).json({
@@ -597,7 +606,7 @@
         message: 'Parent residence removed successfully.'
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -626,7 +635,7 @@
       broadcastEvent('PARTNER_AVAILABILITY_CHANGED', updated);
       res.json(updated);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -652,7 +661,7 @@
       broadcastEvent('WHATSAPP_STATUS_UPDATED', log);
       res.json(log);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -666,7 +675,7 @@
       const logs = await getAuditLogs(req.query.limit ? parseInt(req.query.limit) : 50);
       res.json(logs);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -679,7 +688,7 @@
       delete settings.escrow_release_pin;
       res.json(settings);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -704,7 +713,7 @@
       broadcastEvent('SECURITY_SETTINGS_UPDATED', updated);
       res.json(updated);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -732,7 +741,7 @@
         settings: updated
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -750,7 +759,7 @@
         message: 'All preloaded tasks and logs purged.'
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -791,7 +800,7 @@
       });
     } catch (err) {
       console.error('Upload failed:', err);
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -803,7 +812,7 @@
       const vitals = await getVitals(req.params.id);
       res.json(vitals);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -817,7 +826,7 @@
       broadcastEvent('VITALS_RECORDED', vital);
       res.status(201).json(vital);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -829,7 +838,7 @@
       const meds = await getMedications(req.params.id);
       res.json(meds);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -843,7 +852,7 @@
       broadcastEvent('MEDICATION_UPDATED', med);
       res.status(201).json(med);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -859,7 +868,7 @@
         success: true
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -870,24 +879,19 @@
     try {
       const parentId = req.params.id;
       const medId = req.params.medId;
-      const parents = await getParents(req.body.clientId || '');
-      const parent = parents.find(p => p.id === parentId) || {
-        id: parentId,
-        parent_name: 'Parent'
-      };
+      const parent = await require('./db').db.prepare('SELECT * FROM parents_profile WHERE id=?').get(parentId);
+      if (!parent) return res.status(404).json({error:'Parent record not found.'});
       const meds = await getMedications(parentId);
-      const med = meds.find(m => m.id === medId) || {
-        medicine_name: 'Essential Prescription',
-        dosage: 'Refill'
-      };
+      const med = meds.find(m => m.id === medId);
+      if (!med) return res.status(404).json({error:'Medication record not found.'});
       const task = await createTask({
-        clientId: req.body.clientId || parent.client_id || 'c11e4701-0000-4000-8000-000000000001',
+        clientId: parent.client_id,
         parentId,
         category: 'ERRANDS',
         title: `Pharmacy Delivery: Refill ${med.medicine_name} (${med.dosage})`,
-        instructions: `Pick up 30-day supply refill of ${med.medicine_name} (${med.dosage}) from authorized local pharmacy and deliver with formal receipt to ${parent.parent_name}.`,
+        instructions: `Coordinate a refill of ${med.medicine_name} with the family and an authorized pharmacy. Follow the current prescription (${med.dosage}); confirm the quantity and availability before purchase. Deliver with the receipt to ${parent.parent_name}.`,
         scheduledAt: new Date().toISOString(),
-        escrowAmount: 25.0
+        escrowAmount: 0
       });
       broadcastEvent('TASK_CREATED', task);
       res.status(201).json({
@@ -895,7 +899,7 @@
         task
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -907,7 +911,7 @@
       const docs = await getVaultDocuments(req.params.id);
       res.json(docs);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -920,7 +924,7 @@
       });
       res.status(201).json(doc);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -955,7 +959,7 @@
       res.status(201).json(sosEvent);
     } catch (err) {
       console.error('SOS Trigger Error:', err);
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -965,18 +969,22 @@
       const emergencies = await getActiveEmergencies();
       res.json(emergencies);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
   });
   app.post('/api/emergency/:id/resolve', async (req, res) => {
     try {
+      if (!req.body.resolutionNotes?.trim()) return res.status(400).json({error:'Describe how the alert was resolved and any follow-up needed.'});
+      const current = await getEmergencyEventById(req.params.id);
+      if (!current) return res.status(404).json({error:'Care alert not found.'});
+      if (current.status === 'RESOLVED') return res.status(409).json({error:'This alert is already resolved.'});
       const resolved = await resolveEmergencyEvent(req.params.id, req.body);
       broadcastEvent('EMERGENCY_SOS_RESOLVED', resolved);
       res.json(resolved);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -992,7 +1000,7 @@
       broadcastEvent('TASK_REVIEW_SUBMITTED', review);
       res.status(201).json(review);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1002,7 +1010,7 @@
       const review = await getTaskReview(req.params.id);
       res.json(review || null);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1012,7 +1020,7 @@
       const reviews = await getPartnerReviews(req.params.id);
       res.json(reviews);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1024,7 +1032,7 @@
       const members = await getFamilyMembers(req.params.id);
       res.json(members);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1037,7 +1045,7 @@
       });
       res.status(201).json(member);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1068,7 +1076,7 @@
         location
       });
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
@@ -1078,11 +1086,14 @@
       const loc = await getPartnerLocation(req.params.id);
       res.json(loc || null);
     } catch (err) {
-      res.status(500).json({
+      res.status(requestErrorStatus(err)).json({
         error: 'The request could not be completed. Please try again or contact support.'
       });
     }
   });
+
+  // Unknown API routes must not fall through to a successful HTML app response.
+  app.use('/api', (req,res) => res.status(404).json({error:'API endpoint not found.'}));
 
   // Serve Isolated Web App Portals via Host Headers on Port 4000
   const userDist = path.join(__dirname, '../apps/user/dist');
@@ -1150,9 +1161,9 @@
   });
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
-    const status = error.status === 413 ? 413 : error instanceof SyntaxError ? 400 : 500;
+    const status = error.code === 'TASK_CONFLICT' ? 409 : error.status === 413 ? 413 : error instanceof SyntaxError ? 400 : 500;
     res.status(status).json({
-      error: status === 413 ? 'The upload is too large.' : status === 400 ? 'Invalid request body.' : 'The request could not be completed.'
+      error: status === 409 ? 'This visit changed. Refresh and try again.' : status === 413 ? 'The upload is too large.' : status === 400 ? 'Invalid request body.' : 'The request could not be completed.'
     });
   });
   const PORT = process.env.PORT || 4000;

@@ -30,21 +30,21 @@ async function checkSupabaseHealth() {
   }
 
   try {
-    const { data, error } = await supabaseAdmin.from('security_settings').select('*').limit(1);
-    if (error) {
-      // If table doesn't exist yet in Supabase schema
-      if (error.code === 'PGRST205' || error.message.includes('schema cache')) {
-        return {
-          connected: true,
-          tablesReady: false,
-          message: 'Connected to Supabase project, but database tables are not yet created in SQL Editor.',
-        };
-      }
-      return { connected: false, error: error.message };
+    const auth = await fetch(new URL('/auth/v1/settings',supabaseUrl),{
+      headers:{apikey:process.env.SUPABASE_ANON_KEY||supabaseServiceKey},signal:AbortSignal.timeout(5000),
+    });
+    await require('./db').db.prepare('SELECT id FROM users LIMIT 1').get();
+    const cloud = process.env.DATA_BACKEND === 'postgres';
+    let storageReady = null;
+    if(cloud){
+      const bucket=await supabaseAdmin.storage.getBucket(process.env.PRIVATE_STORAGE_BUCKET||'familyhubs-proofs');
+      storageReady=!bucket.error&&bucket.data?.public===false;
     }
-    return { connected: true, tablesReady: true, message: 'Supabase connection and core tables verified. Operational records are stored in local SQLite.' };
-  } catch (err) {
-    return { connected: false, error: err.message };
+    const connected=auth.ok&&storageReady!==false;
+    return {connected,authConnected:auth.ok,operationalConnected:true,tablesReady:true,storageReady,backend:cloud?'postgres':'sqlite',
+      message:connected?`Authentication and operational ${cloud?'PostgreSQL/private storage':'SQLite'} connections verified.`:'An authentication or private storage connection needs attention.'};
+  } catch {
+    return { connected: false, message:'A required service could not be reached. Check the server configuration and service status.' };
   }
 }
 

@@ -73,6 +73,7 @@ async function install(app) {
     next();
   });
   app.use("/api/auth", (req, res, next) => {
+    if (!['/login','/register','/google','/google/start'].includes(req.path)) return next();
     const key = req.ip;
     const now = Date.now();
     let item = attempts.get(key);
@@ -243,7 +244,11 @@ async function install(app) {
     }
     const p = req.path;
     const body = req.body || {};
-    for (const key of ["parentId", "parent_id", "parentName", "primaryPhone", "whatsappPhone", "locality", "fullAddress", "medicalNotes", "title", "instructions", "notes", "partnerId", "medicineName", "dosage", "frequency", "fileUrl", "fullName", "resolutionNotes"]) if (body[key] !== undefined && (typeof body[key] !== "string" || body[key].length > 4000)) return res.status(400).json({
+    body.recordedBy = user.id;
+    body.uploadedBy = user.id;
+    body.triggeredByUserId = user.id;
+    body.resolvedBy = user.id;
+    for (const key of ["parentId", "parent_id", "parentName", "primaryPhone", "whatsappPhone", "locality", "fullAddress", "medicalNotes", "title", "instructions", "notes", "partnerId", "medicineName", "dosage", "frequency", "fileUrl", "fullName", "resolutionNotes", "reason"]) if (body[key] !== undefined && (typeof body[key] !== "string" || body[key].length > 4000)) return res.status(400).json({
       error: "Invalid text field."
     });
     if (user.role === "PARTNER" && (p === "/parents" || p === "/client/profile")) return res.status(403).json({
@@ -285,19 +290,36 @@ async function install(app) {
       });
     }
     if (/\/vitals$/.test(p) && req.method === "POST") {
-      for (const [key, min, max] of [["bloodPressureSys", 40, 300], ["bloodPressureDia", 20, 200], ["pulse", 20, 250], ["spo2", 1, 100]]) {
+      const fields = [["bloodPressureSys", 40, 300], ["bloodPressureDia", 20, 200], ["pulse", 20, 250], ["spo2", 1, 100], ["bloodSugar", 1, 2000], ["weightKg", 1, 1000]];
+      if (!fields.some(([key]) => body[key] !== undefined && body[key] !== null)) return res.status(400).json({error:'Enter at least one health measurement.'});
+      for (const [key, min, max] of fields) {
         const value = body[key];
         if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max)) return res.status(400).json({
           error: "Health reading is outside the accepted input range."
         });
       }
+      if (body.bloodSugarType !== undefined && !['FASTING','POST_PRANDIAL','RANDOM','NONE'].includes(body.bloodSugarType)) return res.status(400).json({error:'Choose a valid blood sugar measurement type.'});
     }
-    if (/\/documents$/.test(p) && req.method === "POST" && (!body.title?.trim() || !/^https:\/\//.test(body.fileUrl || ""))) return res.status(400).json({
+    if (/\/documents$/.test(p) && req.method === "POST" && (!body.title?.trim() || !/^https:\/\//.test(body.fileUrl || "") || !['PRESCRIPTION','LAB_REPORT','DISCHARGE_SUMMARY','SCAN','OTHER'].includes(body.category))) return res.status(400).json({
       error: "Provide a title and a secure HTTPS document URL."
     });
     if (/\/medications$/.test(p) && req.method === "POST" && (!body.medicineName?.trim() || !body.dosage?.trim() || !body.frequency?.trim())) return res.status(400).json({
       error: "Medicine, prescribed dose and frequency are required."
     });
+    if (/\/medications$/.test(p) && req.method === 'POST') {
+      for (const key of ['stockRemaining','lowStockThreshold']) if (body[key] !== undefined && (!Number.isInteger(body[key]) || body[key] < 0 || body[key] > 100000)) return res.status(400).json({error:'Medication stock and alert threshold must be non-negative whole numbers.'});
+    }
+    if (p === '/emergency/sos' && req.method === 'POST') {
+      for (const [key, alias, max] of [['latitude','coordinatesLat',90],['longitude','coordinatesLng',180]]) {
+        const value = body[key] ?? body[alias];
+        if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > max)) return res.status(400).json({error:'Provide valid alert coordinates.'});
+      }
+    }
+    if (/^\/clients\/[^/]+\/family$/.test(p) && req.method === 'POST') {
+      const name = body.invitedName ?? body.fullName;
+      const email = body.invitedEmail ?? body.email;
+      if (typeof name !== 'string' || !name.trim() || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({error:'Provide a name and valid email for the family contact.'});
+    }
     if (/\/duty$/.test(p) && req.method === "POST" && typeof body.isActive !== "boolean") return res.status(400).json({
       error: "Duty status must be true or false."
     });
@@ -352,7 +374,8 @@ async function install(app) {
     if (medMatch && !(await db.prepare("SELECT id FROM parent_medications WHERE id=? AND parent_id=?").get(medMatch[1], parentMatch?.[1]))) return deny();
     const partnerMatch = p.match(/^\/partners\/([^/]+)/);
     if (partnerMatch && partnerMatch[1] !== user.id) {
-      if (req.method !== "GET" || !(await db.prepare("SELECT id FROM tasks WHERE client_id=? AND assigned_partner_id=?").get(user.id, partnerMatch[1]))) return deny();
+      const activeLocation = p.endsWith('/location') ? " AND status IN ('ACCEPTED','IN_PROGRESS','VERIFICATION_SUBMITTED')" : '';
+      if (req.method !== "GET" || !(await db.prepare("SELECT id FROM tasks WHERE client_id=? AND assigned_partner_id=?"+activeLocation).get(user.id, partnerMatch[1]))) return deny();
     }
     if (p === "/partners" || p.startsWith("/emergency/") && p !== "/emergency/sos") return deny();
     const family = p.match(/^\/clients\/([^/]+)/);

@@ -20,6 +20,19 @@
 .care-auth * {
   box-sizing: border-box;
 }
+.care-app ::selection,
+.care-auth ::selection { background: #d4dfc8; color: #243a32; }
+.care-app input,
+.care-auth input { caret-color: var(--green); }
+.care-app .navigation-scrim { position: fixed; inset: 0; z-index: 35; border: 0; border-radius: 0; background: #182c2470; padding: 0; }
+.care-app .navigation-close { align-self: flex-end; margin: -12px -8px 12px 0; }
+.loading-records { display: flex; align-items: center; gap: 9px; color: var(--muted); margin: -8px 0 20px; font-size: 13px; }
+.parent-card,
+.record,
+.page-heading > div,
+.task-state { min-width: 0; overflow-wrap: anywhere; }
+.parent-card h2,
+.task-description h3 { overflow-wrap: anywhere; }
 .care-app h1,
 .care-app h2,
 .care-app h3,
@@ -940,10 +953,22 @@
   }
 }
 @media (max-width: 760px) {
+  .care-app,
+  .care-auth { font-size: 16px; }
+  .care-app button,
+  .care-auth button,
+  .care-app .text-button,
+  .care-app .icon-button { min-height: 44px; }
+  .care-app .icon-button,
+  .care-app .message button { min-width: 44px; }
+  .field input,
+  .field select,
+  .health-toolbar select { font-size: 16px; }
   .sidebar {
     transform: translateX(-100%);
     width: 248px !important;
     box-shadow: none;
+    overflow-y: auto;
   }
   .sidebar.show {
     transform: translateX(0);
@@ -1035,6 +1060,7 @@
     width: 100%;
     justify-content: space-between;
     margin-top: 6px;
+    flex-wrap: wrap;
   }
   .task-description {
     width: 100%;
@@ -1066,6 +1092,10 @@
   .workspace-footer span {
     font-size: 10px;
   }
+  .workspace-footer { flex-wrap: wrap; }
+  .workspace-footer span { width: 100%; margin-left: 36px; }
+  .health-toolbar label { width: 100%; min-width: 0; }
+  .health-toolbar select { min-width: 0; flex: 1; }
   .care-auth {
     grid-template-columns: 1fr;
   }
@@ -1118,6 +1148,14 @@
   .dialog-actions button {
     font-size: 12px;
   }
+}
+@media (max-width: 380px) {
+  .topbar > span { font-size: 12px; }
+  .top-actions .avatar { display: none; }
+  .connection { max-width: 76px; line-height: 1.3; }
+  .form-columns { grid-template-columns: 1fr; }
+  .dialog-actions { flex-wrap: wrap; }
+  .dialog-actions button { flex: 1 1 auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .care-app *,
