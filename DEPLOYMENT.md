@@ -2,9 +2,11 @@
 
 ## Verified current setup
 
+Verified 15 November 2026: the Free Render service `familyhubs-ponq` is live at commit `a8dcd64`. HTTPS health and all three portal paths return 200 on familyhubs.in; www redirects to the root domain with valid HTTPS. Unauthenticated data requests return 401. The Cloudflare Free zone is active, with root/www CNAMEs to familyhubs-ponq.onrender.com in DNS-only mode. GoDaddy already delegates to the assigned etta/ruben nameservers. Supabase Site URL and redirect allowlist include the production domain; all three Google flows reach accounts.google.com. Full interactive account sign-in remains an operator acceptance check.
+
 - Registrar: GoDaddy (owner confirmed).
 - DNS authority: Cloudflare, using etta.ns.cloudflare.com and ruben.ns.cloudflare.com.
-- Apex currently resolves to Render's 216.24.57.1; www points to familyhubs.onrender.com, which returns Render's no-server response.
+- Previous broken setup: apex pointed to 216.24.57.1 and www to the unassigned familyhubs.onrender.com hostname. Both now use the new service's hostname.
 - Render workspace: My Workspace. Audio_Editor is a separate active application and is outside this deployment's scope.
 - An old Family_Hubs service is suspended and points to github.com/rvreddy24/Family_Hubs, not the current Family repository. Do not repurpose it or delete its data during this deployment.
 
